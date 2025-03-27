@@ -4,12 +4,17 @@
   "description": "Conduit is a simple data pipeline tool for loading and transforming csv files",
   "main": "index.js",
   "scripts": {
-    "start": "concurrently \"cd server && uvicorn main:app --host 0.0.0.0 --port 8000 --reload\" \"cd client && npm start\""
+    "start": "concurrently \"cd server && uvicorn main:app --host 0.0.0.0 --port 8000 --reload\" \"cd client && npm start\" \"cd admin_server && npm start\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "framer-motion": "^12.6.2"
+    "concurrently": "^9.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "framer-motion": "^12.6.2",
+    "pg": "^8.14.1"
   }
 }
