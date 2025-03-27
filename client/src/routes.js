@@ -4,6 +4,7 @@ import Dataset from './pages/Dataset';
 import Datasets from './pages/Datasets';
 import Help from './pages/Help';
 import Home from './pages/Home';
+import Login from './pages/Login';
 import NewWorkflow from './pages/NewWorkflow';
 
 const routes = [
@@ -14,6 +15,7 @@ const routes = [
   { path: '/dataset/:id', element: <Dataset /> },
   { path: '/help', element: <Help /> },
   { path: '/home', element: <Home /> },
+  { path: '/login', element: <Login /> },
   { path: '/new-workflow', element: <NewWorkflow /> },
   { path: '/', element: <Home /> },
 
