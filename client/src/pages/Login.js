@@ -51,71 +51,73 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 relative overflow-hidden flex">
       {/* Animated Blue Gradient Left Side */}
-      <div className="hidden lg:block w-1/2 relative overflow-hidden">
-        {/* Animated Gradient Backgrounds */}
-        <motion.div 
-          className="absolute inset-0"
-          style={{
-            background: `linear-gradient(
-              -45deg, 
-              #1e3c72, #2a5298, #3a6073, 
-              #16222a, #3a6073, #1e3c72
-            )`,
-            backgroundSize: '400% 400%'
-          }}
-          animate={{
-            backgroundPosition: [
-              '0% 50%', 
-              '100% 50%', 
-              '0% 50%'
-            ]
-          }}
-          transition={{
-            duration: 15,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-        />
+  {/* Animated Blue Gradient Left Side */}
+<div className="hidden lg:block w-1/2 relative overflow-hidden">
+  {/* Animated Gradient Background - Now 150% size to prevent edge visibility */}
+  <motion.div 
+    className="absolute -inset-[25%]" // Increased size by 25% on all sides
+    style={{
+      background: `linear-gradient(
+        -45deg, 
+        #1e3c72, #2a5298, #3a6073, 
+        #16222a, #3a6073, #1e3c72
+      )`,
+      backgroundSize: '400% 400%'
+    }}
+    animate={{
+      backgroundPosition: [
+        '0% 50%', 
+        '100% 50%', 
+        '0% 50%'
+      ]
+    }}
+    transition={{
+      duration: 15,
+      repeat: Infinity,
+      ease: "linear"
+    }}
+  />
 
-        {/* Overlay with Soft Blur and Movement */}
-        <motion.div 
-          className="absolute inset-0"
-          style={{
-            background: `radial-gradient(
-              circle at 30% 30%, 
-              rgba(30, 60, 114, 0.7), 
-              rgba(58, 96, 115, 0.5), 
-              transparent 50%
-            )`,
-            backdropFilter: 'blur(50px)',
-            opacity: 0.8
-          }}
-          animate={{
-            scale: [1, 1.05, 1],
-            rotate: [0, 5, -5, 0]
-          }}
-          transition={{
-            duration: 10,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-        />
-        
-        <div className="relative h-full flex items-center justify-center p-12 z-10">
-          <div className="max-w-md space-y-6 text-white">
-            <h1 className="text-5xl font-bold">
-              Conduit
-            </h1>
-            <p className="text-xl text-white/80">
-              Transform your data workflows with intelligent automation
-            </p>
-            <div className="flex items-center gap-4">
-              <div className="w-2 h-2 bg-white/70 rounded-full animate-pulse" />
-              <span className="text-white/70 text-sm">Secure cloud processing</span>
-            </div>
-          </div>
-        </div>
+  {/* Overlay with Soft Blur - Also enlarged */}
+  <motion.div 
+    className="absolute -inset-[15%]" // Slightly smaller than the gradient
+    style={{
+      background: `radial-gradient(
+        circle at 30% 30%, 
+        rgba(30, 60, 114, 0.7), 
+        rgba(58, 96, 115, 0.5), 
+        transparent 50%
+      )`,
+      backdropFilter: 'blur(50px)',
+      opacity: 0.8
+    }}
+    animate={{
+      scale: [1, 1.05, 1],
+      rotate: [0, 5, -5, 0]
+    }}
+    transition={{
+      duration: 10,
+      repeat: Infinity,
+      ease: "easeInOut"
+    }}
+  />
+  
+  {/* Content remains the same */}
+  <div className="relative h-full flex items-center justify-center p-12 z-10">
+    <div className="max-w-md space-y-6 text-white">
+      <h1 className="text-5xl font-bold">
+        Conduit
+      </h1>
+      <p className="text-xl text-white/80">
+        Transform your data workflows with intelligent automation
+      </p>
+      <div className="flex items-center gap-4">
+        <div className="w-2 h-2 bg-white/70 rounded-full animate-pulse" />
+        <span className="text-white/70 text-sm">Secure cloud processing</span>
       </div>
+    </div>
+  </div>
+</div>
 
       {/* Login Form Section */}
       <div className="w-full lg:w-1/2 bg-white shadow-2xl">
