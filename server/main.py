@@ -1,11 +1,10 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import pandas as pd
-from typing import List, Dict
+from app.file_parsers import parser_map
+import uvicorn
 
 app = FastAPI()
 
-# Enable CORS for React dev server
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -13,35 +12,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/api/analyze-csv")
-async def analyze_csv(file: UploadFile = File(...)):
+
+@app.post("/upload/")
+async def upload_file(file: UploadFile = File(...)):
     try:
-        # Read CSV with pandas
-        df = pd.read_csv(file.file)
-        
-        # Get sample data (first row)
-        sample = df.iloc[0].to_dict()
-        
-        # Detect column types
-        schema = []
-        for col in df.columns:
-            dtype = str(df[col].dtype)
-            if dtype.startswith('int') or dtype.startswith('float'):
-                col_type = "numeric"
-            elif dtype.startswith('bool'):
-                col_type = "boolean"
-            elif pd.api.types.is_datetime64_any_dtype(df[col]):
-                col_type = "date"
-            else:
-                col_type = "string"
-            
-            schema.append({
-                "column": col,
-                "type": col_type,
-                "sample": str(sample.get(col, ""))
-            })
-        
-        return {"schema": schema}
-    
+        # Get file extension
+        if not file.filename or "." not in file.filename:
+            raise HTTPException(400, "Invalid filename")
+
+        file_ext = file.filename.split(".")[-1].lower()
+        parser = parser_map.get(file_ext)
+
+        if not parser:
+            raise HTTPException(400, f"Unsupported file type: {file_ext}")
+
+        # Process file
+        if hasattr(parser, "parse") and callable(parser.parse):
+            result = await parser.parse(file)
+        else:
+            result = parser.parse(file)
+
+        return result
+
+    except HTTPException as he:
+        raise he
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(500, f"Processing error: {str(e)}")

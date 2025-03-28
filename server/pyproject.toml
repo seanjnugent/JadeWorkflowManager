@@ -1,0 +1,19 @@
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310']
+include = '\.pyi?$'
+exclude = '''/(
+    \.git
+    | \.tox
+    | \.nox
+    | \.venv
+    | \.env
+    | \.mypy_cache
+    | \.pytest_cache
+    | build
+    | dist
+)/'''
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
