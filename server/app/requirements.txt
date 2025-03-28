@@ -7,3 +7,4 @@ pydantic
 sqlalchemy
 setuptools
 python-multipart
+openpyxl

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ChevronLeft, FileInput, Code2, Database, Settings2, TestTube2, Save, CheckCircle2 } from 'lucide-react';
 
 const NewWorkflow = () => {
@@ -6,14 +6,85 @@ const NewWorkflow = () => {
   const [selectedLanguage, setSelectedLanguage] = useState('');
   const [destinationType, setDestinationType] = useState('');
   const [connections] = useState(['PostgreSQL Prod', 'MySQL Analytics', 'BigQuery Warehouse']);
+  const [parsedFileStructure, setParsedFileStructure] = useState([]);
+  const [isFileUploaded, setIsFileUploaded] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleFileUpload = useCallback(async (file) => {
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await fetch('http://localhost:8000/upload/', {
+        method: 'POST',
+        body: formData,
+      });
   
-  // Dummy parsed file structure
-  const fileStructure = [
-    { column: 'customer_id', type: 'string', sample: 'CUST-001' },
-    { column: 'order_date', type: 'date', sample: '2024-03-20' },
-    { column: 'total_amount', type: 'numeric', sample: '149.99' },
-    { column: 'is_active', type: 'boolean', sample: 'true' },
-  ];
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Server error: ${response.status} - ${errorText}`);
+      }
+  
+      const data = await response.json();
+      
+      if (!data.schema || !data.data) {
+        throw new Error('Invalid response format from server');
+      }
+
+      const sampleData = data.data[0] || {};
+    const structure = Object.entries(data.schema).map(([column, typeInfo]) => {
+      // Get first 3 samples for this column
+      const samples = data.data.slice(0, 3).map(row => row[column]);
+      
+      return {
+        column,
+        detectedType: typeInfo.type,  // From server
+        type: typeInfo.type,  // Default to detected type
+        samples,
+        format: typeInfo.format  // Optional format from server
+      };
+    });
+
+      setParsedFileStructure(structure);
+      setIsFileUploaded(true);
+      setUploadError(null);
+      setStep(1);
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadError(error.message);
+      setIsFileUploaded(false);
+    } finally {
+      setIsUploading(false);
+    }
+  }, []);
+
+  const handleTypeChange = (column, newType) => {
+    setParsedFileStructure(prev => 
+      prev.map(col => 
+        col.column === column ? { ...col, type: newType } : col
+      )
+    );
+  };
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileUpload(file);
+  };
 
   const steps = [
     { title: 'Load File', icon: <FileInput size={18} /> },
@@ -54,39 +125,119 @@ const NewWorkflow = () => {
       {/* Step Content */}
       <div className="mb-8">
         {step === 0 && (
-          <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center">
-            <div className="mb-4">
+          <div 
+            className={`border-2 border-dashed rounded-lg p-8 text-center ${
+              isDragging ? 'border-blue-600 bg-blue-50' : 
+              isUploading ? 'border-blue-300 bg-blue-50' : 
+              'border-gray-200'
+            }`}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <div className="mb-4 relative">
               <FileInput className="w-12 h-12 text-gray-400 mx-auto" />
-              <p className="text-gray-600 mt-2">Drag & drop CSV/Excel file or</p>
+              <p className="text-gray-600 mt-2">
+                {isDragging ? 'Drop file here' : 'Drag & drop CSV/Excel/Parquet file or'}
+              </p>
+              {isUploading && (
+                <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
+                  <div className="text-blue-600 animate-pulse">
+                    <svg className="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                    </svg>
+                    Uploading and parsing file...
+                  </div>
+                </div>
+              )}
             </div>
-            <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+            <input
+              type="file"
+              id="file-input"
+              className="hidden"
+              accept=".csv,.xlsx,.xls,.parquet,.json"
+              disabled={isUploading}
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleFileUpload(e.target.files[0]);
+                }
+              }}
+            />
+            <label
+              htmlFor="file-input"
+              className={`bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 cursor-pointer ${
+                isUploading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
               Browse Files
-            </button>
-            <p className="text-sm text-gray-500 mt-4">Supports CSV, XLSX, JSON</p>
+            </label>
+            {uploadError && (
+              <p className="text-red-600 text-sm mt-4">{uploadError}</p>
+            )}
+            <p className="text-sm text-gray-500 mt-4">
+              Supports CSV, XLSX, Parquet, JSON
+            </p>
           </div>
         )}
 
         {step === 1 && (
           <div className="border border-gray-100 rounded-lg">
             <div className="bg-gray-50 px-4 py-3 font-medium text-sm">
-              Detected Structure (Sample Data)
+              Detected Structure (First 3 Samples)
             </div>
             <div className="p-4">
-              {fileStructure.map((col) => (
-                <div key={col.column} className="flex items-center gap-4 mb-4 last:mb-0">
-                  <div className="w-1/4 font-medium">{col.column}</div>
-                  <select 
-                    className="w-1/4 px-2 py-1 border rounded"
-                    defaultValue={col.type}
-                  >
-                    <option>string</option>
-                    <option>numeric</option>
-                    <option>date</option>
-                    <option>boolean</option>
-                  </select>
-                  <div className="w-1/2 text-gray-500 text-sm">{col.sample}</div>
-                </div>
-              ))}
+              {parsedFileStructure.map((col) => {
+                // Get sample values for this column (up to 3)
+                const samples = parsedFileStructure
+                  .find(c => c.column === col.column)
+                  ?.samples?.slice(0, 3) || ['No samples available'];
+                  
+                // Create type options with detected type as default
+                const detectedType = col.detectedType || col.type;
+                const typeOptions = ['string', 'numeric', 'date', 'boolean'];
+                
+                return (
+                  <div key={col.column} className="flex items-center gap-4 mb-6 last:mb-0">
+                    <div className="w-1/4 font-medium">
+                      {col.column}
+                      <span className="block text-xs text-gray-500 mt-1">
+                        Detected: {detectedType}
+                      </span>
+                    </div>
+                    
+                    <select 
+                      className="w-1/4 px-2 py-1 border rounded bg-white"
+                      value={col.type}
+                      onChange={(e) => handleTypeChange(col.column, e.target.value)}
+                    >
+                      {typeOptions.map(opt => (
+                        <option 
+                          key={opt} 
+                          value={opt}
+                          className={opt === detectedType ? 'font-semibold' : ''}
+                        >
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                    
+                    <div className="w-1/2 text-gray-600 text-sm space-y-1">
+                      {samples.map((sample, idx) => (
+                        <div 
+                          key={idx} 
+                          className="truncate bg-gray-50 px-2 py-1 rounded text-xs"
+                        >
+                          {typeof sample === 'object' ? 
+                            JSON.stringify(sample) : 
+                            String(sample)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -230,7 +381,10 @@ const NewWorkflow = () => {
         {step < steps.length - 1 ? (
           <button
             onClick={() => setStep(s => s + 1)}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+            disabled={step === 0 && !isFileUploaded}
+            className={`bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 ${
+              step === 0 && !isFileUploaded ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             Continue
           </button>
