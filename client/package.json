@@ -50,5 +50,6 @@
     "postcss-import": "^16.1.0",
     "postcss-nesting": "^13.0.1",
     "sass": "^1.86.0"
-  }
+  },
+  "proxy": "http://localhost:5000"
 }
