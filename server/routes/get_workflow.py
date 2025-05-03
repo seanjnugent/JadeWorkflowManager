@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 import logging
 from .get_health_check import get_db
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 

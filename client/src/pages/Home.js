@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { 
-  Plus, Workflow, Plug, Settings, Code, 
+import React, { useState, useEffect } from 'react';
+import {
+  Plus, Workflow, Plug, Settings, Code,
   ChevronRight, Search, FileText, Database
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -8,39 +8,34 @@ import { motion } from 'framer-motion';
 
 const Home = () => {
   const navigate = useNavigate();
-  
-  // Sample workflows data
-  const sampleWorkflows = [
-    {
-      id: 1,
-      name: "Sales Data Pipeline",
-      description: "Monthly sales data extraction and analysis",
-      icon: <FileText className="w-6 h-6 text-blue-600" />,
-      status: "Active",
-      lastRun: "2 hours ago"
-    },
-    {
-      id: 2,
-      name: "Customer Database Sync",
-      description: "Sync CRM data with marketing platform",
-      icon: <Database className="w-6 h-6 text-green-600" />,
-      status: "Scheduled",
-      lastRun: "Yesterday"
-    },
-    {
-      id: 3,
-      name: "Marketing Performance Report",
-      description: "Generate weekly marketing insights",
-      icon: <Workflow className="w-6 h-6 text-purple-600" />,
-      status: "Paused",
-      lastRun: "Last week"
-    }
-  ];
+  const [workflows, setWorkflows] = useState([]);
+
+  // Array of colors in the desired order
+  const iconColors = ['text-teal-600', 'text-blue-600', 'text-green-600'];
+
+  useEffect(() => {
+    // Fetch workflows data from the API
+    fetch('http://localhost:8000/workflows/?page=1&limit=10', {
+      headers: {
+        'accept': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      // Map over the workflows to add icons and other necessary fields
+      const mappedWorkflows = data.workflows.slice(0, 3).map((workflow, index) => ({
+        ...workflow,
+        icon: <FileText className={`w-6 h-6 ${iconColors[index]}`} />, // Assign color based on index
+        lastRun: "Never run" // Update lastRun text
+      }));
+      setWorkflows(mappedWorkflows);
+    })
+    .catch(error => console.error('Error fetching workflows:', error));
+  }, []);
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
       {/* Header */}
-     
 
       {/* Main Content */}
       <div className="container mx-auto px-6 py-10">
@@ -49,8 +44,8 @@ const Home = () => {
           <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg shadow-lg p-8">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-800">My Workflows</h2>
-              <button 
-                onClick={() => navigate('/workflows')} 
+              <button
+                onClick={() => navigate('/workflows')}
                 className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center"
               >
                 View All <ChevronRight className="w-4 h-4 ml-1" />
@@ -58,11 +53,12 @@ const Home = () => {
             </div>
 
             <div className="space-y-4">
-              {sampleWorkflows.map((workflow) => (
+              {workflows.map((workflow) => (
                 <motion.div
                   key={workflow.id}
                   whileHover={{ scale: 1.02 }}
-                  className="bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
+                  onClick={() => navigate(`/workflow/${workflow.id}`)}
+                  className="bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all cursor-pointer"
                 >
                   <div className="flex items-center space-x-4">
                     <div className="bg-white border border-gray-200 rounded-lg p-2">

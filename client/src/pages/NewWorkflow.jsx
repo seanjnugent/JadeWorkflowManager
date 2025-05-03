@@ -1,5 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { ChevronLeft, FileInput, Settings2, Save, CheckCircle2, Plus, Trash2, Code } from 'lucide-react';
+import { ChevronLeft, FileInput, Settings2, Save, CheckCircle2, Code } from 'lucide-react';
+import FileUpload from '../components/FileUpload';
+import FileStructurePreview from '../components/FileStructurePreview';
+import ParametersForm from '../components/ParametersForm';
+import StepsForm from '../components/StepsForm';
+import WorkflowSummary from '../components/WorkflowSummary';
+import StepNavigator from '../components/StepNavigator';
 
 const NewWorkflow = () => {
   const [step, setStep] = useState(0);
@@ -251,7 +257,7 @@ const NewWorkflow = () => {
         <div className="flex items-center gap-4 mb-6">
           {steps.map((s, index) => (
             <div key={s.title} className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center 
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center
                 ${index <= step ? 'bg-blue-600 text-white' : 'bg ospiti-gray-100'}`}>
                 {index < step ? <CheckCircle2 size={16} /> : s.icon}
               </div>
@@ -261,7 +267,7 @@ const NewWorkflow = () => {
             </div>
           ))}
         </div>
-        
+
         <h2 className="text-2xl font-semibold mb-2">{steps[step].title}</h2>
         <p className="text-gray-600">
           {step === 0 && "Upload your source data file and provide workflow details"}
@@ -304,328 +310,69 @@ const NewWorkflow = () => {
                 className="w-full border rounded px-4 py-2"
               />
             </div>
-            <div 
-              className={`border-2 border-dashed rounded-lg p-8 text-center ${
-                isDragging ? 'border-blue-600 bg-blue-50' : 
-                isUploading ? 'border-blue-300 bg-blue-50' : 
-                'border-gray-200'
-              }`}
-              onDragEnter={handleDragEnter}
-              onDragOver={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              <div className="mb-4 relative">
-                <FileInput className="w-12 h-12 text-gray-400 mx-auto" />
-                <p className="text-gray-600 mt-2">
-                  {isDragging ? 'Drop file here' : 'Drag & drop CSV/Excel/Parquet file or'}
-                </p>
-                {isUploading && (
-                  <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
-                    <div className="text-blue-600 animate-pulse">
-                      <svg className="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                      </svg>
-                      Uploading and parsing file...
-                    </div>
-                  </div>
-                )}
-              </div>
-              <input
-                type="file"
-                id="file-input"
-                className="hidden"
-                accept=".csv,.xlsx,.xls,.parquet,.json"
-                disabled={isUploading}
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    handleFileUpload(e.target.files[0]);
-                  }
-                }}
-              />
-              <label
-                htmlFor="file-input"
-                className={`bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 cursor-pointer ${
-                  isUploading ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                Browse Files
-              </label>
-              {uploadError && (
-                <p className="text-red-600 text-sm mt-4">{uploadError}</p>
-              )}
-              <p className="text-sm text-gray-500 mt-4">
-                Supports CSV, XLSX, Parquet, JSON
-              </p>
-            </div>
+            <FileUpload
+              workflowName={workflowName}
+              workflowDescription={workflowDescription}
+              userId={userId}
+              isDragging={isDragging}
+              isUploading={isUploading}
+              uploadError={uploadError}
+              handleFileUpload={handleFileUpload}
+              handleDragEnter={handleDragEnter}
+              handleDragLeave={handleDragLeave}
+              handleDrop={handleDrop}
+            />
           </div>
         )}
 
         {step === 1 && (
-          <div className="border border-gray-100 rounded-lg">
-            <div className="bg-gray-50 px-4 py-3 font-medium text-sm">
-              Detected File Structure (First 3 Samples)
-            </div>
-            <div className="p-4">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border p-2 text-left">Column</th>
-                    <th className="border p-2 text-left">Type</th>
-                    <th className="border p-2 text-left">Format</th>
-                    <th className="border p-2 text-left">Samples</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {parsedFileStructure.map((col) => {
-                    const samples = col.samples || ['No samples available'];
-                    const typeOptions = ['string', 'integer', 'float', 'datetime', 'boolean'];
-
-                    return (
-                      <tr key={col.column} className="border-b">
-                        <td className="border p-2 font-medium">{col.column}</td>
-                        <td className="border p-2">
-                          <select
-                            className="w-full border rounded px-2 py-1"
-                            value={col.type}
-                            onChange={(e) => handleTypeChange(col.column, e.target.value)}
-                          >
-                            {typeOptions.map(opt => (
-                              <option key={opt} value={opt}>
-                                {opt}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="border p-2">{col.format}</td>
-                        <td className="border p-2">
-                          <div className="space-y-1">
-                            {samples.map((sample, idx) => (
-                              <div key={idx} className="text-sm truncate">
-                                {typeof sample === 'object' ? JSON.stringify(sample) : String(sample)}
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <FileStructurePreview
+            parsedFileStructure={parsedFileStructure}
+            handleTypeChange={handleTypeChange}
+          />
         )}
 
         {step === 2 && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-medium">Workflow Parameters</h3>
-              <button
-                onClick={handleAddParameter}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-              >
-                <Plus size={16} />
-                New Parameter
-              </button>
-            </div>
-            {parameters.length === 0 && (
-              <p className="text-gray-500">No parameters defined. Click "New Parameter" to add one.</p>
-            )}
-            {parameters.map((param, index) => (
-              <div key={index} className="flex items-center gap-4 border p-4 rounded-lg">
-                <div className="w-1/3">
-                  <label className="block text-sm font-medium mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={param.name}
-                    onChange={(e) => handleParameterChange(index, 'name', e.target.value)}
-                    placeholder="e.g., multiplier"
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-                <div className="w-1/3">
-                  <label className="block text-sm font-medium mb-1">Type</label>
-                  <select
-                    value={param.type}
-                    onChange={(e) => handleParameterChange(index, 'type', e.target.value)}
-                    className="w-full border rounded px-3 py-2"
-                  >
-                    <option value="string">String</option>
-                    <option value="numeric">Numeric</option>
-                    <option value="date">Date</option>
-                    <option value="boolean">Boolean</option>
-                  </select>
-                </div>
-                <div className="w-1/3">
-                  <label className="block text-sm font-medium mb-1">Mandatory</label>
-                  <select
-                    value={param.mandatory.toString()}
-                    onChange={(e) => handleParameterChange(index, 'mandatory', e.target.value === 'true')}
-                    className="w-full border rounded px-3 py-2"
-                  >
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                  </select>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ParametersForm
+            parameters={parameters}
+            handleAddParameter={handleAddParameter}
+            handleParameterChange={handleParameterChange}
+          />
         )}
 
         {step === 3 && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-medium">Workflow Steps</h3>
-              <button
-                onClick={handleAddStep}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-              >
-                <Plus size={16} />
-                New Step
-              </button>
-            </div>
-            {workflowSteps.length === 0 && (
-              <p className="text-gray-500">No steps defined. Click "New Step" to add one.</p>
-            )}
-            {workflowSteps.map((step, index) => (
-              <div key={index} className="border p-4 rounded-lg space-y-4">
-                <div className="flex justify-between items-center">
-                  <h4 className="text-md font-medium">Step {index + 1}</h4>
-                  <button
-                    onClick={() => handleDeleteStep(index)}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Label</label>
-                  <input
-                    type="text"
-                    value={step.label}
-                    onChange={(e) => handleStepChange(index, 'label', e.target.value)}
-                    placeholder="e.g., Clean Data"
-                    className="w-full border rounded px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Description</label>
-                  <textarea
-                    value={step.description}
-                    onChange={(e) => handleStepChange(index, 'description', e.target.value)}
-                    placeholder="e.g., Removes null values and formats dates"
-                    className="w-full border rounded px-3 py-2 h-24"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Code Type</label>
-                  <select
-                    value={step.code_type}
-                    onChange={(e) => handleStepChange(index, 'code_type', e.target.value)}
-                    className="w-full border rounded px-3 py-2"
-                  >
-                    <option value="python">Python</option>
-                    <option value="sql">SQL</option>
-                    <option value="r">R</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Code</label>
-                  <textarea
-                    value={step.code}
-                    onChange={(e) => handleStepChange(index, 'code', e.target.value)}
-                    placeholder={
-                      step.code_type === 'python'
-                        ? '# Example: df = df.dropna()\n# Use params["multiplier"] for parameters'
-                        : step.code_type === 'sql'
-                        ? 'SELECT * FROM input_table WHERE column IS NOT NULL'
-                        : '# R code here'
-                    }
-                    className="w-full border rounded px-3 py-2 h-48 font-mono"
-                  />
-                </div>
-                {codeError && (
-                  <p className="text-red-600 text-sm">{codeError}</p>
-                )}
-              </div>
-            ))}
-          </div>
+          <StepsForm
+            workflowSteps={workflowSteps}
+            handleAddStep={handleAddStep}
+            handleStepChange={handleStepChange}
+            handleDeleteStep={handleDeleteStep}
+            codeError={codeError}
+            parameters={parameters}
+            parsedFileStructure={parsedFileStructure}
+          />
         )}
 
         {step === 4 && (
-          <div className="space-y-6">
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-2 text-green-600">
-                <CheckCircle2 size={18} />
-                Workflow ready to save
-              </div>
-            </div>
-            <div className="space-y-4">
-              <label className="block font-medium">Workflow Name</label>
-              <input
-                type="text"
-                value={workflowName}
-                className="w-full border rounded px-4 py-2"
-                disabled
-              />
-            </div>
-            <div className="space-y-4">
-              <label className="block font-medium">Description</label>
-              <textarea
-                value={workflowDescription}
-                className="w-full border rounded px-4 py-2 h-24"
-                disabled
-              />
-            </div>
-            <div className="space-y-4">
-              <label className="block font-medium">User ID</label>
-              <input
-                type="text"
-                value={userId}
-                className="w-full border rounded px-4 py-2"
-                disabled
-              />
-            </div>
-          </div>
+          <WorkflowSummary
+            workflowName={workflowName}
+            workflowDescription={workflowDescription}
+            userId={userId}
+          />
         )}
       </div>
 
-      <div className="flex justify-between border-t pt-6">
-        <button
-          onClick={() => setStep(s => Math.max(0, s - 1))}
-          disabled={step === 0}
-          className="px-6 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50"
-        >
-          <ChevronLeft size={16} className="mr-2 inline" />
-          Back
-        </button>
-        
-        {step < steps.length - 1 ? (
-          <button
-            onClick={() => setStep(s => s + 1)}
-            disabled={(step === 0 && (!isFileUploaded || !workflowName || !workflowDescription || !userId)) || 
-                      (step === 2 && parameters.some(param => !param.name)) ||
-                      (step === 3 && workflowSteps.some(step => !step.label || !step.code))}
-            className={`bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 ${
-              ((step === 0 && (!isFileUploaded || !workflowName || !workflowDescription || !userId)) || 
-               (step === 2 && parameters.some(param => !param.name)) ||
-               (step === 3 && workflowSteps.some(step => !step.label || !step.code))) 
-                ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            Continue
-          </button>
-        ) : (
-          <button
-            onClick={handleSaveWorkflow}
-            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-          >
-            <Save size={16} />
-            Save Workflow
-          </button>
-        )}
-      </div>
+      <StepNavigator
+        step={step}
+        setStep={setStep}
+        steps={steps}
+        handleSaveWorkflow={handleSaveWorkflow}
+        isFileUploaded={isFileUploaded}
+        workflowName={workflowName}
+        workflowDescription={workflowDescription}
+        userId={userId}
+        parameters={parameters}
+        workflowSteps={workflowSteps}
+      />
     </div>
   );
 };

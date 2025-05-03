@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Mail, Lock, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -18,7 +18,7 @@ const Login = () => {
     setError("");
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/postUserAuthentication`, {
+      const response = await fetch(`${API_BASE_URL}/user/authenticate`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

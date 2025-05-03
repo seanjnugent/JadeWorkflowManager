@@ -13,13 +13,33 @@ router = APIRouter()
 class UserLogin(BaseModel):
     email_address: str
     password: str
-
 @router.post("/user/authenticate")
 async def authenticate_user(user_login: UserLogin, db: Session = Depends(get_db)):
     email = user_login.email_address
     password = user_login.password
 
     try:
+        # First check if user is locked
+        locked_user = db.execute(
+            text("""
+                SELECT is_locked, locked_until 
+                FROM workflow."user" 
+                WHERE email = :email
+                AND is_locked = TRUE
+                AND locked_until > CURRENT_TIMESTAMP
+            """),
+            {"email": email}
+        ).fetchone()
+
+        if locked_user:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "message": "Account locked",
+                    "lockedUntil": locked_user.locked_until.isoformat()
+                }
+            )
+
         # Use PostgreSQL function to validate login
         result = db.execute(
             text("SELECT * FROM workflow.validate_login(:email, :password)"),
@@ -27,7 +47,6 @@ async def authenticate_user(user_login: UserLogin, db: Session = Depends(get_db)
         )
         user = result.fetchone()
 
-        # If no user found or password incorrect
         if not user:
             # Track failed login attempts
             failed_attempts_result = db.execute(
@@ -42,20 +61,27 @@ async def authenticate_user(user_login: UserLogin, db: Session = Depends(get_db)
                             ELSE NULL
                         END
                     WHERE email = :email
-                    RETURNING failed_login_attempts
+                    RETURNING failed_login_attempts, is_locked, locked_until
                 """),
                 {"email": email}
             )
-            failed_attempts = failed_attempts_result.fetchone()[0] or 0
+            failed_data = failed_attempts_result.fetchone()
+            failed_attempts = failed_data[0] or 0
             remaining_attempts = max(0, 5 - failed_attempts)
-
-            raise HTTPException(
-                status_code=401,
-                detail={
+            
+            if failed_data[1]:  # is_locked
+                detail = {
+                    "message": "Account locked due to too many failed attempts",
+                    "lockedUntil": failed_data[2].isoformat(),
+                    "remainingAttempts": 0
+                }
+            else:
+                detail = {
                     "message": "Invalid email or password",
                     "remainingAttempts": remaining_attempts
                 }
-            )
+            
+            raise HTTPException(status_code=401, detail=detail)
 
         # Reset failed attempts on success
         db.execute(
@@ -78,8 +104,10 @@ async def authenticate_user(user_login: UserLogin, db: Session = Depends(get_db)
             "role": user.role
         }
 
-    except HTTPException as http_err:
-        raise http_err
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as err:
-        logger.error(f"Error during login: {str(err)}")
+        db.rollback()
+        logger.error(f"Error during login: {str(err)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
