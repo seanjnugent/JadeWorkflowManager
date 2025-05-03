@@ -3,7 +3,10 @@ import { ChevronLeft, FileInput, Code2, Database, Settings2, TestTube2, Save, Ch
 
 const NewWorkflow = () => {
   const [step, setStep] = useState(0);
+  const [workflowName, setWorkflowName] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('');
+  const [transformationCode, setTransformationCode] = useState('');
+  const [parameters, setParameters] = useState({});
   const [destinationType, setDestinationType] = useState('');
   const [connections] = useState(['PostgreSQL Prod', 'MySQL Analytics', 'BigQuery Warehouse']);
   const [parsedFileStructure, setParsedFileStructure] = useState([]);
@@ -11,42 +14,46 @@ const NewWorkflow = () => {
   const [uploadError, setUploadError] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [connectionId, setConnectionId] = useState('');
+  const [tableName, setTableName] = useState('');
+  const [fileOutputPath, setFileOutputPath] = useState('');
+  const [fileOutputFormat, setFileOutputFormat] = useState('CSV');
 
   const handleFileUpload = useCallback(async (file) => {
+    if (!workflowName) {
+      setUploadError('Please enter a workflow name');
+      return;
+    }
+
     setIsUploading(true);
     const formData = new FormData();
     formData.append('file', file);
-    
+    formData.append('workflow_name', workflowName);
+
     try {
-      const response = await fetch('http://localhost:8000/upload/', {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/upload/`, {
         method: 'POST',
         body: formData,
       });
-  
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Server error: ${response.status} - ${errorText}`);
       }
-  
+
       const data = await response.json();
-      
+
       if (!data.schema || !data.data) {
         throw new Error('Invalid response format from server');
       }
 
-      const sampleData = data.data[0] || {};
-    const structure = Object.entries(data.schema).map(([column, typeInfo]) => {
-      // Get first 3 samples for this column
-      const samples = data.data.slice(0, 3).map(row => row[column]);
-      
-      return {
+      const structure = Object.entries(data.schema).map(([column, typeInfo]) => ({
         column,
-        detectedType: typeInfo.type,  // From server
-        type: typeInfo.type,  // Default to detected type
-        samples,
-        format: typeInfo.format  // Optional format from server
-      };
-    });
+        detectedType: typeInfo.type,
+        type: typeInfo.type,
+        samples: data.data.slice(0, 3).map(row => row[column]),
+        format: typeInfo.format,
+      }));
 
       setParsedFileStructure(structure);
       setIsFileUploaded(true);
@@ -59,11 +66,11 @@ const NewWorkflow = () => {
     } finally {
       setIsUploading(false);
     }
-  }, []);
+  }, [workflowName]);
 
   const handleTypeChange = (column, newType) => {
-    setParsedFileStructure(prev => 
-      prev.map(col => 
+    setParsedFileStructure(prev =>
+      prev.map(col =>
         col.column === column ? { ...col, type: newType } : col
       )
     );
@@ -86,8 +93,57 @@ const NewWorkflow = () => {
     if (file) handleFileUpload(file);
   };
 
+  const handleSaveWorkflow = async () => {
+    const workflowData = {
+      name: workflowName,
+      description: 'Data processing workflow',
+      created_by: 1, // Replace with actual user ID from auth
+      status: 'draft',
+      steps: [{
+        step_order: 1,
+        label: 'Transform Data',
+        code_type: selectedLanguage.toLowerCase(),
+        code: transformationCode,
+        input_file_pattern: '*.csv',
+        parameters,
+      }],
+      destination: {
+        destination_type: destinationType,
+        connection_id: destinationType === 'database' ? connectionId : null,
+        table_name: destinationType === 'database' ? tableName : null,
+        file_path: destinationType === 'file' ? fileOutputPath : null,
+        file_format: destinationType === 'file' ? fileOutputFormat : null,
+      },
+    };
+
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/workflows/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(workflowData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save workflow');
+      }
+
+      alert('Workflow saved successfully!');
+      setStep(0);
+      setWorkflowName('');
+      setSelectedLanguage('');
+      setTransformationCode('');
+      setParameters({});
+      setDestinationType('');
+      setParsedFileStructure([]);
+      setIsFileUploaded(false);
+    } catch (error) {
+      console.error('Save error:', error);
+      setUploadError(error.message);
+    }
+  };
+
   const steps = [
-    { title: 'Load File', icon: <FileInput size={18} /> },
+    { title: 'Load File & Name', icon: <FileInput size={18} /> },
     { title: 'Structure Review', icon: <Settings2 size={18} /> },
     { title: 'Transformation', icon: <Code2 size={18} /> },
     { title: 'Destination', icon: <Database size={18} /> },
@@ -96,7 +152,6 @@ const NewWorkflow = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-sm">
-      {/* Progress Header */}
       <div className="mb-8">
         <div className="flex items-center gap-4 mb-6">
           {steps.map((s, index) => (
@@ -114,7 +169,7 @@ const NewWorkflow = () => {
         
         <h2 className="text-2xl font-semibold mb-2">{steps[step].title}</h2>
         <p className="text-gray-600">
-          {step === 0 && "Upload or select your source data file to begin"}
+          {step === 0 && "Upload your source data file and name your workflow"}
           {step === 1 && "Review and confirm the detected data structure"}
           {step === 2 && "Configure data transformation logic"}
           {step === 3 && "Select output destination"}
@@ -122,63 +177,74 @@ const NewWorkflow = () => {
         </p>
       </div>
 
-      {/* Step Content */}
       <div className="mb-8">
         {step === 0 && (
-          <div 
-            className={`border-2 border-dashed rounded-lg p-8 text-center ${
-              isDragging ? 'border-blue-600 bg-blue-50' : 
-              isUploading ? 'border-blue-300 bg-blue-50' : 
-              'border-gray-200'
-            }`}
-            onDragEnter={handleDragEnter}
-            onDragOver={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <div className="mb-4 relative">
-              <FileInput className="w-12 h-12 text-gray-400 mx-auto" />
-              <p className="text-gray-600 mt-2">
-                {isDragging ? 'Drop file here' : 'Drag & drop CSV/Excel/Parquet file or'}
-              </p>
-              {isUploading && (
-                <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
-                  <div className="text-blue-600 animate-pulse">
-                    <svg className="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                    </svg>
-                    Uploading and parsing file...
-                  </div>
-                </div>
-              )}
+          <div>
+            <div className="mb-6">
+              <label className="block font-medium mb-2">Workflow Name</label>
+              <input
+                type="text"
+                value={workflowName}
+                onChange={(e) => setWorkflowName(e.target.value)}
+                placeholder="e.g., Monthly Sales Report"
+                className="w-full border rounded px-4 py-2"
+              />
             </div>
-            <input
-              type="file"
-              id="file-input"
-              className="hidden"
-              accept=".csv,.xlsx,.xls,.parquet,.json"
-              disabled={isUploading}
-              onChange={(e) => {
-                if (e.target.files && e.target.files[0]) {
-                  handleFileUpload(e.target.files[0]);
-                }
-              }}
-            />
-            <label
-              htmlFor="file-input"
-              className={`bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 cursor-pointer ${
-                isUploading ? 'opacity-50 cursor-not-allowed' : ''
+            <div 
+              className={`border-2 border-dashed rounded-lg p-8 text-center ${
+                isDragging ? 'border-blue-600 bg-blue-50' : 
+                isUploading ? 'border-blue-300 bg-blue-50' : 
+                'border-gray-200'
               }`}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
             >
-              Browse Files
-            </label>
-            {uploadError && (
-              <p className="text-red-600 text-sm mt-4">{uploadError}</p>
-            )}
-            <p className="text-sm text-gray-500 mt-4">
-              Supports CSV, XLSX, Parquet, JSON
-            </p>
+              <div className="mb-4 relative">
+                <FileInput className="w-12 h-12 text-gray-400 mx-auto" />
+                <p className="text-gray-600 mt-2">
+                  {isDragging ? 'Drop file here' : 'Drag & drop CSV/Excel/Parquet file or'}
+                </p>
+                {isUploading && (
+                  <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
+                    <div className="text-blue-600 animate-pulse">
+                      <svg className="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                      </svg>
+                      Uploading and parsing file...
+                    </div>
+                  </div>
+                )}
+              </div>
+              <input
+                type="file"
+                id="file-input"
+                className="hidden"
+                accept=".csv,.xlsx,.xls,.parquet,.json"
+                disabled={isUploading}
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    handleFileUpload(e.target.files[0]);
+                  }
+                }}
+              />
+              <label
+                htmlFor="file-input"
+                className={`bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 cursor-pointer ${
+                  isUploading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                Browse Files
+              </label>
+              {uploadError && (
+                <p className="text-red-600 text-sm mt-4">{uploadError}</p>
+              )}
+              <p className="text-sm text-gray-500 mt-4">
+                Supports CSV, XLSX, Parquet, JSON
+              </p>
+            </div>
           </div>
         )}
 
@@ -189,15 +255,10 @@ const NewWorkflow = () => {
             </div>
             <div className="p-4">
               {parsedFileStructure.map((col) => {
-                // Get sample values for this column (up to 3)
-                const samples = parsedFileStructure
-                  .find(c => c.column === col.column)
-                  ?.samples?.slice(0, 3) || ['No samples available'];
-                  
-                // Create type options with detected type as default
+                const samples = col.samples || ['No samples available'];
                 const detectedType = col.detectedType || col.type;
                 const typeOptions = ['string', 'numeric', 'date', 'boolean'];
-                
+
                 return (
                   <div key={col.column} className="flex items-center gap-4 mb-6 last:mb-0">
                     <div className="w-1/4 font-medium">
@@ -250,7 +311,14 @@ const NewWorkflow = () => {
                 {['Python', 'SQL', 'R'].map((lang) => (
                   <button
                     key={lang}
-                    onClick={() => setSelectedLanguage(lang)}
+                    onClick={() => {
+                      setSelectedLanguage(lang);
+                      setTransformationCode(
+                        lang === 'Python' ? '# Python transformation script\nimport pandas as pd\n\ndf["new_column"] = df["total_amount"] * 1.1' :
+                        lang === 'SQL' ? '-- SQL transformation\nSELECT *, total_amount * 1.1 AS new_column\nFROM input_table' :
+                        '# R transformation script\ndf$new_column <- df$total_amount * 1.1'
+                      );
+                    }}
                     className={`px-4 py-2 rounded-lg border ${
                       selectedLanguage === lang 
                         ? 'border-blue-600 bg-blue-50' 
@@ -265,17 +333,27 @@ const NewWorkflow = () => {
 
             <div className="space-y-4">
               <label className="block font-medium">Transformation Code</label>
-              <div className="border border-gray-200 rounded-lg p-4 font-mono text-sm bg-gray-50">
-                {selectedLanguage === 'Python' && (
-                  `# Python transformation script\nimport pandas as pd\n\ndf['new_column'] = df['total_amount'] * 1.1`
-                )}
-                {selectedLanguage === 'SQL' && (
-                  `-- SQL transformation\nSELECT *, total_amount * 1.1 AS new_column\nFROM input_table`
-                )}
-                {selectedLanguage === 'R' && (
-                  `# R transformation script\ndf$new_column <- df$total_amount * 1.1`
-                )}
-              </div>
+              <textarea
+                className="w-full h-48 border rounded p-4 font-mono text-sm"
+                value={transformationCode}
+                onChange={(e) => setTransformationCode(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-4">
+              <label className="block font-medium">Parameters (JSON)</label>
+              <textarea
+                className="w-full h-24 border rounded p-4 font-mono text-sm"
+                value={JSON.stringify(parameters, null, 2)}
+                onChange={(e) => {
+                  try {
+                    setParameters(JSON.parse(e.target.value));
+                  } catch {
+                    // Ignore invalid JSON for now
+                  }
+                }}
+                placeholder='{"multiplier": 1.1}'
+              />
             </div>
           </div>
         )}
@@ -313,13 +391,19 @@ const NewWorkflow = () => {
             {destinationType === 'database' && (
               <div className="space-y-4">
                 <div className="flex gap-4">
-                  <select className="w-1/2 border rounded px-4 py-2">
-                    <option>Select Connection</option>
-                    {connections.map(c => <option key={c}>{c}</option>)}
+                  <select 
+                    className="w-1/2 border rounded px-4 py-2"
+                    value={connectionId}
+                    onChange={(e) => setConnectionId(e.target.value)}
+                  >
+                    <option value="">Select Connection</option>
+                    {connections.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                   <input
                     type="text"
                     placeholder="New table name"
+                    value={tableName}
+                    onChange={(e) => setTableName(e.target.value)}
                     className="w-1/2 border rounded px-4 py-2"
                   />
                 </div>
@@ -331,7 +415,11 @@ const NewWorkflow = () => {
 
             {destinationType === 'file' && (
               <div className="space-y-4">
-                <select className="w-full border rounded px-4 py-2">
+                <select 
+                  className="w-full border rounded px-4 py-2"
+                  value={fileOutputFormat}
+                  onChange={(e) => setFileOutputFormat(e.target.value)}
+                >
                   <option>CSV</option>
                   <option>JSON</option>
                   <option>Excel</option>
@@ -339,6 +427,8 @@ const NewWorkflow = () => {
                 <input
                   type="text"
                   placeholder="Output path (e.g. /output/report.csv)"
+                  value={fileOutputPath}
+                  onChange={(e) => setFileOutputPath(e.target.value)}
                   className="w-full border rounded px-4 py-2"
                 />
               </div>
@@ -359,15 +449,17 @@ const NewWorkflow = () => {
               <label className="block font-medium">Workflow Name</label>
               <input
                 type="text"
+                value={workflowName}
+                onChange={(e) => setWorkflowName(e.target.value)}
                 placeholder="Monthly Sales Report"
                 className="w-full border rounded px-4 py-2"
+                disabled
               />
             </div>
           </div>
         )}
       </div>
 
-      {/* Navigation */}
       <div className="flex justify-between border-t pt-6">
         <button
           onClick={() => setStep(s => Math.max(0, s - 1))}
@@ -381,16 +473,25 @@ const NewWorkflow = () => {
         {step < steps.length - 1 ? (
           <button
             onClick={() => setStep(s => s + 1)}
-            disabled={step === 0 && !isFileUploaded}
+            disabled={(step === 0 && (!isFileUploaded || !workflowName)) || 
+                      (step === 2 && (!selectedLanguage || !transformationCode)) ||
+                      (step === 3 && (!destinationType || 
+                        (destinationType === 'database' && (!connectionId || !tableName)) ||
+                        (destinationType === 'file' && (!fileOutputPath || !fileOutputFormat))))}
             className={`bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 ${
-              step === 0 && !isFileUploaded ? 'opacity-50 cursor-not-allowed' : ''
+              ((step === 0 && (!isFileUploaded || !workflowName)) || 
+               (step === 2 && (!selectedLanguage || !transformationCode)) ||
+               (step === 3 && (!destinationType || 
+                 (destinationType === 'database' && (!connectionId || !tableName)) ||
+                 (destinationType === 'file' && (!fileOutputPath || !fileOutputFormat))))) 
+                ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
             Continue
           </button>
         ) : (
           <button
-            onClick={() => console.log('Saving workflow...')}
+            onClick={handleSaveWorkflow}
             className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
           >
             <Save size={16} />

@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import io
 from fastapi import UploadFile
-from app.file_parsers import CSVParser, ExcelParser, ParquetParser, JSONParser
+from server.app.file_parser import CSVParser, ExcelParser, ParquetParser, JSONParser
 
 # Sample data
 CSV_CONTENT = b"name,age\nAlice,30\nBob,25"
