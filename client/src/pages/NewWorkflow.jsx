@@ -1,37 +1,45 @@
 import React, { useState, useCallback } from 'react';
-import { ChevronLeft, FileInput, Code2, Database, Settings2, TestTube2, Save, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, FileInput, Settings2, Save, CheckCircle2, Plus, Trash2, Code } from 'lucide-react';
 
 const NewWorkflow = () => {
   const [step, setStep] = useState(0);
   const [workflowName, setWorkflowName] = useState('');
-  const [selectedLanguage, setSelectedLanguage] = useState('');
-  const [transformationCode, setTransformationCode] = useState('');
-  const [parameters, setParameters] = useState({});
-  const [destinationType, setDestinationType] = useState('');
-  const [connections] = useState(['PostgreSQL Prod', 'MySQL Analytics', 'BigQuery Warehouse']);
+  const [workflowDescription, setWorkflowDescription] = useState('');
+  const [userId, setUserId] = useState('1001'); // Temporary user ID
   const [parsedFileStructure, setParsedFileStructure] = useState([]);
   const [isFileUploaded, setIsFileUploaded] = useState(false);
   const [uploadError, setUploadError] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [connectionId, setConnectionId] = useState('');
-  const [tableName, setTableName] = useState('');
-  const [fileOutputPath, setFileOutputPath] = useState('');
-  const [fileOutputFormat, setFileOutputFormat] = useState('CSV');
+  const [parameters, setParameters] = useState([]);
+  const [workflowId, setWorkflowId] = useState(null);
+  const [workflowSteps, setWorkflowSteps] = useState([]);
+  const [codeError, setCodeError] = useState(null);
 
   const handleFileUpload = useCallback(async (file) => {
     if (!workflowName) {
       setUploadError('Please enter a workflow name');
       return;
     }
+    if (!workflowDescription) {
+      setUploadError('Please enter a workflow description');
+      return;
+    }
+    if (!userId) {
+      setUploadError('Please enter a user ID');
+      return;
+    }
 
     setIsUploading(true);
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('workflow_name', workflowName);
+    formData.append('name', workflowName);
+    formData.append('description', workflowDescription);
+    formData.append('created_by', userId);
+    formData.append('status', 'Draft');
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/upload/`, {
+      const response = await fetch('http://localhost:8000/workflow/new', {
         method: 'POST',
         body: formData,
       });
@@ -43,16 +51,17 @@ const NewWorkflow = () => {
 
       const data = await response.json();
 
-      if (!data.schema || !data.data) {
+      if (!data.workflow || !data.file_info || !data.file_info.schema || !data.file_info.preview) {
         throw new Error('Invalid response format from server');
       }
 
-      const structure = Object.entries(data.schema).map(([column, typeInfo]) => ({
+      setWorkflowId(data.workflow.id);
+      const structure = Object.entries(data.file_info.schema).map(([column, typeInfo]) => ({
         column,
         detectedType: typeInfo.type,
         type: typeInfo.type,
-        samples: data.data.slice(0, 3).map(row => row[column]),
-        format: typeInfo.format,
+        format: typeInfo.format || 'none',
+        samples: data.file_info.preview.slice(0, 3).map(row => row[column]),
       }));
 
       setParsedFileStructure(structure);
@@ -66,7 +75,7 @@ const NewWorkflow = () => {
     } finally {
       setIsUploading(false);
     }
-  }, [workflowName]);
+  }, [workflowName, workflowDescription, userId]);
 
   const handleTypeChange = (column, newType) => {
     setParsedFileStructure(prev =>
@@ -74,6 +83,69 @@ const NewWorkflow = () => {
         col.column === column ? { ...col, type: newType } : col
       )
     );
+  };
+
+  const handleAddParameter = () => {
+    setParameters(prev => [
+      ...prev,
+      { name: '', type: 'string', mandatory: false }
+    ]);
+  };
+
+  const handleParameterChange = (index, field, value) => {
+    setParameters(prev => {
+      const newParams = [...prev];
+      newParams[index] = { ...newParams[index], [field]: value };
+      return newParams;
+    });
+  };
+
+  const handleAddStep = () => {
+    setWorkflowSteps(prev => [
+      ...prev,
+      {
+        label: '',
+        description: '',
+        code_type: 'python',
+        code: '',
+        step_order: prev.length + 1,
+      }
+    ]);
+  };
+
+  const handleStepChange = (index, field, value) => {
+    setWorkflowSteps(prev => {
+      const newSteps = [...prev];
+      newSteps[index] = { ...newSteps[index], [field]: value };
+      return newSteps;
+    });
+  };
+
+  const handleDeleteStep = (index) => {
+    setWorkflowSteps(prev => {
+      const newSteps = prev.filter((_, i) => i !== index);
+      return newSteps.map((step, i) => ({ ...step, step_order: i + 1 }));
+    });
+  };
+
+  const validateCode = (code, codeType) => {
+    if (!code) return null;
+    try {
+      if (codeType === 'python') {
+        // Basic Python syntax check using fetch to a validation endpoint (or client-side if feasible)
+        // For simplicity, we'll assume a server-side validation endpoint
+        return null; // Replace with actual validation
+      } else if (codeType === 'sql') {
+        // Basic SQL syntax check (e.g., using a library like sqlparse client-side or server-side)
+        return null; // Replace with actual validation
+      } else if (codeType === 'r') {
+        // R validation is complex client-side; skip for now or use server-side
+        return null;
+      }
+      return null;
+    } catch (error) {
+      return `Invalid ${codeType} code: ${error.message}`;
+    }
   };
 
   const handleDragEnter = (e) => {
@@ -94,48 +166,71 @@ const NewWorkflow = () => {
   };
 
   const handleSaveWorkflow = async () => {
+    if (!workflowId) {
+      setUploadError('No workflow ID available. Please upload a file first.');
+      return;
+    }
+
+    // Validate steps
+    for (const step of workflowSteps) {
+      if (!step.label || !step.code) {
+        setUploadError('All steps must have a label and code.');
+        return;
+      }
+      const error = validateCode(step.code, step.code_type);
+      if (error) {
+        setCodeError(error);
+        return;
+      }
+    }
+
     const workflowData = {
+      workflow_id: workflowId,
       name: workflowName,
-      description: 'Data processing workflow',
-      created_by: 1, // Replace with actual user ID from auth
-      status: 'draft',
-      steps: [{
-        step_order: 1,
-        label: 'Transform Data',
-        code_type: selectedLanguage.toLowerCase(),
-        code: transformationCode,
-        input_file_pattern: '*.csv',
-        parameters,
-      }],
-      destination: {
-        destination_type: destinationType,
-        connection_id: destinationType === 'database' ? connectionId : null,
-        table_name: destinationType === 'database' ? tableName : null,
-        file_path: destinationType === 'file' ? fileOutputPath : null,
-        file_format: destinationType === 'file' ? fileOutputFormat : null,
-      },
+      description: workflowDescription,
+      created_by: parseInt(userId),
+      status: 'Draft',
+      parameters: parameters.filter(param => param.name),
     };
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/workflows/`, {
-        method: 'POST',
+      // Save steps
+      for (const step of workflowSteps) {
+        await fetch('http://localhost:8000/workflow/steps', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workflow_id: workflowId,
+            label: step.label,
+            description: step.description,
+            code_type: step.code_type,
+            code: step.code,
+            step_order: step.step_order,
+          }),
+        });
+      }
+
+      // Update workflow
+      const response = await fetch('http://localhost:8000/workflow/update', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(workflowData),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save workflow');
+        throw new Error('Failed to update workflow');
       }
 
       alert('Workflow saved successfully!');
       setStep(0);
       setWorkflowName('');
-      setSelectedLanguage('');
-      setTransformationCode('');
-      setParameters({});
-      setDestinationType('');
+      setWorkflowDescription('');
+      setUserId('1001');
       setParsedFileStructure([]);
       setIsFileUploaded(false);
+      setParameters([]);
+      setWorkflowSteps([]);
+      setWorkflowId(null);
     } catch (error) {
       console.error('Save error:', error);
       setUploadError(error.message);
@@ -143,11 +238,11 @@ const NewWorkflow = () => {
   };
 
   const steps = [
-    { title: 'Load File & Name', icon: <FileInput size={18} /> },
-    { title: 'Structure Review', icon: <Settings2 size={18} /> },
-    { title: 'Transformation', icon: <Code2 size={18} /> },
-    { title: 'Destination', icon: <Database size={18} /> },
-    { title: 'Test & Save', icon: <TestTube2 size={18} /> },
+    { title: 'Load File & Details', icon: <FileInput size={18} /> },
+    { title: 'Structure Preview', icon: <Settings2 size={18} /> },
+    { title: 'Define Parameters', icon: <Settings2 size={18} /> },
+    { title: 'Define Steps', icon: <Code size={18} /> },
+    { title: 'Save Workflow', icon: <Save size={18} /> },
   ];
 
   return (
@@ -157,7 +252,7 @@ const NewWorkflow = () => {
           {steps.map((s, index) => (
             <div key={s.title} className="flex items-center gap-2">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center 
-                ${index <= step ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>
+                ${index <= step ? 'bg-blue-600 text-white' : 'bg ospiti-gray-100'}`}>
                 {index < step ? <CheckCircle2 size={16} /> : s.icon}
               </div>
               {index < steps.length - 1 && (
@@ -169,24 +264,43 @@ const NewWorkflow = () => {
         
         <h2 className="text-2xl font-semibold mb-2">{steps[step].title}</h2>
         <p className="text-gray-600">
-          {step === 0 && "Upload your source data file and name your workflow"}
-          {step === 1 && "Review and confirm the detected data structure"}
-          {step === 2 && "Configure data transformation logic"}
-          {step === 3 && "Select output destination"}
-          {step === 4 && "Validate and save your workflow"}
+          {step === 0 && "Upload your source data file and provide workflow details"}
+          {step === 1 && "Review the detected data structure"}
+          {step === 2 && "Define parameters for the workflow"}
+          {step === 3 && "Define processing steps with code"}
+          {step === 4 && "Save your workflow"}
         </p>
       </div>
 
       <div className="mb-8">
         {step === 0 && (
-          <div>
-            <div className="mb-6">
+          <div className="space-y-6">
+            <div>
               <label className="block font-medium mb-2">Workflow Name</label>
               <input
                 type="text"
                 value={workflowName}
                 onChange={(e) => setWorkflowName(e.target.value)}
                 placeholder="e.g., Monthly Sales Report"
+                className="w-full border rounded px-4 py-2"
+              />
+            </div>
+            <div>
+              <label className="block font-medium mb-2">Description</label>
+              <textarea
+                value={workflowDescription}
+                onChange={(e) => setWorkflowDescription(e.target.value)}
+                placeholder="e.g., Processes monthly sales data for reporting"
+                className="w-full border rounded px-4 py-2 h-24"
+              />
+            </div>
+            <div>
+              <label className="block font-medium mb-2">User ID</label>
+              <input
+                type="text"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                placeholder="e.g., 1001"
                 className="w-full border rounded px-4 py-2"
               />
             </div>
@@ -251,188 +365,191 @@ const NewWorkflow = () => {
         {step === 1 && (
           <div className="border border-gray-100 rounded-lg">
             <div className="bg-gray-50 px-4 py-3 font-medium text-sm">
-              Detected Structure (First 3 Samples)
+              Detected File Structure (First 3 Samples)
             </div>
             <div className="p-4">
-              {parsedFileStructure.map((col) => {
-                const samples = col.samples || ['No samples available'];
-                const detectedType = col.detectedType || col.type;
-                const typeOptions = ['string', 'numeric', 'date', 'boolean'];
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border p-2 text-left">Column</th>
+                    <th className="border p-2 text-left">Type</th>
+                    <th className="border p-2 text-left">Format</th>
+                    <th className="border p-2 text-left">Samples</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedFileStructure.map((col) => {
+                    const samples = col.samples || ['No samples available'];
+                    const typeOptions = ['string', 'integer', 'float', 'datetime', 'boolean'];
 
-                return (
-                  <div key={col.column} className="flex items-center gap-4 mb-6 last:mb-0">
-                    <div className="w-1/4 font-medium">
-                      {col.column}
-                      <span className="block text-xs text-gray-500 mt-1">
-                        Detected: {detectedType}
-                      </span>
-                    </div>
-                    
-                    <select 
-                      className="w-1/4 px-2 py-1 border rounded bg-white"
-                      value={col.type}
-                      onChange={(e) => handleTypeChange(col.column, e.target.value)}
-                    >
-                      {typeOptions.map(opt => (
-                        <option 
-                          key={opt} 
-                          value={opt}
-                          className={opt === detectedType ? 'font-semibold' : ''}
-                        >
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                    
-                    <div className="w-1/2 text-gray-600 text-sm space-y-1">
-                      {samples.map((sample, idx) => (
-                        <div 
-                          key={idx} 
-                          className="truncate bg-gray-50 px-2 py-1 rounded text-xs"
-                        >
-                          {typeof sample === 'object' ? 
-                            JSON.stringify(sample) : 
-                            String(sample)}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+                    return (
+                      <tr key={col.column} className="border-b">
+                        <td className="border p-2 font-medium">{col.column}</td>
+                        <td className="border p-2">
+                          <select
+                            className="w-full border rounded px-2 py-1"
+                            value={col.type}
+                            onChange={(e) => handleTypeChange(col.column, e.target.value)}
+                          >
+                            {typeOptions.map(opt => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="border p-2">{col.format}</td>
+                        <td className="border p-2">
+                          <div className="space-y-1">
+                            {samples.map((sample, idx) => (
+                              <div key={idx} className="text-sm truncate">
+                                {typeof sample === 'object' ? JSON.stringify(sample) : String(sample)}
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
         {step === 2 && (
           <div className="space-y-6">
-            <div className="space-y-4">
-              <label className="block font-medium">Transformation Language</label>
-              <div className="flex gap-4">
-                {['Python', 'SQL', 'R'].map((lang) => (
-                  <button
-                    key={lang}
-                    onClick={() => {
-                      setSelectedLanguage(lang);
-                      setTransformationCode(
-                        lang === 'Python' ? '# Python transformation script\nimport pandas as pd\n\ndf["new_column"] = df["total_amount"] * 1.1' :
-                        lang === 'SQL' ? '-- SQL transformation\nSELECT *, total_amount * 1.1 AS new_column\nFROM input_table' :
-                        '# R transformation script\ndf$new_column <- df$total_amount * 1.1'
-                      );
-                    }}
-                    className={`px-4 py-2 rounded-lg border ${
-                      selectedLanguage === lang 
-                        ? 'border-blue-600 bg-blue-50' 
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium">Workflow Parameters</h3>
+              <button
+                onClick={handleAddParameter}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              >
+                <Plus size={16} />
+                New Parameter
+              </button>
+            </div>
+            {parameters.length === 0 && (
+              <p className="text-gray-500">No parameters defined. Click "New Parameter" to add one.</p>
+            )}
+            {parameters.map((param, index) => (
+              <div key={index} className="flex items-center gap-4 border p-4 rounded-lg">
+                <div className="w-1/3">
+                  <label className="block text-sm font-medium mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={param.name}
+                    onChange={(e) => handleParameterChange(index, 'name', e.target.value)}
+                    placeholder="e.g., multiplier"
+                    className="w-full border rounded px-3 py-2"
+                  />
+                </div>
+                <div className="w-1/3">
+                  <label className="block text-sm font-medium mb-1">Type</label>
+                  <select
+                    value={param.type}
+                    onChange={(e) => handleParameterChange(index, 'type', e.target.value)}
+                    className="w-full border rounded px-3 py-2"
                   >
-                    {lang}
-                  </button>
-                ))}
+                    <option value="string">String</option>
+                    <option value="numeric">Numeric</option>
+                    <option value="date">Date</option>
+                    <option value="boolean">Boolean</option>
+                  </select>
+                </div>
+                <div className="w-1/3">
+                  <label className="block text-sm font-medium mb-1">Mandatory</label>
+                  <select
+                    value={param.mandatory.toString()}
+                    onChange={(e) => handleParameterChange(index, 'mandatory', e.target.value === 'true')}
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </select>
+                </div>
               </div>
-            </div>
-
-            <div className="space-y-4">
-              <label className="block font-medium">Transformation Code</label>
-              <textarea
-                className="w-full h-48 border rounded p-4 font-mono text-sm"
-                value={transformationCode}
-                onChange={(e) => setTransformationCode(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-4">
-              <label className="block font-medium">Parameters (JSON)</label>
-              <textarea
-                className="w-full h-24 border rounded p-4 font-mono text-sm"
-                value={JSON.stringify(parameters, null, 2)}
-                onChange={(e) => {
-                  try {
-                    setParameters(JSON.parse(e.target.value));
-                  } catch {
-                    // Ignore invalid JSON for now
-                  }
-                }}
-                placeholder='{"multiplier": 1.1}'
-              />
-            </div>
+            ))}
           </div>
         )}
 
         {step === 3 && (
           <div className="space-y-6">
-            <div className="space-y-4">
-              <label className="block font-medium">Destination Type</label>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setDestinationType('database')}
-                  className={`px-6 py-4 rounded-lg border flex items-center gap-2 ${
-                    destinationType === 'database' 
-                      ? 'border-blue-600 bg-blue-50' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <Database size={18} />
-                  Database Table
-                </button>
-                <button
-                  onClick={() => setDestinationType('file')}
-                  className={`px-6 py-4 rounded-lg border flex items-center gap-2 ${
-                    destinationType === 'file' 
-                      ? 'border-blue-600 bg-blue-50' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <FileInput size={18} />
-                  File Output
-                </button>
-              </div>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium">Workflow Steps</h3>
+              <button
+                onClick={handleAddStep}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              >
+                <Plus size={16} />
+                New Step
+              </button>
             </div>
-
-            {destinationType === 'database' && (
-              <div className="space-y-4">
-                <div className="flex gap-4">
-                  <select 
-                    className="w-1/2 border rounded px-4 py-2"
-                    value={connectionId}
-                    onChange={(e) => setConnectionId(e.target.value)}
+            {workflowSteps.length === 0 && (
+              <p className="text-gray-500">No steps defined. Click "New Step" to add one.</p>
+            )}
+            {workflowSteps.map((step, index) => (
+              <div key={index} className="border p-4 rounded-lg space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-md font-medium">Step {index + 1}</h4>
+                  <button
+                    onClick={() => handleDeleteStep(index)}
+                    className="text-red-600 hover:text-red-800"
                   >
-                    <option value="">Select Connection</option>
-                    {connections.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Label</label>
                   <input
                     type="text"
-                    placeholder="New table name"
-                    value={tableName}
-                    onChange={(e) => setTableName(e.target.value)}
-                    className="w-1/2 border rounded px-4 py-2"
+                    value={step.label}
+                    onChange={(e) => handleStepChange(index, 'label', e.target.value)}
+                    placeholder="e.g., Clean Data"
+                    className="w-full border rounded px-3 py-2"
                   />
                 </div>
-                <p className="text-sm text-gray-500">
-                  Don't see your connection? <a href="#" className="text-blue-600">Add new connection</a>
-                </p>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <textarea
+                    value={step.description}
+                    onChange={(e) => handleStepChange(index, 'description', e.target.value)}
+                    placeholder="e.g., Removes null values and formats dates"
+                    className="w-full border rounded px-3 py-2 h-24"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Code Type</label>
+                  <select
+                    value={step.code_type}
+                    onChange={(e) => handleStepChange(index, 'code_type', e.target.value)}
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    <option value="python">Python</option>
+                    <option value="sql">SQL</option>
+                    <option value="r">R</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Code</label>
+                  <textarea
+                    value={step.code}
+                    onChange={(e) => handleStepChange(index, 'code', e.target.value)}
+                    placeholder={
+                      step.code_type === 'python'
+                        ? '# Example: df = df.dropna()\n# Use params["multiplier"] for parameters'
+                        : step.code_type === 'sql'
+                        ? 'SELECT * FROM input_table WHERE column IS NOT NULL'
+                        : '# R code here'
+                    }
+                    className="w-full border rounded px-3 py-2 h-48 font-mono"
+                  />
+                </div>
+                {codeError && (
+                  <p className="text-red-600 text-sm">{codeError}</p>
+                )}
               </div>
-            )}
-
-            {destinationType === 'file' && (
-              <div className="space-y-4">
-                <select 
-                  className="w-full border rounded px-4 py-2"
-                  value={fileOutputFormat}
-                  onChange={(e) => setFileOutputFormat(e.target.value)}
-                >
-                  <option>CSV</option>
-                  <option>JSON</option>
-                  <option>Excel</option>
-                </select>
-                <input
-                  type="text"
-                  placeholder="Output path (e.g. /output/report.csv)"
-                  value={fileOutputPath}
-                  onChange={(e) => setFileOutputPath(e.target.value)}
-                  className="w-full border rounded px-4 py-2"
-                />
-              </div>
-            )}
+            ))}
           </div>
         )}
 
@@ -441,17 +558,31 @@ const NewWorkflow = () => {
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center gap-2 text-green-600">
                 <CheckCircle2 size={18} />
-                Connection test successful!
+                Workflow ready to save
               </div>
             </div>
-            
             <div className="space-y-4">
               <label className="block font-medium">Workflow Name</label>
               <input
                 type="text"
                 value={workflowName}
-                onChange={(e) => setWorkflowName(e.target.value)}
-                placeholder="Monthly Sales Report"
+                className="w-full border rounded px-4 py-2"
+                disabled
+              />
+            </div>
+            <div className="space-y-4">
+              <label className="block font-medium">Description</label>
+              <textarea
+                value={workflowDescription}
+                className="w-full border rounded px-4 py-2 h-24"
+                disabled
+              />
+            </div>
+            <div className="space-y-4">
+              <label className="block font-medium">User ID</label>
+              <input
+                type="text"
+                value={userId}
                 className="w-full border rounded px-4 py-2"
                 disabled
               />
@@ -473,17 +604,13 @@ const NewWorkflow = () => {
         {step < steps.length - 1 ? (
           <button
             onClick={() => setStep(s => s + 1)}
-            disabled={(step === 0 && (!isFileUploaded || !workflowName)) || 
-                      (step === 2 && (!selectedLanguage || !transformationCode)) ||
-                      (step === 3 && (!destinationType || 
-                        (destinationType === 'database' && (!connectionId || !tableName)) ||
-                        (destinationType === 'file' && (!fileOutputPath || !fileOutputFormat))))}
+            disabled={(step === 0 && (!isFileUploaded || !workflowName || !workflowDescription || !userId)) || 
+                      (step === 2 && parameters.some(param => !param.name)) ||
+                      (step === 3 && workflowSteps.some(step => !step.label || !step.code))}
             className={`bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 ${
-              ((step === 0 && (!isFileUploaded || !workflowName)) || 
-               (step === 2 && (!selectedLanguage || !transformationCode)) ||
-               (step === 3 && (!destinationType || 
-                 (destinationType === 'database' && (!connectionId || !tableName)) ||
-                 (destinationType === 'file' && (!fileOutputPath || !fileOutputFormat))))) 
+              ((step === 0 && (!isFileUploaded || !workflowName || !workflowDescription || !userId)) || 
+               (step === 2 && parameters.some(param => !param.name)) ||
+               (step === 3 && workflowSteps.some(step => !step.label || !step.code))) 
                 ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
