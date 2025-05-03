@@ -27,13 +27,13 @@ from routes.get_health_check import router as health_check_router
 from routes.post_new_workflow import router as workflow_router
 from routes.workflow_steps import router as workflow_steps_router
 from routes.post_workflow_destination import router as workflow_destination_router
-from routes.get_runs import router as runs_router
+from routes.dagster_runs import router as runs_router
 from routes.get_workflows import router as list_workflows_router
 from routes.get_workflow import router as get_workflow_router
 from routes.get_run import router as get_run_router
 from routes.post_new_connection import router as connections_router
-from routes.post_update_workflow import router as update_workflow_router  # Import the new router
-from routes.post_new_workflow_step import router as workflow_steps_router
+from routes.post_update_workflow import router as update_workflow_router
+from routes.post_new_workflow_step import router as new_workflow_steps_router
 from routes.post_user_authentication import router as user_authentication
 
 # Include routers
@@ -46,8 +46,8 @@ app.include_router(list_workflows_router)
 app.include_router(get_workflow_router)
 app.include_router(get_run_router)
 app.include_router(connections_router)
-app.include_router(update_workflow_router, prefix="/workflow", tags=["workflow"])  # Include the new router
-app.include_router(workflow_steps_router, prefix="/workflow", tags=["workflow"])
+app.include_router(update_workflow_router, prefix="/workflow", tags=["workflow"])
+app.include_router(new_workflow_steps_router, prefix="/workflow", tags=["workflow"])
 app.include_router(user_authentication)
 
 # ========== Configuration Validation ==========
@@ -67,6 +67,10 @@ def validate_config():
         missing_db_vars = [var for var in required_db_vars if not os.getenv(var)]
         if missing_db_vars:
             errors.append(f"Missing database config: {', '.join(missing_db_vars)}")
+
+    # Dagster validation
+    if not os.getenv("DAGSTER_HOME"):
+        errors.append("DAGSTER_HOME is required")
 
     if errors:
         raise ValueError("Configuration errors:\n- " + "\n- ".join(errors))

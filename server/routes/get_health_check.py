@@ -5,6 +5,7 @@ from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
 import logging
+from dagster import DagsterInstance
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -44,6 +45,14 @@ engine = create_engine(
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Dagster configuration
+try:
+    dagster_instance = DagsterInstance.ephemeral()
+    logger.info("Dagster instance initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize Dagster instance: {str(e)}")
+    dagster_instance = None
+
 def get_db():
     db = SessionLocal()
     try:
@@ -59,5 +68,6 @@ def health_check():
     return {
         "status": "healthy",
         "supabase": "connected" if supabase else "disconnected",
-        "database": "connected" if engine else "disconnected"
+        "database": "connected" if engine else "disconnected",
+        "dagster": "connected" if dagster_instance else "disconnected"
     }
