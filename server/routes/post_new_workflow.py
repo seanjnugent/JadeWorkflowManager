@@ -47,7 +47,7 @@ def upload_to_storage(file_path: str, content: bytes) -> str:
             continue
     raise HTTPException(500, "Unexpected error in file upload")
 
-@router.post("/workflow/new")
+@router.post("/new")
 async def create_new_workflow(
     file: UploadFile = File(...),
     name: str = Form(...),

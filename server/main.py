@@ -38,7 +38,7 @@ from routes.post_user_authentication import router as user_authentication
 
 # Include routers
 app.include_router(health_check_router)
-app.include_router(workflow_router)
+app.include_router(workflow_router, prefix="/workflow", tags=["workflow"])
 app.include_router(workflow_steps_router)
 app.include_router(workflow_destination_router)
 app.include_router(runs_router)
@@ -69,8 +69,8 @@ def validate_config():
             errors.append(f"Missing database config: {', '.join(missing_db_vars)}")
 
     # Dagster validation
-    if not os.getenv("DAGSTER_HOME"):
-        errors.append("DAGSTER_HOME is required")
+    if not os.getenv("DAGSTER_API_URL"):
+        errors.append("DAGSTER_API_URL is required")
 
     if errors:
         raise ValueError("Configuration errors:\n- " + "\n- ".join(errors))

@@ -64,9 +64,7 @@ class FileParser:
         """Get sample data rows, ensuring JSON-serializable output"""
         try:
             logger.info("Extracting sample data")
-            # Convert DataFrame to dict, handling non-serializable types
             sample = df.head(n).replace({np.nan: None, pd.NaT: None}).to_dict(orient='records')
-            # Convert any non-serializable types (e.g., Timestamp) to strings
             for row in sample:
                 for key, value in row.items():
                     if isinstance(value, (pd.Timestamp, datetime)):
@@ -113,13 +111,9 @@ class FileParser:
     def _detect_type(self, series: pd.Series) -> str:
         """Detect basic data type, handling edge cases"""
         try:
-            # Handle empty or all-NA series
             if series.empty or series.isna().all():
                 return "unknown"
-            
-            # Convert series to handle mixed types safely
             series = series.infer_objects()
-            
             if pd.api.types.is_datetime64_any_dtype(series):
                 return "datetime"
             elif pd.api.types.is_timedelta64_dtype(series):
