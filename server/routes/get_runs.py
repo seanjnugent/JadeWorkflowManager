@@ -11,7 +11,7 @@ router = APIRouter()
 @router.get("/runs")
 async def get_runs(
     page: int = 1,
-    limit: int = 10,
+    limit: int = 20,
     db: Session = Depends(get_db)
 ):
     """Get a list of runs with pagination"""
@@ -20,7 +20,8 @@ async def get_runs(
         offset = (page - 1) * limit
         runs = db.execute(
             text("""
-                SELECT id, workflow_id, triggered_by, status, started_at, finished_at, error_message
+                SELECT id, workflow_id, triggered_by, status, started_at, finished_at, error_message,
+                       output_file_path, dagster_run_id, input_file_path
                 FROM workflow.run
                 ORDER BY started_at DESC
                 LIMIT :limit OFFSET :offset

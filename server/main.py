@@ -35,6 +35,8 @@ from routes.post_new_connection import router as connections_router
 from routes.post_update_workflow import router as update_workflow_router
 from routes.post_new_workflow_step import router as new_workflow_steps_router
 from routes.post_user_authentication import router as user_authentication
+from routes.post_new_dag import router as post_new_dag_router
+from routes.post_new_run import router as post_new_run_router
 
 # Include routers
 app.include_router(health_check_router)
@@ -49,6 +51,8 @@ app.include_router(connections_router)
 app.include_router(update_workflow_router, prefix="/workflow", tags=["workflow"])
 app.include_router(new_workflow_steps_router, prefix="/workflow", tags=["workflow"])
 app.include_router(user_authentication)
+app.include_router(post_new_dag_router)
+app.include_router(post_new_run_router)
 
 # ========== Configuration Validation ==========
 def validate_config():

@@ -8,13 +8,14 @@ import {
   XCircle,
   FileText,
   Database,
-  Code
-} from 'lucide-react';
+  Code,
+  ChevronLeft} from 'lucide-react';
 
 const Workflow = () => {
   const { workflowId } = useParams();
   const navigate = useNavigate();
   const [workflowDetails, setWorkflowDetails] = useState(null);
+  const [expandedCode, setExpandedCode] = useState(null);
 
   useEffect(() => {
     // Fetch workflow details from the API
@@ -36,22 +37,26 @@ const Workflow = () => {
 
   const { workflow, steps, destination, recent_runs } = workflowDetails;
 
+  const toggleCodeExpansion = (stepId) => {
+    setExpandedCode(expandedCode === stepId ? null : stepId);
+  };
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
       <div className="container mx-auto px-6 py-10">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">{workflow.name}</h2>
+          <button
+            onClick={() => navigate('/workflows')}
+            className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center"
+          >
+            Back to Workflows <ChevronRight className="w-4 h-4 ml-1" />
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Workflow Details Section */}
           <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg shadow-lg p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">{workflow.name}</h2>
-              <button
-                onClick={() => navigate('/workflows')}
-                className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center"
-              >
-                Back to Workflows <ChevronRight className="w-4 h-4 ml-1" />
-              </button>
-            </div>
-
             <div className="space-y-4">
               <div className="bg-gray-100 border border-gray-200 rounded-lg p-4">
                 <h3 className="font-bold text-gray-800">Description</h3>
@@ -90,7 +95,17 @@ const Workflow = () => {
                     <h3 className="font-bold text-gray-800">{step.label}</h3>
                     <p className="text-sm text-gray-600">{step.description}</p>
                     <p className="text-sm text-gray-600"><strong>Code Type:</strong> {step.code_type}</p>
-                    <pre className="text-sm text-gray-600 bg-gray-200 p-2 rounded mt-2">{step.code}</pre>
+                    <div className="text-sm text-gray-600 bg-gray-200 p-2 rounded mt-2 overflow-hidden">
+                      <pre className={`whitespace-pre-wrap ${expandedCode === step.id ? '' : 'truncate'}`}>
+                        {step.code}
+                      </pre>
+                      <button
+                        onClick={() => toggleCodeExpansion(step.id)}
+                        className="text-blue-600 hover:text-blue-700 text-xs mt-2"
+                      >
+                        {expandedCode === step.id ? 'Show less' : 'Show more'}
+                      </button>
+                    </div>
                   </div>
                 ))
               ) : (

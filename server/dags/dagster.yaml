@@ -1,4 +1,4 @@
 
 storage:
   sqlite:
-    base_dir: .
+    base_dir: .server/
