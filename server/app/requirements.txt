@@ -8,3 +8,7 @@ sqlalchemy
 setuptools
 python-multipart
 openpyxl
+dagit
+dagster
+supabase
+psycopg2

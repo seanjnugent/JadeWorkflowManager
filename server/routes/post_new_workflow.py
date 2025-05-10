@@ -10,6 +10,7 @@ from typing import Dict, List, Any, Optional
 import re
 from .get_health_check import get_db
 from dotenv import load_dotenv
+import uuid
 
 load_dotenv()
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dags", tags=["dags"])
 
 # Directory to save generated DAG files
-DAG_OUTPUT_DIR = "workflow_dags"
+DAG_OUTPUT_DIR = os.path.join("app", "dagster", "jobs")
 
 # Ensure the output directory exists
 os.makedirs(DAG_OUTPUT_DIR, exist_ok=True)
@@ -29,7 +30,7 @@ class DagCreate(BaseModel):
 
 # Template for Dagster job file
 DAG_TEMPLATE = """
-from dagster import job, op, resource, In, Out, InputDefinition, OpExecutionContext, graph
+from dagster import job, op, resource, In, Out, Field, StringSource
 import pandas as pd
 import io
 import json
@@ -37,13 +38,12 @@ import uuid
 from supabase import Client
 from sqlalchemy import create_engine, text
 import os
-import logging
-from typing import Dict, Any, List, Optional, Union
+from dotenv import load_dotenv
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Load environment variables from .env file
+load_dotenv()
 
+# Define resources
 @resource
 def supabase_resource(init_context):
     supabase_url = os.getenv("SUPABASE_URL")
@@ -59,105 +59,57 @@ def db_engine_resource(init_context):
         raise ValueError("DATABASE_URL must be set")
     return create_engine(db_url)
 
-@op(out=Out(pd.DataFrame))
-def load_input_op(context: OpExecutionContext, input_file_path: str) -> pd.DataFrame:
-
+# Define operations (ops)
+@op(config_schema={"input_file_path": str}, out=Out(pd.DataFrame))
+def load_input_op(context):
+    input_file_path = context.op_config["input_file_path"]
+    supabase_client = context.resources.supabase
+    bucket = "workflow-files"
     try:
-        supabase_client = context.resources.supabase
-
-        # Extract bucket and path
-        if "/" in input_file_path:
-            parts = input_file_path.split("/", 1)
-            bucket = parts[0]
-            path = parts[1]
-        else:
-            bucket = "workflow-files"
-            path = input_file_path
-
-        context.log.info(f"Loading file from bucket: {{bucket}}, path: {{path}}")
-
-        # Download file content
-        file_content = supabase_client.storage.from_(bucket).download(path)
-
-        # Parse CSV
+        file_content = supabase_client.storage.from_(bucket).download(input_file_path)
         df = pd.read_csv(io.BytesIO(file_content))
-        context.log.info(f"Loaded CSV with {{len(df)}} rows and {{len(df.columns)}} columns")
+        context.log.info(f"Loaded input file: {input_file_path} with {len(df)} rows")
         return df
     except Exception as e:
-        context.log.error(f"Error loading input: {{str(e)}}")
-        # Log error to database
-        try:
-            with context.resources.db_engine.connect() as conn:
-                conn.execute(
-                    text('''
-                        INSERT INTO workflow.run_log
-                        (run_id, step_id, log_level, message, timestamp)
-                        VALUES (:run_id, null, 'error', :message, NOW())
-                    '''),
-                    {
-                        "run_id": context.run_id,
-                        "message": f"Error loading input file: {{str(e)}}"
-                    }
-                )
-                conn.commit()
-        except Exception as db_error:
-            context.log.error(f"Failed to log error to database: {{str(db_error)}}")
-        raise
-
-@op(
-    ins={"input_df": In(pd.DataFrame)},
-    out=Out(Dict[str, Any]),
-    config_schema={"step_data": dict, "parameters": dict}
-)
-def transform_op(context: OpExecutionContext, input_df: pd.DataFrame) -> Dict[str, Any]:
-
-    step_data = context.op_config["step_data"]
-    parameters = context.op_config["parameters"] or {}
-    step_id = step_data.get("id")
-
-    context.log.info(f"Starting transformation for step {{step_data.get('label', 'unknown')}}")
-    context.log.info(f"Parameters: {{parameters}}")
-
-    # Record start in database
-    try:
+        context.log.error(f"Error loading input: {str(e)}")
         with context.resources.db_engine.connect() as conn:
             conn.execute(
                 text('''
                     INSERT INTO workflow.run_log
                     (run_id, step_id, log_level, message, timestamp)
-                    VALUES (:run_id, :step_id, 'info', :message, NOW())
+                    VALUES (:run_id, NULL, 'error', :message, NOW())
                 '''),
                 {
                     "run_id": context.run_id,
-                    "step_id": step_id,
-                    "message": f"Starting step {{step_data.get('label', 'unknown')}}"
+                    "message": f"Error loading input file: {str(e)}"
                 }
             )
             conn.commit()
-    except Exception as e:
-        context.log.error(f"Database error logging step start: {{str(e)}}")
+        raise
 
-    # Execute transformation code
+@op(
+    config_schema={{
+        "parameters": dict,
+        "step_label": Field(StringSource, is_required=False, default_value="{step_label}")
+    }},
+    ins={{"input_df": In(pd.DataFrame)}},
+    out=Out(dict)
+)
+def transform_op(context, input_df: pd.DataFrame):
+    parameters = context.op_config["parameters"]
+    step_label = context.op_config["step_label"]
+    step_data = {{
+        "label": step_label,
+        "id": context.run_id
+    }}
     try:
-        # Extract transformation code
         code = '''{code}'''
-
-        # Create execution environment
-        local_vars = {
-            "pd": pd,
-            "json": json,
-            "input_df": input_df
-        }
-
-        # Execute code
-        exec(code, {}, local_vars)
-
-        # Call transformation function
-        transform_func = local_vars["csv_to_json_transformation"]
-        result = transform_func(parameters, step_data.get("input_file_path", "unknown"))
-
-        # Log success
-        context.log.info(f"Transformation completed successfully")
+        local_vars = {{"pd": pd, "json": json}}
+        exec(code, local_vars)
+        transform_func = local_vars.get("csv_to_json_transformation")
+        if not transform_func:
+            raise ValueError("Transformation function not found")
+        result = transform_func(parameters, "{input_file_path}")
         with context.resources.db_engine.connect() as conn:
             conn.execute(
                 text('''
@@ -165,86 +117,53 @@ def transform_op(context: OpExecutionContext, input_df: pd.DataFrame) -> Dict[st
                     (run_id, step_id, log_level, message, timestamp)
                     VALUES (:run_id, :step_id, :log_level, :message, NOW())
                 '''),
-                {
+                {{
                     "run_id": context.run_id,
-                    "step_id": step_id,
+                    "step_id": step_data["id"],
                     "log_level": "info",
-                    "message": "Transformation executed successfully"
-                }
+                    "message": f"Step {{step_data['label']}} executed"
+                }}
             )
             conn.commit()
-
         return result
     except Exception as e:
         error_msg = f"Transformation error: {{str(e)}}"
         context.log.error(error_msg)
-
-        # Log error to database
-        try:
-            with context.resources.db_engine.connect() as conn:
-                conn.execute(
-                    text('''
-                        INSERT INTO workflow.run_log
-                        (run_id, step_id, log_level, message, timestamp)
-                        VALUES (:run_id, :step_id, :log_level, :message, NOW())
-                    '''),
-                    {
-                        "run_id": context.run_id,
-                        "step_id": step_id,
-                        "log_level": "error",
-                        "message": error_msg
-                    }
-                )
-                conn.commit()
-        except Exception as db_error:
-            context.log.error(f"Failed to log error to database: {{str(db_error)}}")
-
+        with context.resources.db_engine.connect() as conn:
+            conn.execute(
+                text('''
+                    INSERT INTO workflow.run_log
+                    (run_id, step_id, log_level, message, timestamp)
+                    VALUES (:run_id, :step_id, :log_level, :message, NOW())
+                '''),
+                {{
+                    "run_id": context.run_id,
+                    "step.ConcurrentModificationExceptionid": step_data["id"],
+                    "log_level": "error",
+                    "message": error_msg
+                }}
+            )
+            conn.commit()
         raise Exception(error_msg)
 
-@op(ins={"transformed_data": In(Dict[str, Any])})
-def save_output_op(context: OpExecutionContext, transformed_data: Dict[str, Any], workflow_id: int, destination: dict):
-
+@op(config_schema={{"workflow_id": int, "destination": dict}}, ins={{"input_data": In(dict)}})
+def save_output_op(context, input_data: dict):
+    workflow_id = context.op_config["workflow_id"]
+    destination = context.op_config["destination"]
     try:
-        context.log.info(f"Saving output for workflow {{workflow_id}}")
-
-        # Check for errors in transformed data
-        if "error" in transformed_data:
-            error_msg = f"Transformation error: {{transformed_data['error']}}"
+        if "error" in input_data:
+            error_msg = f"Transformation error: {{input_data['error']}}"
             context.log.error(error_msg)
-            raise Exception(error_msg)
-
-        # Get destination file path or generate default
-        output_path = destination.get("file_path")
-        if not output_path:
-            output_format = destination.get("file_format", "csv").lower()
-            output_path = f"workflow-files/output/{{workflow_id}}_{{uuid.uuid4()}}.{{output_format}}"
-
-        # Handle different output formats
-        if output_path.endswith(".json"):
-            # Direct JSON output
-            with open(output_path, 'w') as f:
-                json.dump(transformed_data, f, indent=2)
-        else:
-            # Convert to DataFrame and save as CSV
-            if isinstance(transformed_data.get("data"), dict):
-                # Handle grouped data
-                flattened_data = []
-                for group_name, group_data in transformed_data["data"].items():
-                    for item in group_data:
-                        row = {"group": group_name}
-                        row.update(item)
-                        flattened_data.append(row)
-                df = pd.DataFrame(flattened_data)
-            else:
-                # Regular data list
-                df = pd.DataFrame(transformed_data.get("data", []))
-
-            # Save DataFrame
-            df.to_csv(output_path, index=False)
-
-        context.log.info(f"Output saved to: {{output_path}}")
-
-        # Update run record with output file path
+            raise ValueError(error_msg)
+        df = pd.DataFrame(input_data["data"])
+        output_path = destination.get("file_path") or \
+            f"workflow-files/output/{{workflow_id}}_{{uuid.uuid4()}}.csv"
+        supabase_client = context.resources.supabase
+        bucket = "workflow-files"
+        csv_data = df.to_csv(index=False).encode()
+        file_content = io.BytesIO(csv_data)
+        supabase_client.storage.from_(bucket).upload(output_path, file_content)
+        context.log.info(f"Output uploaded to Supabase: {{bucket}}/{{output_path}}")
         with context.resources.db_engine.connect() as conn:
             conn.execute(
                 text('''
@@ -254,193 +173,164 @@ def save_output_op(context: OpExecutionContext, transformed_data: Dict[str, Any]
                         finished_at = NOW()
                     WHERE id = :run_id
                 '''),
-                {"run_id": context.run_id, "output_file_path": output_path}
+                {{"run_id": context.run_id, "output_file_path": output_path}}
             )
             conn.commit()
-            context.log.info(f"Run record updated with output path")
-
-        return {"output_file_path": output_path}
+        return {{"output_file_path": output_path}}
     except Exception as e:
         error_msg = f"Output save error: {{str(e)}}"
         context.log.error(error_msg)
-
-        # Update run with error status
-        try:
-            with context.resources.db_engine.connect() as conn:
-                conn.execute(
-                    text('''
-                        UPDATE workflow.run
-                        SET status = 'failed',
-                            error_message = :error_message,
-                            finished_at = NOW()
-                        WHERE id = :run_id
-                    '''),
-                    {"run_id": context.run_id, "error_message": error_msg}
-                )
-                conn.commit()
-        except Exception as db_error:
-            context.log.error(f"Failed to update run status: {{str(db_error)}}")
-
+        with context.resources.db_engine.connect() as conn:
+            conn.execute(
+                text('''
+                    UPDATE workflow.run
+                    SET status = 'failed',
+                        error_message = :error_message,
+                        finished_at = NOW()
+                    WHERE id = :run_id
+                '''),
+                {{"run_id": context.run_id, "error_message": error_msg}}
+            )
+            conn.commit()
         raise Exception(error_msg)
 
-# Define the graph that will be used for the job
-@graph
-def workflow_process(input_file_path: str, workflow_id: int, destination: dict):
-    input_df = load_input_op(input_file_path)
-    transformed = transform_op(input_df)
-    save_output_op(transformed, workflow_id, destination)
-
-# Define the job with resources
+# Define the job
 @job(
     name="workflow_job_{workflow_id}",
-    resource_defs={"supabase": supabase_resource, "db_engine": db_engine_resource},
-    tags={"workflow_id": "{workflow_id}"},
+    resource_defs={{
+        "supabase": supabase_resource,
+        "db_engine": db_engine_resource
+    }},
+    tags={{"workflow_id": "{workflow_id}"}}
 )
 def workflow_job():
-    workflow_process()
-
+    raw_data = load_input_op()
+    transformed_data = transform_op(raw_data)
+    save_output_op(transformed_data)
 """
 
 def fix_indentation(code: str) -> str:
-        """Fix indentation in the generated code to use 4 spaces."""
-        lines = code.split('\n')
-        fixed_lines = []
-
-        for line in lines:
-            # Replace tabs with spaces and ensure consistent indentation
-            fixed_line = line.replace('\t', '    ')
-            fixed_lines.append(fixed_line)
-
-        return '\n'.join(fixed_lines)
+    """Fix indentation in the generated code to use 4 spaces."""
+    lines = code.split('\n')
+    fixed_lines = []
+    for line in lines:
+        # Replace tabs with spaces and ensure consistent indentation
+        fixed_line = line.replace('\t', '    ')
+        fixed_lines.append(fixed_line)
+    return '\n'.join(fixed_lines)
 
 def sanitize_code(code: str) -> str:
-        """Sanitize code to prevent template string issues."""
-        # Escape any curly braces in the code that aren't template markers
-        code = re.sub(r'{{([^{}]*?)}}', r'{{{\1}}}', code)
-        return code
+    """Sanitize code to prevent template string issues."""
+    # Escape any curly braces in the code that aren't template markers
+    code = re.sub(r'(?<!{){(?!{)', r'{{', code)
+    code = re.sub(r'(?<!})}(?!})', r'}}', code)
+    return code
 
 def fetch_workflow_data(db: Session, workflow_id: int) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        """
-        Fetch workflow and its steps from the database.
+    """
+    Fetch workflow and its steps from the database.
+    """
+    # Fetch workflow
+    workflow_result = db.execute(
+        text("""
+            SELECT id, name, input_file_path, destination, input_structure, parameters
+            FROM workflow.workflow
+            WHERE id = :id
+        """),
+        {"id": workflow_id}
+    ).fetchone()
+    if not workflow_result:
+        logger.error(f"Workflow {workflow_id} not found")
+        raise ValueError(f"Workflow {workflow_id} not found")
 
-        Args:
-            db: SQLAlchemy session
-            workflow_id: ID of the workflow
+    workflow_data = dict(workflow_result._mapping)
 
-        Returns:
-            Tuple of (workflow data, list of step data)
-        """
-        # Fetch workflow
-        workflow_result = db.execute(
-            text("""
-                SELECT id, name, input_file_path, destination, input_structure, parameters
-                FROM workflow.workflow
-                WHERE id = :id
-            """),
-            {"id": workflow_id}
-        ).fetchone()
-        if not workflow_result:
-            logger.error(f"Workflow {workflow_id} not found")
-            raise ValueError(f"Workflow {workflow_id} not found")
+    # Parse input_structure and parameters if they are JSON strings
+    if isinstance(workflow_data.get("input_structure"), str) and workflow_data["input_structure"].strip():
+        try:
+            workflow_data["input_structure"] = json.loads(workflow_data["input_structure"])
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse input_structure as JSON: {str(e)}")
 
-        workflow_data = dict(workflow_result._mapping)
+    if isinstance(workflow_data.get("parameters"), str) and workflow_data["parameters"].strip():
+        try:
+            workflow_data["parameters"] = json.loads(workflow_data["parameters"])
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse parameters as JSON: {str(e)}")
 
-        # Parse input_structure and parameters if they are JSON strings
-        if isinstance(workflow_data.get("input_structure"), str) and workflow_data["input_structure"].strip():
+    # Fetch steps
+    steps_result = db.execute(
+        text("""
+            SELECT id, workflow_id, label, code_type, code, parameters, step_order
+            FROM workflow.workflow_step
+            WHERE workflow_id = :workflow_id
+            ORDER BY step_order
+        """),
+        {"workflow_id": workflow_id}
+    ).fetchall()
+
+    if not steps_result:
+        logger.error(f"No steps found for workflow {workflow_id}")
+        raise ValueError(f"No steps found for workflow {workflow_id}")
+
+    steps_data = [dict(step._mapping) for step in steps_result]
+
+    # Parse step parameters if they are JSON strings
+    for step in steps_data:
+        if isinstance(step.get("parameters"), str) and step["parameters"].strip():
             try:
-                workflow_data["input_structure"] = json.loads(workflow_data["input_structure"])
+                step["parameters"] = json.loads(step["parameters"])
             except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse input_structure as JSON: {str(e)}")
+                logger.warning(f"Failed to parse step parameters as JSON: {str(e)}")
+                step["parameters"] = {}
 
-        if isinstance(workflow_data.get("parameters"), str) and workflow_data["parameters"].strip():
-            try:
-                workflow_data["parameters"] = json.loads(workflow_data["parameters"])
-            except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse parameters as JSON: {str(e)}")
-
-        # Fetch steps
-        steps_result = db.execute(
-            text("""
-                SELECT id, workflow_id, label, code_type, code, parameters, step_order
-                FROM workflow.workflow_step
-                WHERE workflow_id = :workflow_id
-                ORDER BY step_order
-            """),
-            {"workflow_id": workflow_id}
-        ).fetchall()
-
-        if not steps_result:
-            logger.error(f"No steps found for workflow {workflow_id}")
-            raise ValueError(f"No steps found for workflow {workflow_id}")
-
-        steps_data = [dict(step._mapping) for step in steps_result]
-
-        # Parse step parameters if they are JSON strings
-        for step in steps_data:
-            if isinstance(step.get("parameters"), str) and step["parameters"] and step["parameters"].strip():
-                try:
-                    step["parameters"] = json.loads(step["parameters"])
-                except json.JSONDecodeError as e:
-                    logger.warning(f"Failed to parse step parameters as JSON: {str(e)}")
-                    step["parameters"] = []
-
-        return workflow_data, steps_data
+    return workflow_data, steps_data
 
 def generate_dag_file(workflow_data: Dict[str, Any], steps_data: List[Dict[str, Any]]) -> str:
-        """
-        Generate a Dagster job file and save it to workflow_dags directory.
+    """
+    Generate a Dagster job file and save it to the jobs directory.
+    """
+    workflow_id = workflow_data["id"]
+    input_file_path = workflow_data.get("input_file_path", "")
+    destination = workflow_data.get("destination", {})
 
-        Args:
-            workflow_data: Workflow metadata from database
-            steps_data: List of step metadata from database
+    # For now, use the first step (as per your current workflow)
+    if len(steps_data) > 1:
+        logger.warning(f"Multiple steps found for workflow {workflow_id}. Using first step.")
+    step_data = steps_data[0]
 
-        Returns:
-            Path to the generated DAG file
-        """
-        workflow_id = workflow_data["id"]
+    # Fix indentation and sanitize code
+    code = step_data.get("code", "")
+    code = fix_indentation(code)
+    code = sanitize_code(code)
 
-        # For now, use the first step (since workflow ID 22 has one step)
-        if len(steps_data) > 1:
-            logger.warning(f"Multiple steps found for workflow {workflow_id}. Using first step.")
-        step_data = steps_data[0]
+    # Populate template
+    dag_content = DAG_TEMPLATE.format(
+        workflow_id=workflow_id,
+        step_label=step_data.get("label", "default_step"),
+        code=code,
+        input_file_path=input_file_path
+    )
 
-        # Fix indentation and sanitize code
-        code = step_data.get("code", "")
-        code = fix_indentation(code)
-        code = sanitize_code(code)
+    # Save to file
+    dag_file_path = os.path.join(DAG_OUTPUT_DIR, f"workflow_{workflow_id}.py")
+    with open(dag_file_path, "w") as f:
+        f.write(dag_content)
 
-        # Populate template
-        dag_content = DAG_TEMPLATE.format(
-            workflow_id=workflow_id,
-            code=code
-        )
-
-        # Save to file
-        dag_file_path = os.path.join(DAG_OUTPUT_DIR, f"workflow_{workflow_id}.py")
-        with open(dag_file_path, "w") as f:
-            f.write(dag_content)
-
-        logger.info(f"Generated DAG file: {dag_file_path}")
-        return dag_file_path
+    logger.info(f"Generated DAG file: {dag_file_path}")
+    return dag_file_path
 
 def create_dag(db: Session, workflow_id: int) -> str:
-        """
-        Main function to create a Dagster DAG for a workflow.
-
-        Args:
-            db: SQLAlchemy session
-            workflow_id: ID of the workflow
-
-        Returns:
-            Path to the generated DAG file
-        """
-        try:
-            workflow_data, steps_data = fetch_workflow_data(db, workflow_id)
-            dag_file_path = generate_dag_file(workflow_data, steps_data)
-            return dag_file_path
-        except Exception as e:
-            logger.error(f"Failed to create DAG for workflow {workflow_id}: {str(e)}")
-            raise
+    """
+    Main function to create a Dagster DAG for a workflow.
+    """
+    try:
+        workflow_data, steps_data = fetch_workflow_data(db, workflow_id)
+        dag_file_path = generate_dag_file(workflow_data, steps_data)
+        return dag_file_path
+    except Exception as e:
+        logger.error(f"Failed to create DAG for workflow {workflow_id}: {str(e)}")
+        raise
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_dag_endpoint(
@@ -449,13 +339,6 @@ async def create_dag_endpoint(
 ):
     """
     Create a Dagster DAG file for a workflow.
-
-    Args:
-        request: DagCreate model with workflow_id
-        db: SQLAlchemy session
-
-    Returns:
-        Dictionary with the path to the generated DAG file
     """
     try:
         # Check if environment variables are set
@@ -477,32 +360,11 @@ async def create_dag_endpoint(
             workflow_id=request.workflow_id
         )
 
-        # Check if dagster_home is set
-        dagster_home = os.getenv("DAGSTER_HOME")
-        destination_msg = ""
-        if dagster_home:
-            # Create symlink in Dagster home directory
-            dagster_dag_dir = os.path.join(dagster_home, "dags")
-            os.makedirs(dagster_dag_dir, exist_ok=True)
-            symlink_path = os.path.join(dagster_dag_dir, f"workflow_{request.workflow_id}.py")
-
-            # Remove existing symlink if it exists
-            if os.path.exists(symlink_path):
-                os.remove(symlink_path)
-
-            # Create symlink
-            try:
-                os.symlink(os.path.abspath(dag_file_path), symlink_path)
-                destination_msg = f" A symlink was created in {symlink_path}."
-            except Exception as link_error:
-                logger.error(f"Failed to create symlink: {str(link_error)}")
-                destination_msg = f" Failed to create symlink: {str(link_error)}"
-
         logger.info(f"DAG created successfully for workflow {request.workflow_id}")
         return {
             "workflow_id": request.workflow_id,
             "dag_file_path": dag_file_path,
-            "message": f"DAG file generated at {dag_file_path}.{destination_msg}"
+            "message": f"DAG file generated at {dag_file_path}."
         }
     except ValueError as e:
         logger.error(f"Validation error: {str(e)}")
