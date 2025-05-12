@@ -16,19 +16,7 @@ const Footer = () => {
   const socialLinks = [
     { 
       icon: <Github className="w-5 h-5" />, 
-      href: 'https://github.com/your-company' 
-    },
-    { 
-      icon: <Twitter className="w-5 h-5" />, 
-      href: 'https://twitter.com/your-company' 
-    },
-    { 
-      icon: <Linkedin className="w-5 h-5" />, 
-      href: 'https://linkedin.com/company/your-company' 
-    },
-    { 
-      icon: <Mail className="w-5 h-5" />, 
-      href: 'mailto:support@conduit.com' 
+      href: 'https://github.com/seanjnugent/Conduit' 
     }
   ];
 
@@ -72,35 +60,6 @@ const Footer = () => {
               ))}
             </div>
           </div>
-
-          {/* Newsletter Signup */}
-          <div>
-            <h3 className="font-bold text-gray-800 mb-4">Stay Updated</h3>
-            <div className="bg-gray-100 border border-gray-200 rounded-lg p-4">
-              <p className="text-sm text-gray-600 mb-4">
-                Subscribe to our newsletter for the latest updates and insights.
-              </p>
-              <div className="flex">
-                <input 
-                  type="email" 
-                  placeholder="Enter your email" 
-                  className="flex-grow bg-white border border-gray-300 rounded-l-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                />
-                <button 
-                  className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 py-2 rounded-r-lg text-sm hover:from-blue-700 hover:to-cyan-600 transition-all"
-                >
-                  Subscribe
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Copyright */}
-        <div className="border-t border-gray-200 mt-8 pt-6 text-center">
-          <p className="text-sm text-gray-600">
-            &copy; {currentYear} Conduit Technologies. All rights reserved.
-          </p>
         </div>
       </div>
     </footer>

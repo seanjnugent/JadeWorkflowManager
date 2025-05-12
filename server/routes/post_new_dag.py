@@ -10,6 +10,7 @@ from typing import Dict, List, Any, Optional
 import re
 from .get_health_check import get_db
 from dotenv import load_dotenv
+from pathlib import Path
 
 load_dotenv()
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dags", tags=["dags"])
 
 # Directory to save generated DAG files - update to your desired path
-DAG_OUTPUT_DIR = "server/app/dagster/jobs"
+DAG_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "app" / "dagster" / "jobs"
 
 # Ensure the output directory exists
 os.makedirs(DAG_OUTPUT_DIR, exist_ok=True)
@@ -345,11 +346,6 @@ def fix_indentation(code: str) -> str:
 
     return '\n'.join(fixed_lines)
 
-def sanitize_code(code: str) -> str:
-    """Sanitize code to prevent template string issues."""
-    # Escape any curly braces in the code that aren't template markers
-    code = re.sub(r'{{([^{}]*?)}}', r'{{{\1}}}', code)
-    return code
 
 def fetch_workflow_data(db: Session, workflow_id: int) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """
@@ -376,6 +372,11 @@ def fetch_workflow_data(db: Session, workflow_id: int) -> tuple[Dict[str, Any], 
         raise ValueError(f"Workflow {workflow_id} not found")
 
     workflow_data = dict(workflow_result._mapping)
+
+    # Ensure input_file_path is available
+    if workflow_data.get("input_file_path") is None:
+        logger.warning(f"input_file_path is None for workflow {workflow_id}, setting to default")
+        workflow_data["input_file_path"] = "workflow-files/default.csv"  # Default path
 
     # Parse input_structure and parameters if they are JSON strings
     if isinstance(workflow_data.get("input_structure"), str) and workflow_data["input_structure"].strip():
@@ -445,10 +446,13 @@ def generate_dag_file(workflow_data: Dict[str, Any], steps_data: List[Dict[str, 
         logger.warning(f"Multiple steps found for workflow {workflow_id}. Using first step.")
     step_data = steps_data[0]
 
+    # Make sure step_data has input_file_path
+    if "input_file_path" not in step_data:
+        step_data["input_file_path"] = workflow_data.get("input_file_path", "workflow-files/default.csv")
+
     # Fix indentation and sanitize code
     code = step_data.get("code", "")
     code = fix_indentation(code)
-    code = sanitize_code(code)
 
     # Populate template
     dag_content = DAG_TEMPLATE.format(

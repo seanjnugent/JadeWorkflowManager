@@ -27,7 +27,6 @@ from routes.get_health_check import router as health_check_router
 from routes.post_new_workflow import router as workflow_router
 from routes.workflow_steps import router as workflow_steps_router
 from routes.post_workflow_destination import router as workflow_destination_router
-from routes.dagster_runs import router as runs_router
 from routes.get_workflows import router as list_workflows_router
 from routes.get_workflow import router as get_workflow_router
 from routes.get_run import router as get_run_router
@@ -43,7 +42,6 @@ app.include_router(health_check_router)
 app.include_router(workflow_router, prefix="/workflow", tags=["workflow"])
 app.include_router(workflow_steps_router)
 app.include_router(workflow_destination_router)
-app.include_router(runs_router)
 app.include_router(list_workflows_router)
 app.include_router(get_workflow_router)
 app.include_router(get_run_router)
