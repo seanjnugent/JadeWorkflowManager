@@ -21,35 +21,6 @@ import {
     Download
 } from 'lucide-react';
 
-// CSS for the spinner
-const spinnerStyles = `
-  .spinner {
-    border: 2px solid #e5e7eb;
-    border-top: 2px solid #4B5563;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    display: inline-block;
-  }
-  .spinner-small {
-    width: 12px;
-    height: 12px;
-  }
-  .spinner-large {
-    width: 40px;
-    height: 40px;
-  }
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-`;
-
-// Inject spinner styles into the document
-const styleSheet = document.createElement('style');
-styleSheet.type = 'text/css';
-styleSheet.innerText = spinnerStyles;
-document.head.appendChild(styleSheet);
-
 // Custom Tooltip Component
 const CustomTooltip = ({ content, children }) => {
     const [isVisible, setIsVisible] = useState(false);
@@ -228,46 +199,18 @@ const Workflow = () => {
         if (!publishing && workflowDetails?.workflow?.dag_status !== 'ready') {
             setPublishing(true);
             try {
-                // Send POST request to new endpoint
-                await fetch(`http://localhost:8000/workflow/dags/`, {
+                await fetch(`http://localhost:8000/workflows/${workflowId}/publish_dag`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        workflow_id: parseInt(workflowId),
-                        workflow_name: workflowDetails?.workflow?.name || 'Unnamed Workflow'
-                    })
+                    headers: { 'Content-Type': 'application/json' },
                 });
-
-                // Trigger GET request after 2 seconds
-                setTimeout(async () => {
-                    try {
-                        const response = await fetch(`http://localhost:8000/workflow/dags/${workflowId}`, {
-                            headers: { 'accept': 'application/json' }
-                        });
-                        const dagData = await response.json();
-                        console.log('DAG data:', dagData);
-                    } catch (error) {
-                        console.error('Error fetching DAG:', error);
-                    }
-                }, 2000);
-
-                // Refresh workflow details after 3 seconds
-                setTimeout(async () => {
-                    try {
-                        const response = await fetch(`http://localhost:8000/workflow/${workflowId}`, {
-                            headers: { 'accept': 'application/json' }
-                        });
-                        const updatedData = await response.json();
-                        setWorkflowDetails(updatedData);
-                    } catch (error) {
-                        console.error('Error refreshing workflow:', error);
-                    }
-                }, 3000);
+                // Refresh workflow details after publishing
+                const response = await fetch(`http://localhost:8000/workflow/${workflowId}`, {
+                    headers: { 'accept': 'application/json' }
+                });
+                const updatedData = await response.json();
+                setWorkflowDetails(updatedData);
             } catch (error) {
-                console.error('Error publishing DAG:', error);
+                console.error('Error:', error);
             } finally {
                 setPublishing(false);
             }
@@ -278,12 +221,12 @@ const Workflow = () => {
         if (!running && workflowDetails?.workflow?.dag_status === 'ready') {
             setRunning(true);
             try {
-                await fetch(`http://localhost:8000/runs/new/${workflowId}`, {
+                await fetch(`http://localhost:8000/runs`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ workflow_id: workflowId }),
                 });
-                navigate(`/runs/new/${workflowId}`);
+                navigate('/runs');
             } catch (error) {
                 console.error('Error:', error);
             } finally {
@@ -308,11 +251,7 @@ const Workflow = () => {
     };
 
     if (loading) {
-        return (
-            <div className="flex justify-center items-center min-h-screen">
-                <span className="spinner spinner-large"></span>
-            </div>
-        );
+        return <div className="flex justify-center items-center min-h-screen"><span className="loader"></span></div>;
     }
 
     if (!workflowDetails) {
@@ -423,9 +362,7 @@ const Workflow = () => {
                                             disabled={publishing}
                                         >
                                             {publishing ? (
-                                                <span className="mr-1 flex items-center">
-                                                    <span className="spinner spinner-small"></span>
-                                                </span>
+                                                <Clock className="animate-spin w-3 h-3 mr-1" />
                                             ) : (
                                                 <UploadCloud className="w-3 h-3 mr-1" />
                                             )}

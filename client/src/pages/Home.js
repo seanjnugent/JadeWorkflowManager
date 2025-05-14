@@ -57,7 +57,7 @@ const Home = () => {
                 <motion.div
                   key={workflow.id}
                   whileHover={{ scale: 1.02 }}
-                  onClick={() => navigate(`/workflow/${workflow.id}`)}
+                  onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
                   className="bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all cursor-pointer"
                 >
                   <div className="flex items-center space-x-4">
@@ -90,7 +90,7 @@ const Home = () => {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/new-workflow')}
+              onClick={() => navigate('/workflows/new/')}
               className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white rounded-lg p-6 flex flex-col items-start justify-between shadow-lg shadow-blue-500/20 transition-all"
             >
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center mb-4">

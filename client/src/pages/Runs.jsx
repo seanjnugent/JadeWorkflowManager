@@ -21,29 +21,30 @@ const Runs = () => {
   const limit = 20;
 
   // Fetch runs from API
-  useEffect(() => {
-    setLoading(true);
-    fetch('http://localhost:8000/runs', {
-      headers: {
-        accept: 'application/json',
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setAllRuns(data);
-        } else {
-          setAllRuns([]);
-        }
-      })
-      .catch((err) => {
-        console.error('Error fetching runs:', err);
+useEffect(() => {
+  setLoading(true);
+  fetch('http://localhost:8000/runs', {
+    headers: {
+      accept: 'application/json',
+    },
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.runs && Array.isArray(data.runs)) {
+        setAllRuns(data.runs); // Access the 'runs' property
+      } else {
         setAllRuns([]);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, []);
+      }
+    })
+    .catch((err) => {
+      console.error('Error fetching runs:', err);
+      setAllRuns([]);
+    })
+    .finally(() => {
+      setLoading(false);
+    });
+}, []);
+
 
   const totalPages = Math.ceil(allRuns.length / limit);
 
@@ -171,7 +172,7 @@ const Runs = () => {
                     <tr
                       key={run.id}
                       className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
-                      onClick={() => navigate(`/run/${run.id}`)}
+                      onClick={() => navigate(`/runs/run/${run.id}`)}
                     >
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{run.id}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{run.workflow_id}</td>

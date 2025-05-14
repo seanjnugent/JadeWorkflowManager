@@ -12,6 +12,9 @@
   "license": "ISC",
   "dependencies": {
     "concurrently": "^9.1.2",
+    "react-loader-spinner": "^6.1.6",
+    "react-loading": "^2.0.3",
+    "react-spinners": "^0.17.0",
     "react-tooltip": "^5.28.1"
   }
 }

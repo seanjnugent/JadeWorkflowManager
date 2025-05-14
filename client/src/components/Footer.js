@@ -1,7 +1,5 @@
 import React from 'react';
-import { 
-  Github, Twitter, Linkedin, Mail 
-} from 'lucide-react';
+import { Github } from 'lucide-react';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -26,7 +24,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Company Info */}
           <div>
-            <h2 className="text-xl font-bold text-blue-600 mb-4">Conduit</h2>
+            <h2 className="text-xl font-bold text-blue-600 mb-4">Data Workflow Tool</h2>
             <p className="text-gray-600 mb-4">
               Transform your data workflows with intelligent automation and seamless integrations.
             </p>

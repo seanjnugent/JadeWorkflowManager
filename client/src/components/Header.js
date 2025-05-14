@@ -16,7 +16,7 @@ const Header = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/results?q=${encodeURIComponent(searchQuery.trim())}`);
+      navigate(`/workflows?q=${encodeURIComponent(searchQuery.trim())}`);
       setSearchQuery('');
     }
   };
@@ -36,7 +36,7 @@ const Header = () => {
       <div className="container mx-auto px-6 flex items-center relative z-10">
         {/* Logo */}
         <NavLink to="/home" className="flex items-center gap-2 mr-8">
-          <h2 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">Conduit</h2>
+          <h2 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">Workflow Manager</h2>
         </NavLink>
         
         {/* Navigation tabs - now left-aligned */}
