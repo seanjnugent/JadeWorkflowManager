@@ -2,7 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 import logging
 from pydantic import BaseModel
-from .get_health_check import get_db
+from ..get_health_check import get_db
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +17,9 @@ class ConnectionCreate(BaseModel):
     password: str
     created_by: int
 
-router = APIRouter()
+router = APIRouter(prefix="/connections", tags=["connections"])
 
-@router.post("/connections/")
+@router.post("/connection/new")
 async def create_connection(
     connection: ConnectionCreate,
     db: Session = Depends(get_db)
@@ -59,7 +60,7 @@ async def create_connection(
         db.rollback()
         raise HTTPException(500, f"Failed to create connection: {str(e)}")
 
-@router.get("/connections/")
+@router.get("/")
 async def list_connections(
     db: Session = Depends(get_db)
 ):

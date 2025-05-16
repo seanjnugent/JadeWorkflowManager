@@ -46,7 +46,7 @@ const NewWorkflow = () => {
     formData.append('status', 'Draft');
 
     try {
-      const response = await fetch('http://localhost:8000/workflow/new', {
+      const response = await fetch('http://localhost:8000/workflows/workflow/new', {
         method: 'POST',
         body: formData,
       });
@@ -169,73 +169,78 @@ const NewWorkflow = () => {
   };
 
   const handleSaveWorkflow = async () => {
-    if (!workflowId) {
-      setUploadError('No workflow ID available. Please upload a file first.');
+  if (!workflowId) {
+    setUploadError('No workflow ID available. Please upload a file first.');
+    return;
+  }
+
+  for (const step of workflowSteps) {
+    if (!step.label || !step.code) {
+      setUploadError('All steps must have a label and code.');
       return;
     }
-
-    for (const step of workflowSteps) {
-      if (!step.label || !step.code) {
-        setUploadError('All steps must have a label and code.');
-        return;
-      }
-      const error = validateCode(step.code, step.code_type);
-      if (error) {
-        setCodeError(error);
-        return;
-      }
+    const error = validateCode(step.code, step.code_type);
+    if (error) {
+      setCodeError(error);
+      return;
     }
+  }
 
-    const workflowData = {
-      workflow_id: workflowId,
-      name: workflowName,
-      description: workflowDescription,
-      created_by: parseInt(userId),
-      status: 'Draft',
-      parameters: parameters.filter(param => param.name),
-    };
+  const workflowData = {
+    workflow_id: workflowId,
+    name: workflowName,
+    description: workflowDescription,
+    created_by: parseInt(userId),
+    status: 'Draft',
+    parameters: parameters.filter(param => param.name),
+  };
 
-    try {
-      for (const step of workflowSteps) {
-        await fetch('http://localhost:8000/workflow/steps', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workflow_id: workflowId,
-            label: step.label,
-            description: step.description,
-            code_type: step.code_type,
-            code: step.code,
-            step_order: step.step_order,
-          }),
-        });
-      }
-
-      const response = await fetch('http://localhost:8000/workflow/update', {
-        method: 'PATCH',
+  try {
+    for (const step of workflowSteps) {
+      const response = await fetch(`http://localhost:8000/workflows/workflow/steps`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(workflowData),
+        body: JSON.stringify({
+          workflow_id: workflowId,
+          label: step.label,
+          description: step.description,
+          code_type: step.code_type,
+          code: step.code,
+          step_order: step.step_order,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update workflow');
+        const errorText = await response.text();
+        throw new Error(`Failed to create step: ${response.status} - ${errorText}`);
       }
-
-      alert('Workflow saved successfully!');
-      setStep(0);
-      setWorkflowName('');
-      setWorkflowDescription('');
-      setUserId('1001');
-      setParsedFileStructure([]);
-      setIsFileUploaded(false);
-      setParameters([]);
-      setWorkflowSteps([]);
-      setWorkflowId(null);
-    } catch (error) {
-      console.error('Save error:', error);
-      setUploadError(error.message);
     }
-  };
+
+    const response = await fetch(`http://localhost:8000/workflows/workflow/update`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(workflowData),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update workflow');
+    }
+
+    alert('Workflow saved successfully!');
+    setStep(0);
+    setWorkflowName('');
+    setWorkflowDescription('');
+    setUserId('1001');
+    setParsedFileStructure([]);
+    setIsFileUploaded(false);
+    setParameters([]);
+    setWorkflowSteps([]);
+    setWorkflowId(null);
+  } catch (error) {
+    console.error('Save error:', error);
+    setUploadError(error.message);
+  }
+};
 
   const steps = [
     { title: 'Load File & Details', icon: <FileInput size={18} />, description: 'Upload your source data file and provide workflow details' },

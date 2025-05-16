@@ -1,11 +1,12 @@
 from fastapi import APIRouter
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
 import logging
 import requests
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -27,23 +28,39 @@ DAGSTER_API_URL = os.getenv("DAGSTER_API_URL")
 dagster_status = "not_configured"
 if DAGSTER_API_URL:
     try:
+        logger.info(f"Connecting to Dagster at {DAGSTER_API_URL}")
+        
+        # Properly formatted GraphQL request
+        payload = {
+            "query": "query { version }"
+        }
+        
         response = requests.post(
             DAGSTER_API_URL,
-            json={"query": "query { version }"},
+            json=payload,  # Use json= instead of data= to ensure proper formatting
             headers={"Content-Type": "application/json"},
             timeout=5
         )
-        if response.status_code == 200 and response.json().get("data", {}).get("version"):
-            dagster_status = "connected"
-        elif response.status_code == 401:
-            dagster_status = "auth_failed (authentication required)"
-        elif response.status_code == 404:
-            dagster_status = "not_found (check DAGSTER_API_URL)"
+        
+        logger.debug(f"Dagster response: {response.status_code} - {response.text[:100]}")
+        
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("data", {}).get("version"):
+                    dagster_status = "connected"
+                else:
+                    dagster_status = f"unexpected_response: {data}"
+            except ValueError:
+                dagster_status = f"invalid_json: {response.text[:100]}"
         else:
-            dagster_status = f"http_error ({response.status_code})"
+            dagster_status = f"http_error ({response.status_code}): {response.text[:100]}"
+            
     except requests.exceptions.RequestException as e:
         dagster_status = f"connection_error ({str(e)})"
+        logger.error(f"Dagster connection failed: {str(e)}")
 
+# Initialize Supabase client
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE)
     supabase.storage.list_buckets()
@@ -60,13 +77,23 @@ if not DATABASE_URL:
 if not DATABASE_URL:
     raise ValueError("Database URL cannot be None")
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=5,
-    max_overflow=10,
-    pool_timeout=30,
-    pool_recycle=1800
-)
+# Create database engine
+try:
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=5,
+        max_overflow=10,
+        pool_timeout=30,
+        pool_recycle=1800
+    )
+    # Test connection with proper SQLAlchemy text() wrapper
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    logger.info("Database engine created successfully")
+except Exception as e:
+    logger.error(f"Failed to create database engine: {str(e)}")
+    raise RuntimeError(f"Failed to create database engine: {str(e)}")
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
@@ -78,12 +105,17 @@ def get_db():
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("/health_check")
 def health_check():
-    """Health check endpoint"""
+    """Comprehensive health check endpoint"""
     return {
         "status": "healthy",
         "supabase": "connected" if supabase else "disconnected",
         "database": "connected" if engine else "disconnected",
-        "dagster": dagster_status
+        "dagster": dagster_status,
+        "details": {
+            "dagster_api_url": DAGSTER_API_URL,
+            "supabase_initialized": bool(supabase),
+            "database_connected": bool(engine)
+        }
     }

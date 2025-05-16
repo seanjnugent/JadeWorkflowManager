@@ -13,8 +13,9 @@ class WorkflowUpdate(BaseModel):
     workflow_id: int
     parameters: Optional[List[Dict[str, Any]]] = None
 
-router = APIRouter()
-@router.patch("/update")
+router = APIRouter(prefix="/workflows", tags=["workflows"])
+
+@router.patch("/workflow/update")
 async def update_workflow(
     workflow_update: WorkflowUpdate,
     db: Session = Depends(get_db)

@@ -9,7 +9,7 @@ import logging
 from typing import Dict, List, Any, Optional
 import re
 from datetime import datetime
-from .get_health_check import get_db
+from ..get_health_check import get_db
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -406,7 +406,7 @@ def create_dag_file(workflow_id: int, workflow_name: str) -> str:
         logger.error(f"Failed to create DAG file: {str(e)}")
         raise
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/dag/new", status_code=status.HTTP_201_CREATED)
 async def create_dag_endpoint(
     request: DagCreate,
     db: Session = Depends(get_db)
@@ -473,7 +473,7 @@ async def create_dag_endpoint(
 
 # Additional endpoints for workflow management
 
-@router.get("/{workflow_id}", status_code=status.HTTP_200_OK)
+@router.get("/dag/{workflow_id}", status_code=status.HTTP_200_OK)
 async def get_dag_status(
     workflow_id: int,
     db: Session = Depends(get_db)

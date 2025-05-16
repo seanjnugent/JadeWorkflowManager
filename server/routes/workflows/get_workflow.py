@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 import logging
-from .get_health_check import get_db
+from ..get_health_check import get_db
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/workflows", tags=["workflows"])
 
 @router.get("/workflow/{workflow_id}")
 async def get_workflow(

@@ -3,12 +3,12 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import timedelta
-from .get_health_check import get_db  # Assuming get_db is defined in health_check.py
+from ..get_health_check import get_db  # Assuming get_db is defined in health_check.py
 import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/users", tags=["users"])
 
 class UserLogin(BaseModel):
     email_address: str

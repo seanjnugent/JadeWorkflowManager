@@ -215,7 +215,7 @@ const Workflow = () => {
 
     useEffect(() => {
         setLoading(true);
-        fetch(`http://localhost:8000/workflow/${workflowId}`, {
+        fetch(`http://localhost:8000/workflows/workflow/${workflowId}`, {
             headers: { 'accept': 'application/json' }
         })
             .then(response => response.json())
@@ -229,7 +229,7 @@ const Workflow = () => {
             setPublishing(true);
             try {
                 // Send POST request to new endpoint
-                await fetch(`http://localhost:8000/workflow/dags/`, {
+                await fetch(`http://localhost:8000/dags/dag/new`, {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
@@ -244,7 +244,7 @@ const Workflow = () => {
                 // Trigger GET request after 2 seconds
                 setTimeout(async () => {
                     try {
-                        const response = await fetch(`http://localhost:8000/workflow/dags/${workflowId}`, {
+                        const response = await fetch(`http://localhost:8000/dags/dag/${workflowId}`, {
                             headers: { 'accept': 'application/json' }
                         });
                         const dagData = await response.json();
@@ -257,7 +257,7 @@ const Workflow = () => {
                 // Refresh workflow details after 3 seconds
                 setTimeout(async () => {
                     try {
-                        const response = await fetch(`http://localhost:8000/workflow/${workflowId}`, {
+                        const response = await fetch(`http://localhost:8000/workflows/workflow/${workflowId}`, {
                             headers: { 'accept': 'application/json' }
                         });
                         const updatedData = await response.json();
@@ -520,12 +520,14 @@ const Workflow = () => {
                                 Input File Structure
                             </h2>
                             <div className="space-y-2">
-                                <button
+                                <motion.button
                                     onClick={() => setShowInputModal(true)}
                                     className="w-full bg-blue-100 text-blue-700 rounded-lg px-3 py-2 flex items-center text-sm hover:bg-blue-200"
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
                                 >
                                     <FileText className="w-4 h-4 mr-2" /> View Input Structure
-                                </button>
+                                </motion.button>
                                 <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}

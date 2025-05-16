@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 import logging
 from pydantic import BaseModel
 from typing import Optional
-from .get_health_check import get_db
+from ..get_health_check import get_db
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +15,9 @@ class WorkflowDestinationCreate(BaseModel):
     file_path: Optional[str] = None
     file_format: Optional[str] = None
 
-router = APIRouter()
+router = APIRouter(prefix="/workflows", tags=["workflows"])
 
-@router.post("/workflows/{workflow_id}/destination")
+@router.post("/workflow/{workflow_id}/destination")
 async def set_workflow_destination(
     workflow_id: int,
     destination: WorkflowDestinationCreate,

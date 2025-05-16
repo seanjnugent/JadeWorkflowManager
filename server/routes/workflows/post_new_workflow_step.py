@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 import logging
-from .get_health_check import get_db
+from ..get_health_check import get_db
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -15,10 +15,9 @@ class WorkflowStepCreate(BaseModel):
     code_type: str
     code: str
     step_order: int
+router = APIRouter(prefix="/workflows", tags=["workflows"])
 
-router = APIRouter()
-
-@router.post("/steps")
+@router.post("/workflow/steps")  # Changed from "/workflow/steps" to "/steps"
 async def create_workflow_step(
     step: WorkflowStepCreate,
     db: Session = Depends(get_db)

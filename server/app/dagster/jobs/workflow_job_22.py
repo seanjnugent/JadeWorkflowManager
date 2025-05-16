@@ -97,11 +97,11 @@ def load_input_op(context: OpExecutionContext):
             try:
                 with context.resources.db_engine.connect() as conn:
                     conn.execute(
-                        text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_id, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, \'info\', :message, NOW())'),
+                        text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_code, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, \'info\', :message, NOW())'),
                         {
                             "run_id": context.run_id,
                             "workflow_id": workflow_id, 
-                            "step_id": "load_input_json_converter_22",
+                            "step_code": "load_input_json_converter_22",
                             "message": f"Successfully loaded {len(df)} rows"
                         }
                     )
@@ -118,11 +118,11 @@ def load_input_op(context: OpExecutionContext):
         try:
             with context.resources.db_engine.connect() as conn:
                 conn.execute(
-                    text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_id, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, \'error\', :message, NOW())'),
+                    text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_code, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, \'error\', :message, NOW())'),
                     {
                         "run_id": context.run_id,
                         "workflow_id": workflow_id,
-                        "step_id": "load_input_json_converter_22",
+                        "step_code": "load_input_json_converter_22",
                         "message": f"Error loading input: {str(e)}"
                     }
                 )
@@ -158,11 +158,11 @@ def transform_op(context: OpExecutionContext, input_df: pd.DataFrame):
         try:
             with context.resources.db_engine.connect() as conn:
                 conn.execute(
-                    text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_id, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, \'info\', :message, NOW())'),
+                    text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_code, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, \'info\', :message, NOW())'),
                     {
                         "run_id": context.run_id,
                         "workflow_id": workflow_id,
-                        "step_id": "transform_json_converter_22",
+                        "step_code": "transform_json_converter_22",
                         "message": "Transformation completed successfully"
                     }
                 )
@@ -178,11 +178,11 @@ def transform_op(context: OpExecutionContext, input_df: pd.DataFrame):
         try:
             with context.resources.db_engine.connect() as conn:
                 conn.execute(
-                    text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_id, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, \'error\', :message, NOW())'),
+                    text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_code, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, \'error\', :message, NOW())'),
                     {
                         "run_id": context.run_id,
                         "workflow_id": workflow_id,
-                        "step_id": "transform_json_converter_22",
+                        "step_code": "transform_json_converter_22",
                         "message": f"Transformation failed: {str(e)}"
                     }
                 )
@@ -251,11 +251,11 @@ def save_output_op(context: OpExecutionContext, transformed_data: dict):
                     
                     # Log success
                     conn.execute(
-                        text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_id, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, \'info\', :message, NOW())'),
+                        text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_code, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, \'info\', :message, NOW())'),
                         {
                             "run_id": context.run_id,
                             "workflow_id": workflow_id,
-                            "step_id": "save_output_json_converter_22",
+                            "step_code": "save_output_json_converter_22",
                             "message": "Successfully saved output"
                         }
                     )
@@ -273,11 +273,11 @@ def save_output_op(context: OpExecutionContext, transformed_data: dict):
         try:
             with context.resources.db_engine.connect() as conn:
                 conn.execute(
-                    text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_id, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, \'error\', :message, NOW())'),
+                    text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_code, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, \'error\', :message, NOW())'),
                     {
                         "run_id": context.run_id,
                         "workflow_id": workflow_id,
-                        "step_id": "save_output_json_converter_22",
+                        "step_code": "save_output_json_converter_22",
                         "message": f"Failed to save output: {str(e)}"
                     }
                 )
@@ -287,7 +287,7 @@ def save_output_op(context: OpExecutionContext, transformed_data: dict):
         raise
 
 @job(
-    name="json_converter_job_22",
+    name="workflow_job_22",
     resource_defs={
         "supabase": supabase_resource,
         "db_engine": db_engine_resource
@@ -319,7 +319,7 @@ def save_output_op(context: OpExecutionContext, transformed_data: dict):
         "workflow_id": "22",
         "workflow_name": "json_converter",
         "generated_at": "2025-05-14T19:50:19.869361",
-        "dag_filename": "json_converter_job_22.py"
+        "dag_filename": "workflow_job_22.py"
     }
 )
 def workflow_job():

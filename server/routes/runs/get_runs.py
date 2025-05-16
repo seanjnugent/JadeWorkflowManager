@@ -1,14 +1,14 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 import logging
-from .get_health_check import get_db
+from ..get_health_check import get_db
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/runs", tags=["runs"])
 
-@router.get("/runs")
+@router.get("/")
 async def get_runs(
     page: int = 1,
     limit: int = 20,
