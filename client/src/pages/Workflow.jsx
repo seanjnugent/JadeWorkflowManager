@@ -274,26 +274,14 @@ const Workflow = () => {
         }
     };
 
-    const handleStartRun = async () => {
-        if (!running && workflowDetails?.workflow?.dag_status === 'ready') {
-            setRunning(true);
-            try {
-                await fetch(`http://localhost:8000/runs/new/${workflowId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ workflow_id: workflowId }),
-                });
-                navigate(`/runs/new/${workflowId}`);
-            } catch (error) {
-                console.error('Error:', error);
-            } finally {
-                setRunning(false);
-            }
-        }
+    const handleStartRun = () => {
+    if (workflowDetails?.workflow?.dag_status === 'ready') {
+        navigate(`/runs/new/${workflowId}`);
+    }
     };
 
     const handleEdit = () => {
-        navigate(`/workflows/${workflowId}/edit`);
+        navigate(`/workflows/workflow/${workflowId}/edit`);
     };
 
     const handleDownloadTemplate = () => {

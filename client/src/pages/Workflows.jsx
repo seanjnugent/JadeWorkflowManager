@@ -1,9 +1,7 @@
-
-// Updated Workflows.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, ChevronRight, ChevronLeft, Search, FileText } from 'lucide-react';
+import { Plus, ChevronRight, ChevronLeft, Search, FileText, Database, Waypoints } from 'lucide-react';
 
 const Workflows = () => {
   const navigate = useNavigate();
@@ -41,6 +39,19 @@ const Workflows = () => {
         return "bg-blue-100 text-blue-700 border-blue-200";
       default:
         return "bg-gray-100 text-gray-700 border-gray-200";
+    }
+  };
+
+  const getDestinationIconAndColor = (destination) => {
+    switch (destination?.toLowerCase()) {
+      case 'api':
+        return { icon: <Waypoints className="w-5 h-5 text-blue-600" />, color: 'bg-blue-100 border-blue-200' };
+      case 'csv':
+        return { icon: <FileText className="w-5 h-5 text-teal-600" />, color: 'bg-teal-100 border-teal-200' };
+      case 'database':
+        return { icon: <Database className="w-5 h-5 text-red-600" />, color: 'bg-red-100 border-red-200' };
+      default:
+        return { icon: <FileText className="w-5 h-5 text-gray-600" />, color: 'bg-gray-100 border-gray-200' };
     }
   };
 
@@ -84,6 +95,7 @@ const Workflows = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
@@ -94,36 +106,40 @@ const Workflows = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredWorkflows.length > 0 ? (
-                filteredWorkflows.map((workflow) => (
-                  <tr 
-                    key={workflow.id} 
-                    className="hover:bg-gray-50 cursor-pointer transition-colors duration-150" 
-                    onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="bg-gray-100 border border-gray-200 rounded-lg p-2 mr-3">
-                          <FileText className="w-5 h-5 text-blue-600" />
+                filteredWorkflows.map((workflow) => {
+                  const { icon, color } = getDestinationIconAndColor(workflow.destination);
+                  return (
+                    <tr
+                      key={workflow.id}
+                      className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
+                      onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.id}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className={`${color} rounded-lg p-2 mr-3`}>
+                            {icon}
+                          </div>
+                          <span className="text-sm font-medium text-gray-900">{workflow.name}</span>
                         </div>
-                        <span className="text-sm font-medium text-gray-900">{workflow.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="truncate max-w-xs">{workflow.description}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.created_by || 'N/A'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.tags || 'N/A'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(workflow.created_at).toLocaleString()}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadge(workflow.status)}`}>
-                        {workflow.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="truncate max-w-xs">{workflow.description}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.created_by || 'N/A'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.tags || 'N/A'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(workflow.created_at).toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadge(workflow.status)}`}>
+                          {workflow.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan="6" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                  <td colSpan="7" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                     No workflows available.
                   </td>
                 </tr>

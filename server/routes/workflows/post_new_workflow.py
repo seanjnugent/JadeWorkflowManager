@@ -127,8 +127,7 @@ async def create_new_workflow(
                     "created_by": workflow.created_by,
                     "status": workflow.status,
                     "input_file_path": storage_url,
-                    "input_structure": json.dumps(parsed_data["structure"])
-                }
+                    "input_structure": json.dumps(parsed_data["structure"])                }
             )
             workflow_record = result.fetchone()
             db.commit()

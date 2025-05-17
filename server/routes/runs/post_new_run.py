@@ -71,11 +71,103 @@ def validate_file_structure(df: pd.DataFrame, expected_structure: Dict) -> None:
         logger.error(f"File structure validation failed: {str(e)}")
         raise HTTPException(400, f"File structure validation failed: {str(e)}")
 
-def run_dagster_job(job_name: str, run_config: Dict) -> Dict:
-    """Run a Dagster job using GraphQL API"""
+def extract_job_name_from_dag_path(dag_path):
+    """Extract job name from a DAG path like 'C:\\Users\\seanj\\Documents\\Projects\\Conduit\\server\\app\\dagster\\jobs\\33333_job_25.py'"""
+    if not dag_path:
+        raise ValueError("DAG path is required")
+
+    # Extract the filename from the path
+    filename = dag_path.split('\\')[-1].split('/')[-1]
+
+    # Remove the .py extension if present
+    if filename.endswith('.py'):
+        filename = filename[:-3]
+
+    return filename
+
+def run_dagster_job(workflow_id, run_config, db):
+    """Run a Dagster job using GraphQL API with dynamic job name"""
     dagster_api_url = os.getenv("DAGSTER_API_URL")
     if not dagster_api_url:
         raise ValueError("DAGSTER_API_URL must be set in .env")
+
+    # Query to get the dag_path for this workflow
+    dag_path_query = db.execute(
+        text("""
+            SELECT dag_path FROM workflow.workflow WHERE id = :workflow_id
+        """),
+        {"workflow_id": workflow_id}
+    ).fetchone()
+
+    # Default job name as fallback
+    default_job_name = f"workflow_job_{workflow_id}"
+
+    if not dag_path_query or not dag_path_query.dag_path:
+        # Fallback to the traditional naming convention if no dag_path is found
+        job_name = default_job_name
+        logger.warning(f"No dag_path found for workflow {workflow_id}, using default job name: {job_name}")
+    else:
+        try:
+            job_name = extract_job_name_from_dag_path(dag_path_query.dag_path)
+            logger.info(f"Using job name '{job_name}' extracted from dag path: {dag_path_query.dag_path}")
+        except Exception as e:
+            # If there's any error extracting the job name, use the default
+            job_name = default_job_name
+            logger.error(f"Error extracting job name from path '{dag_path_query.dag_path}': {str(e)}. Using default: {job_name}")
+
+    # Check if job exists in repository
+    job_exists_query = """
+    query JobExistsQuery($repositorySelector: RepositorySelector!, $pipelineName: String!) {
+      pipelineOrError(params: {
+        repositorySelector: $repositorySelector,
+        pipelineName: $pipelineName
+      }) {
+        __typename
+        ... on Pipeline {
+          name
+        }
+        ... on PipelineNotFoundError {
+          message
+        }
+      }
+    }
+    """
+
+    repository_selector = {
+        "repositoryLocationName": "server.app.dagster.repo",
+        "repositoryName": "workflow_repository"
+    }
+
+    # First check if the job exists
+    try:
+        exists_response = requests.post(
+            dagster_api_url,
+            json={
+                "query": job_exists_query,
+                "variables": {
+                    "repositorySelector": repository_selector,
+                    "pipelineName": job_name
+                }
+            },
+            headers={"Content-Type": "application/json"}
+        )
+
+        if exists_response.status_code != 200:
+            logger.error(f"HTTP Error checking job existence: {exists_response.status_code}")
+            logger.error(f"Response: {exists_response.text}")
+        else:
+            exists_result = exists_response.json()
+            if "errors" in exists_result:
+                logger.error(f"GraphQL errors checking job: {exists_result['errors']}")
+
+            pipeline_or_error = exists_result.get("data", {}).get("pipelineOrError", {})
+            if pipeline_or_error.get("__typename") == "PipelineNotFoundError":
+                logger.warning(f"Job '{job_name}' not found. Available jobs may be different. Trying default: {default_job_name}")
+                # If the extracted job name doesn't exist, try the default naming convention
+                job_name = default_job_name
+    except Exception as e:
+        logger.error(f"Error checking if job exists: {str(e)}")
+        # Continue with the current job_name
 
     launch_mutation = """
     mutation LaunchPipelineExecution($executionParams: ExecutionParams!) {
@@ -112,43 +204,103 @@ def run_dagster_job(job_name: str, run_config: Dict) -> Dict:
         "executionParams": {
             "selector": {
                 "repositoryLocationName": "server.app.dagster.repo",
-                "repositoryName": "my_repo",
-                "pipelineName": "workflow_job_22",
+                "repositoryName": "workflow_repository",
+                "pipelineName": job_name,
             },
             "runConfigData": run_config,
             "mode": "default"
         }
     }
-    try:
-        response = requests.post(
-            dagster_api_url,
-            json={"query": launch_mutation, "variables": variables},
-            headers={"Content-Type": "application/json"}
-        )
 
-        if response.status_code != 200:
-            logger.error(f"HTTP Error: {response.status_code}")
-            response.raise_for_status()
+    max_attempts = 2  # Try with extracted name, then with default name if needed
+    attempt = 0
+    last_error = None
 
-        result = response.json()
-        if "errors" in result:
-            error_details = "; ".join([e.get("message", "Unknown error") for e in result["errors"]])
-            logger.error(f"GraphQL errors: {error_details}")
-            raise Exception(f"GraphQL errors: {error_details}")
+    while attempt < max_attempts:
+        try:
+            logger.info(f"Launch attempt {attempt+1} with job name: {job_name}")
+            response = requests.post(
+                dagster_api_url,
+                json={"query": launch_mutation, "variables": variables},
+                headers={"Content-Type": "application/json"}
+            )
 
-        data = result.get("data", {}).get("launchPipelineExecution", {})
-        if data.get("__typename") == "LaunchPipelineRunSuccess":
-            return {
-                "run_id": data["run"]["runId"],
-                "status": data["run"]["status"]
-            }
-        else:
-            error_message = data.get("message", "Unknown error")
-            logger.error(f"Failed to launch job: {error_message}")
-            raise Exception(f"Failed to launch job: {error_message}")
-    except Exception as e:
-        logger.error(f"Error launching Dagster job: {str(e)}")
-        raise
+            # Log full response for debugging
+            logger.debug(f"Dagster API response: {response.text}")
+
+            if response.status_code != 200:
+                logger.error(f"HTTP Error: {response.status_code}")
+                logger.error(f"Response body: {response.text}")
+                response.raise_for_status()
+
+            result = response.json()
+            if "errors" in result:
+                error_details = "; ".join([e.get("message", "Unknown error") for e in result["errors"]])
+                logger.error(f"GraphQL errors: {error_details}")
+                raise Exception(f"GraphQL errors: {error_details}")
+
+            data = result.get("data", {}).get("launchPipelineExecution", {})
+            logger.debug(f"Launch pipeline execution result: {data}")
+
+            if data.get("__typename") == "LaunchPipelineRunSuccess":
+                logger.info(f"Successfully launched job '{job_name}'")
+                return {
+                    "run_id": data["run"]["runId"],
+                    "status": data["run"]["status"]
+                }
+            elif data.get("__typename") == "PipelineNotFoundError":
+                error_message = data.get("message", "Pipeline not found")
+                logger.error(f"Pipeline not found error: {error_message}")
+
+                if attempt == 0 and job_name != default_job_name:
+                    # If this is the first attempt and we're not using the default job name,
+                    # try again with the default name
+                    logger.info(f"Job '{job_name}' not found. Trying with default name: {default_job_name}")
+                    job_name = default_job_name
+                    variables["executionParams"]["selector"]["pipelineName"] = job_name
+                    attempt += 1
+                    continue
+                else:
+                    raise Exception(f"Pipeline not found: {error_message}")
+            else:
+                error_type = data.get("__typename", "Unknown error type")
+                error_message = data.get("message", "Unknown error")
+
+                if error_type == "PythonError" and "stack" in data:
+                    logger.error(f"Python error: {error_message}")
+                    logger.error(f"Stack trace: {data['stack']}")
+                elif error_type == "RunConfigValidationInvalid" and "errors" in data:
+                    validation_errors = "; ".join([e.get("message", "") for e in data["errors"]])
+                    logger.error(f"Config validation errors: {validation_errors}")
+
+                logger.error(f"Failed to launch job ({error_type}): {error_message}")
+
+                if attempt == 0 and job_name != default_job_name:
+                    # Try again with default name
+                    job_name = default_job_name
+                    variables["executionParams"]["selector"]["pipelineName"] = job_name
+                    attempt += 1
+                    last_error = f"{error_type}: {error_message}"
+                    continue
+                else:
+                    raise Exception(f"Failed to launch job: {error_message}")
+        except Exception as e:
+            last_error = str(e)
+            logger.error(f"Error launching Dagster job with name '{job_name}': {last_error}")
+
+            if attempt == 0 and job_name != default_job_name:
+                # Try again with default name
+                job_name = default_job_name
+                variables["executionParams"]["selector"]["pipelineName"] = job_name
+                attempt += 1
+            else:
+                # Re-raise the exception on the final attempt
+                raise Exception(f"Failed to launch job after {attempt+1} attempts: {last_error}")
+
+        attempt += 1
+
+    # We should never reach here due to raise statements above
+    raise Exception(f"Unexpected error in run_dagster_job: {last_error}")
 
 @router.post("/run/new")
 async def trigger_workflow_run(
@@ -158,12 +310,11 @@ async def trigger_workflow_run(
     file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
-    """Trigger a workflow run with an optional input file and parameters"""
     try:
         # Validate workflow existence
         workflow = db.execute(
             text("""
-                SELECT id, name, input_file_path, input_structure, destination
+                SELECT id, name, input_file_path, input_structure, destination, dag_path
                 FROM workflow.workflow
                 WHERE id = :workflow_id
             """),
@@ -316,9 +467,9 @@ async def trigger_workflow_run(
         }
 
         # Trigger Dagster job
-        job_name = f"workflow_job_{workflow_id}"
         try:
-            dagster_result = run_dagster_job(job_name, run_config)
+            # Pass workflow_id to the updated run_dagster_job function
+            dagster_result = run_dagster_job(workflow_id, run_config, db)
             dagster_run_id = dagster_result.get("run_id")
             status = "Running"
             error_message = None
@@ -372,7 +523,7 @@ async def trigger_workflow_run(
         # Insert initial step status records
         for step in steps:
             step_parameters = json.loads(step.parameters) if step.parameters else {}
-            merged_parameters = {**step_parameters, **run_parameters}
+            merged_parameters = {**step_parameters, **(run_parameters or {})}
             db.execute(
                 text("""
                     INSERT INTO workflow.run_step_status (

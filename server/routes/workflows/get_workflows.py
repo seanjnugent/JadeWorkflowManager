@@ -20,7 +20,7 @@ async def list_workflows(
         offset = (page - 1) * limit
         result = db.execute(
             text("""
-                SELECT id, name, description, status, created_at
+                SELECT id, name, description, status, created_at, destination
                 FROM workflow.workflow
                 ORDER BY created_at DESC
                 LIMIT :limit OFFSET :offset

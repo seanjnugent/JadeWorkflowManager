@@ -4,7 +4,7 @@ import json
 import logging
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
-from .get_health_check import get_db
+from ..get_health_check import get_db
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 class WorkflowUpdate(BaseModel):
     workflow_id: int
     parameters: Optional[List[Dict[str, Any]]] = None
+    destination: str
+    destination_config: Optional[Dict[str, Any]] = None
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
@@ -27,13 +29,17 @@ async def update_workflow(
             text("""
                 UPDATE workflow.workflow
                 SET parameters = :parameters,
+                    destination = :destination,
+                    destination_config = :destination_config,
                     updated_at = NOW()
                 WHERE id = :id
                 RETURNING id, name, description, status
             """),
             {
                 "id": workflow_update.workflow_id,
-                "parameters": json.dumps(workflow_update.parameters) if workflow_update.parameters else None
+                "parameters": json.dumps(workflow_update.parameters) if workflow_update.parameters else None,
+                "destination": workflow_update.destination,
+                "destination_config": json.dumps(workflow_update.destination_config) if workflow_update.destination_config else None
             }
         )
         workflow_record = result.fetchone()

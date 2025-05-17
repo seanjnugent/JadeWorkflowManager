@@ -18,7 +18,7 @@ const Login = () => {
     setError("");
     
     try {
-      const response = await fetch(`${API_BASE_URL}/user/authenticate`, {
+      const response = await fetch(`${API_BASE_URL}/users/user/authenticate`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

@@ -21,7 +21,7 @@ router = APIRouter(prefix="/dags", tags=["dags"])
 
 
 # Construct the absolute path relative to this file's location
-DAG_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "app" / "dagster" / "jobs"
+DAG_OUTPUT_DIR = Path(__file__).resolve().parent.parent.parent / "app" / "dagster" / "jobs"
 
 os.makedirs(DAG_OUTPUT_DIR, exist_ok=True)
 
@@ -390,9 +390,10 @@ def create_dag_file(workflow_id: int, workflow_name: str) -> str:
         try:
             db = next(get_db())
             db.execute(
-                text('UPDATE workflow.workflow SET dag_status = :status, dag_path = :path, updated_at = NOW() WHERE id = :workflow_id'),
+                text('UPDATE workflow.workflow SET dag_status = :status, dag_path = :path, updated_at = NOW(), status = :workflow_status WHERE id = :workflow_id'),
                 {
                     "status": "ready",
+                    "workflow_status": "Active",
                     "path": filepath,
                     "workflow_id": workflow_id
                 }

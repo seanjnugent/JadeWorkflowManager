@@ -21,45 +21,6 @@ SUPABASE_SERVICE_ROLE = os.getenv("SUPABASE_SERVICE_ROLE")
 if not all([SUPABASE_URL, SUPABASE_SERVICE_ROLE]):
     raise EnvironmentError("Missing required Supabase environment variables.")
 
-# Dagster configuration
-DAGSTER_API_URL = os.getenv("DAGSTER_API_URL")
-
-# Initialize Dagster API status
-dagster_status = "not_configured"
-if DAGSTER_API_URL:
-    try:
-        logger.info(f"Connecting to Dagster at {DAGSTER_API_URL}")
-        
-        # Properly formatted GraphQL request
-        payload = {
-            "query": "query { version }"
-        }
-        
-        response = requests.post(
-            DAGSTER_API_URL,
-            json=payload,  # Use json= instead of data= to ensure proper formatting
-            headers={"Content-Type": "application/json"},
-            timeout=5
-        )
-        
-        logger.debug(f"Dagster response: {response.status_code} - {response.text[:100]}")
-        
-        if response.status_code == 200:
-            try:
-                data = response.json()
-                if data.get("data", {}).get("version"):
-                    dagster_status = "connected"
-                else:
-                    dagster_status = f"unexpected_response: {data}"
-            except ValueError:
-                dagster_status = f"invalid_json: {response.text[:100]}"
-        else:
-            dagster_status = f"http_error ({response.status_code}): {response.text[:100]}"
-            
-    except requests.exceptions.RequestException as e:
-        dagster_status = f"connection_error ({str(e)})"
-        logger.error(f"Dagster connection failed: {str(e)}")
-
 # Initialize Supabase client
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE)
@@ -86,7 +47,6 @@ try:
         pool_timeout=30,
         pool_recycle=1800
     )
-    # Test connection with proper SQLAlchemy text() wrapper
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
     logger.info("Database engine created successfully")
@@ -105,16 +65,39 @@ def get_db():
 
 router = APIRouter()
 
+def check_dagster_health():
+    """Check Dagster service health dynamically"""
+    DAGSTER_API_URL = os.getenv("DAGSTER_API_URL")
+    if not DAGSTER_API_URL:
+        return "not_configured"
+    
+    try:
+        # Try a simple GET request to Dagster's root URL
+        # Adjust the URL if Dagster has a specific health endpoint
+        dagster_health_url = DAGSTER_API_URL.replace('/graphql', '')
+        response = requests.get(dagster_health_url, timeout=5)
+        
+        if response.status_code == 200:
+            return "Connected"
+        else:
+            return f"http_error ({response.status_code})"
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Dagster connection failed: {str(e)}")
+        return f"connection_error ({str(e)})"
+
 @router.get("/health_check")
 def health_check():
     """Comprehensive health check endpoint"""
+    dagster_status = check_dagster_health()
+    
     return {
         "status": "healthy",
-        "supabase": "connected" if supabase else "disconnected",
-        "database": "connected" if engine else "disconnected",
+        "supabase": "Connected" if supabase else "Disconnected",
+        "database": "Connected" if engine else "Disconnected",
         "dagster": dagster_status,
         "details": {
-            "dagster_api_url": DAGSTER_API_URL,
+            "dagster_api_url": os.getenv("DAGSTER_API_URL"),
             "supabase_initialized": bool(supabase),
             "database_connected": bool(engine)
         }

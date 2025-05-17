@@ -11,6 +11,7 @@ const Header = () => {
     { label: 'Workflows', href: '/workflows' },
     { label: 'Runs', href: '/runs' },
     { label: 'Connections', href: '/connections' },
+    { label: 'Analytics', href: '/analytics' },
   ];
 
   const handleSubmit = (e) => {

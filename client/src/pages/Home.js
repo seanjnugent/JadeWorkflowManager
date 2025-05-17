@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Plus, Workflow, Plug, Settings, Code,
-  ChevronRight, Search, FileText, Database
+  ChevronRight, Search, FileText, Database, Waypoints
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -9,9 +9,6 @@ import { motion } from 'framer-motion';
 const Home = () => {
   const navigate = useNavigate();
   const [workflows, setWorkflows] = useState([]);
-
-  // Array of colors in the desired order
-  const iconColors = ['text-teal-600', 'text-blue-600', 'text-green-600'];
 
   useEffect(() => {
     // Fetch workflows data from the API
@@ -23,15 +20,31 @@ const Home = () => {
     .then(response => response.json())
     .then(data => {
       // Map over the workflows to add icons and other necessary fields
-      const mappedWorkflows = data.workflows.slice(0, 3).map((workflow, index) => ({
-        ...workflow,
-        icon: <FileText className={`w-6 h-6 ${iconColors[index]}`} />, // Assign color based on index
-        lastRun: "Never run" // Update lastRun text
-      }));
+      const mappedWorkflows = data.workflows.slice(0, 3).map((workflow) => {
+        const { icon, color } = getDestinationIconAndColor(workflow.destination);
+        return {
+          ...workflow,
+          icon: icon,
+          lastRun: "Never run" // Update lastRun text
+        };
+      });
       setWorkflows(mappedWorkflows);
     })
     .catch(error => console.error('Error fetching workflows:', error));
   }, []);
+
+  const getDestinationIconAndColor = (destination) => {
+    switch (destination?.toLowerCase()) {
+      case 'api':
+        return { icon: <Waypoints className="w-6 h-6 text-blue-600" />, color: 'bg-blue-100 border-blue-200' };
+      case 'csv':
+        return { icon: <FileText className="w-6 h-6 text-teal-600" />, color: 'bg-teal-100 border-teal-200' };
+      case 'database':
+        return { icon: <Database className="w-6 h-6 text-red-600" />, color: 'bg-red-100 border-red-200' };
+      default:
+        return { icon: <FileText className="w-6 h-6 text-gray-600" />, color: 'bg-gray-100 border-gray-200' };
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white text-gray-900">

@@ -21,7 +21,7 @@ async def get_workflow(
             text("""
                 SELECT id, name, description, status, schedule, last_run_at, 
                        next_run_at, input_structure, parameters,
-                       dag_path, dag_status, created_at, updated_at
+                       dag_path, dag_status, created_at, updated_at, destination, destination_config
                 FROM workflow.workflow
                 WHERE id = :id
             """),

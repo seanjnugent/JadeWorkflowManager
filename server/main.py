@@ -28,6 +28,7 @@ from routes.workflows.post_workflow_destination import router as workflow_destin
 from routes.workflows.get_workflow import router as get_workflow_router
 from routes.workflows.get_workflows import router as get_workflows_router
 from routes.workflows.post_new_workflow import router as post_new_workflow_router
+from routes.analytics.get_analytics import router as get_analytics_router
 
 from routes.runs.get_run import router as get_run_router
 from routes.runs.get_runs import router as get_runs_router
@@ -35,7 +36,7 @@ from routes.runs.post_run_step_status import router as post_run_step_status_rout
 from routes.runs.post_new_run import router as post_new_run_router
 
 from routes.connections.post_new_connection import router as connections_router
-from routes.post_update_workflow import router as update_workflow_router
+from routes.workflows.post_update_workflow import router as update_workflow_router
 from routes.workflows.post_new_workflow_step import router as new_workflow_steps_router
 from routes.users.post_user_authentication import router as user_authentication
 from routes.dags.post_new_dag import router as post_new_dag_router
@@ -53,6 +54,7 @@ app.include_router(post_new_workflow_router)
 app.include_router(get_run_router)
 app.include_router(get_runs_router)
 app.include_router(post_run_step_status_router)
+app.include_router(get_analytics_router)
 
 
 app.include_router(connections_router)
