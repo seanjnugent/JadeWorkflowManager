@@ -10,7 +10,7 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL)
 
-@sensor(minimum_interval_seconds=30)
+@sensor(minimum_interval_seconds=180)
 def workflow_run_sensor(context):
     """Sensor to monitor Dagster run events for any workflow job and update database"""
     # Fetch active workflow runs to determine which jobs to monitor

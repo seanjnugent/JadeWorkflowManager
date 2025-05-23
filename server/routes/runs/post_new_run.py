@@ -12,12 +12,11 @@ from ..get_health_check import get_db, supabase, engine
 from app.file_parser import parser_map
 from dotenv import load_dotenv
 from sqlalchemy import text
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
-
-# Supabase configuration
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "workflow-files")
 
 class WorkflowRunCreate(BaseModel):
@@ -27,27 +26,32 @@ class WorkflowRunCreate(BaseModel):
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
+def validate_environment():
+    required_vars = ["SUPABASE_URL", "SUPABASE_KEY", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "DATABASE_URL", "DAGSTER_API_URL"]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    if missing_vars:
+        raise RuntimeError(f"Missing required environment variables: {', '.join(missing_vars)}")
+
+validate_environment()
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
 def upload_to_storage(file_path: str, content: bytes) -> str:
-    """Upload file to Supabase storage with retry logic"""
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            supabase.storage.from_(SUPABASE_BUCKET).upload(
-                path=file_path,
-                file=content,
-                file_options={"content-type": "application/octet-stream"}
-            )
-            logger.info(f"File uploaded successfully to {SUPABASE_BUCKET}/{file_path}")
-            return f"{SUPABASE_BUCKET}/{file_path}"
-        except Exception as e:
-            logger.error(f"Upload attempt {attempt + 1} failed: {str(e)}")
-            if attempt == max_retries - 1:
-                raise HTTPException(500, f"Failed to upload file after {max_retries} attempts: {str(e)}")
-            continue
-    raise HTTPException(500, "Unexpected error in file upload")
+    try:
+        supabase.storage.from_(SUPABASE_BUCKET).upload(
+            path=file_path,
+            file=content,
+            file_options={"content-type": "application/octet-stream"}
+        )
+        logger.info(f"File uploaded successfully to {SUPABASE_BUCKET}/{file_path}")
+        return f"{SUPABASE_BUCKET}/{file_path}"
+    except Exception as e:
+        logger.error(f"Upload failed: {str(e)}")
+        raise
 
 def validate_file_structure(df: pd.DataFrame, expected_structure: Dict) -> None:
-    """Validate DataFrame structure against expected workflow input_structure"""
+    if not expected_structure or not expected_structure.get("columns"):
+        logger.info("No expected structure provided, skipping validation")
+        return
     try:
         actual_columns = set(df.columns)
         expected_columns = {col["name"] for col in expected_structure.get("columns", [])}
@@ -60,7 +64,6 @@ def validate_file_structure(df: pd.DataFrame, expected_structure: Dict) -> None:
             if extra:
                 error_msg.append(f"Unexpected columns: {', '.join(extra)}")
             raise ValueError("; ".join(error_msg))
-
         for col in expected_structure.get("columns", []):
             col_name = col["name"]
             expected_type = col["type"]
@@ -71,236 +74,271 @@ def validate_file_structure(df: pd.DataFrame, expected_structure: Dict) -> None:
         logger.error(f"File structure validation failed: {str(e)}")
         raise HTTPException(400, f"File structure validation failed: {str(e)}")
 
-def extract_job_name_from_dag_path(dag_path):
-    """Extract job name from a DAG path like 'C:\\Users\\seanj\\Documents\\Projects\\Conduit\\server\\app\\dagster\\jobs\\33333_job_25.py'"""
-    if not dag_path:
-        raise ValueError("DAG path is required")
-
-    # Extract the filename from the path
-    filename = dag_path.split('\\')[-1].split('/')[-1]
-
-    # Remove the .py extension if present
-    if filename.endswith('.py'):
-        filename = filename[:-3]
-
-    return filename
-
-def run_dagster_job(workflow_id, run_config, db):
-    """Run a Dagster job using GraphQL API with dynamic job name"""
-    dagster_api_url = os.getenv("DAGSTER_API_URL")
-    if not dagster_api_url:
-        raise ValueError("DAGSTER_API_URL must be set in .env")
-
-    # Query to get the dag_path for this workflow
-    dag_path_query = db.execute(
-        text("""
-            SELECT dag_path FROM workflow.workflow WHERE id = :workflow_id
-        """),
-        {"workflow_id": workflow_id}
-    ).fetchone()
-
-    # Default job name as fallback
-    default_job_name = f"workflow_job_{workflow_id}"
-
-    if not dag_path_query or not dag_path_query.dag_path:
-        # Fallback to the traditional naming convention if no dag_path is found
-        job_name = default_job_name
-        logger.warning(f"No dag_path found for workflow {workflow_id}, using default job name: {job_name}")
-    else:
-        try:
-            job_name = extract_job_name_from_dag_path(dag_path_query.dag_path)
-            logger.info(f"Using job name '{job_name}' extracted from dag path: {dag_path_query.dag_path}")
-        except Exception as e:
-            # If there's any error extracting the job name, use the default
-            job_name = default_job_name
-            logger.error(f"Error extracting job name from path '{dag_path_query.dag_path}': {str(e)}. Using default: {job_name}")
-
-    # Check if job exists in repository
-    job_exists_query = """
-    query JobExistsQuery($repositorySelector: RepositorySelector!, $pipelineName: String!) {
-      pipelineOrError(params: {
-        repositorySelector: $repositorySelector,
-        pipelineName: $pipelineName
-      }) {
-        __typename
-        ... on Pipeline {
-          name
+def validate_dagster_config(dagster_api_url: str, job_name: str, run_config: dict) -> bool:
+    validate_query = """
+    query ValidateConfig($pipelineName: String!, $runConfigData: RunConfigData!) {
+        pipelineOrError(pipelineName: $pipelineName) {
+            __typename
+            ... on Pipeline {
+                isRunConfigValid(runConfigData: $runConfigData) {
+                    __typename
+                    ... on RunConfigValidationResult {
+                        isValid
+                        errors {
+                            message
+                        }
+                    }
+                }
+            }
+            ... on PipelineNotFoundError {
+                message
+            }
         }
-        ... on PipelineNotFoundError {
-          message
-        }
-      }
     }
     """
-
-    repository_selector = {
-        "repositoryLocationName": "server.app.dagster.repo",
-        "repositoryName": "workflow_repository"
-    }
-
-    # First check if the job exists
     try:
-        exists_response = requests.post(
+        response = requests.post(
             dagster_api_url,
             json={
-                "query": job_exists_query,
+                "query": validate_query,
                 "variables": {
-                    "repositorySelector": repository_selector,
-                    "pipelineName": job_name
+                    "pipelineName": job_name,
+                    "runConfigData": run_config
                 }
             },
             headers={"Content-Type": "application/json"}
         )
-
-        if exists_response.status_code != 200:
-            logger.error(f"HTTP Error checking job existence: {exists_response.status_code}")
-            logger.error(f"Response: {exists_response.text}")
-        else:
-            exists_result = exists_response.json()
-            if "errors" in exists_result:
-                logger.error(f"GraphQL errors checking job: {exists_result['errors']}")
-
-            pipeline_or_error = exists_result.get("data", {}).get("pipelineOrError", {})
-            if pipeline_or_error.get("__typename") == "PipelineNotFoundError":
-                logger.warning(f"Job '{job_name}' not found. Available jobs may be different. Trying default: {default_job_name}")
-                # If the extracted job name doesn't exist, try the default naming convention
-                job_name = default_job_name
+        if response.status_code != 200:
+            logger.error(f"HTTP Error validating config: {response.status_code}")
+            return False
+        result = response.json()
+        if "errors" in result:
+            logger.error(f"GraphQL errors validating config: {result['errors']}")
+            return False
+        data = result.get("data", {}).get("pipelineOrError", {})
+        if data.get("__typename") == "PipelineNotFoundError":
+            logger.error(f"Job {job_name} not found: {data['message']}")
+            return False
+        validation_result = data.get("isRunConfigValid", {})
+        if not validation_result.get("isValid", False):
+            errors = [err["message"] for err in validation_result.get("errors", [])]
+            logger.error(f"Invalid config for {job_name}: {errors}")
+            return False
+        logger.info(f"Config validated successfully for {job_name}")
+        return True
     except Exception as e:
-        logger.error(f"Error checking if job exists: {str(e)}")
-        # Continue with the current job_name
+        logger.error(f"Error validating config: {str(e)}")
+        return False
 
-    launch_mutation = """
-    mutation LaunchPipelineExecution($executionParams: ExecutionParams!) {
-      launchPipelineExecution(executionParams: $executionParams) {
-        __typename
-        ... on LaunchPipelineRunSuccess {
-          run {
-            runId
-            status
-          }
+def get_available_jobs(repository_selector):
+    dagster_api_url = os.getenv("DAGSTER_API_URL")
+    list_jobs_query = """
+    query ListJobsQuery($repositorySelector: RepositorySelector!) {
+        repositoryOrError(repositorySelector: $repositorySelector) {
+            ... on Repository {
+                name
+                pipelines {
+                    name
+                }
+            }
+            ... on PythonError {
+                message
+                stack
+            }
+            ... on RepositoryNotFoundError {
+                message
+            }
         }
-        ... on PythonError {
-          message
-          stack
-        }
-        ... on PipelineNotFoundError {
-          message
-        }
-        ... on InvalidSubsetError {
-          message
-        }
-        ... on RunConfigValidationInvalid {
-          errors {
-            message
-          }
-        }
-      }
     }
     """
+    try:
+        response = requests.post(
+            dagster_api_url,
+            json={
+                "query": list_jobs_query,
+                "variables": {"repositorySelector": repository_selector}
+            },
+            headers={"Content-Type": "application/json"}
+        )
+        if response.status_code != 200:
+            logger.error(f"HTTP Error listing jobs: {response.status_code}")
+            return []
+        result = response.json()
+        if "errors" in result:
+            logger.error(f"GraphQL errors listing jobs: {result['errors']}")
+            return []
+        repo_data = result.get("data", {}).get("repositoryOrError", {})
+        pipelines = repo_data.get("pipelines", [])
+        logger.info(f"Found {len(pipelines)} jobs in repository")
+        return pipelines
+    except Exception as e:
+        logger.error(f"Error getting available jobs: {str(e)}")
+        return []
 
-    logger.info(f"Attempting to launch job: {job_name}")
+def find_job_for_workflow(workflow_id, available_jobs):
+    job_name = f"workflow_job_{workflow_id}"
+    if available_jobs and not any(job["name"] == job_name for job in available_jobs):
+        logger.warning(f"Job {job_name} not found in available jobs")
+    return job_name
 
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=2, min=2, max=30))
+def run_dagster_job(workflow_id, run_config, db):
+    dagster_api_url = os.getenv("DAGSTER_API_URL")
+    if not dagster_api_url:
+        raise ValueError("DAGSTER_API_URL must be set in .env")
+    job_name = f"workflow_job_{workflow_id}"
+    repository_selector = {
+        "repositoryLocationName": "server.app.dagster.repo",
+        "repositoryName": "workflow_repository"
+    }
+    launch_mutation = """
+    mutation LaunchPipelineExecution($executionParams: ExecutionParams!) {
+        launchPipelineExecution(executionParams: $executionParams) {
+            __typename
+            ... on LaunchPipelineRunSuccess {
+                run {
+                    runId
+                    status
+                }
+            }
+            ... on PythonError {
+                message
+                stack
+            }
+            ... on PipelineNotFoundError {
+                message
+            }
+            ... on InvalidSubsetError {
+                message
+            }
+            ... on RunConfigValidationInvalid {
+                errors {
+                    message
+                }
+            }
+        }
+    }
+    """
     variables = {
         "executionParams": {
             "selector": {
-                "repositoryLocationName": "server.app.dagster.repo",
-                "repositoryName": "workflow_repository",
+                "repositoryLocationName": repository_selector["repositoryLocationName"],
+                "repositoryName": repository_selector["repositoryName"],
                 "pipelineName": job_name,
             },
             "runConfigData": run_config,
             "mode": "default"
         }
     }
+    try:
+        response = requests.post(
+            dagster_api_url,
+            json={"query": launch_mutation, "variables": variables},
+            headers={"Content-Type": "application/json"}
+        )
+        if response.status_code != 200:
+            logger.error(f"HTTP Error: {response.status_code}")
+            raise Exception(f"HTTP error {response.status_code} from Dagster API")
+        result = response.json()
+        if "errors" in result:
+            error_details = "; ".join([e.get("message", "Unknown error") for e in result["errors"]])
+            logger.error(f"GraphQL errors: {error_details}")
+            raise Exception(f"GraphQL errors: {error_details}")
+        data = result.get("data", {}).get("launchPipelineExecution", {})
+        if data.get("__typename") != "LaunchPipelineRunSuccess":
+            error_type = data.get("__typename", "Unknown error type")
+            error_message = data.get("message", "Unknown error")
+            if error_type == "RunConfigValidationInvalid":
+                errors = [err["message"] for err in data.get("errors", [])]
+                error_message = f"Config validation failed: {errors}"
+            logger.error(f"Failed to launch job ({error_type}): {error_message}")
+            raise Exception(f"Failed to launch job: {error_message}")
+        return {
+            "run_id": data["run"]["runId"],
+            "status": data["run"]["status"],
+            "job_name": job_name
+        }
+    except Exception as e:
+        logger.error(f"Error launching Dagster job with name '{job_name}': {str(e)}")
+        raise
 
-    max_attempts = 2  # Try with extracted name, then with default name if needed
-    attempt = 0
-    last_error = None
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+async def execute_db_query(db: Session, query: str, params: dict):
+    try:
+        result = db.execute(text(query), params)
+        db.commit()
+        return result
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Database query failed: {str(e)}")
+        raise
 
-    while attempt < max_attempts:
-        try:
-            logger.info(f"Launch attempt {attempt+1} with job name: {job_name}")
-            response = requests.post(
-                dagster_api_url,
-                json={"query": launch_mutation, "variables": variables},
-                headers={"Content-Type": "application/json"}
-            )
+async def validate_workflow(workflow_id: int, db: Session) -> dict:
+    result = await execute_db_query(
+        db,
+        "SELECT id, name, input_file_path, input_structure, destination, dag_path FROM workflow.workflow WHERE id = :workflow_id",
+        {"workflow_id": workflow_id}
+    )
+    workflow = result.fetchone()
+    if not workflow:
+        logger.error(f"Workflow {workflow_id} not found")
+        raise HTTPException(404, f"Workflow {workflow_id} not found")
+    return workflow
 
-            # Log full response for debugging
-            logger.debug(f"Dagster API response: {response.text}")
+async def get_workflow_config(workflow_id: int, db: Session) -> dict:
+    result = await execute_db_query(
+        db,
+        "SELECT workflow.get_effective_config(:workflow_id) as config",
+        {"workflow_id": workflow_id}
+    )
+    config = result.fetchone().config
+    return config
 
-            if response.status_code != 200:
-                logger.error(f"HTTP Error: {response.status_code}")
-                logger.error(f"Response body: {response.text}")
-                response.raise_for_status()
+async def handle_file_upload(file: UploadFile, workflow_id: int, expected_structure: dict) -> str:
+    if not file or not file.filename:
+        return None
+    file_ext = file.filename.split(".")[-1].lower()
+    if file_ext not in ["csv"]:
+        logger.error(f"Unsupported file type: {file_ext}")
+        raise HTTPException(400, f"Unsupported file type: {file_ext}")
+    parser = parser_map.get(file_ext)
+    if not parser:
+        raise HTTPException(400, f"Unsupported file type: {file_ext}")
+    content = await file.read()
+    try:
+        df = await parser.parse(content)
+        if expected_structure and expected_structure.get("columns"):
+            validate_file_structure(df, expected_structure)
+        file_path = f"runs/{workflow_id}/{uuid.uuid4()}.{file_ext}"
+        return upload_to_storage(file_path, content)
+    except Exception as e:
+        logger.error(f"File processing failed: {str(e)}")
+        raise HTTPException(500, f"File processing failed: {str(e)}")
 
-            result = response.json()
-            if "errors" in result:
-                error_details = "; ".join([e.get("message", "Unknown error") for e in result["errors"]])
-                logger.error(f"GraphQL errors: {error_details}")
-                raise Exception(f"GraphQL errors: {error_details}")
-
-            data = result.get("data", {}).get("launchPipelineExecution", {})
-            logger.debug(f"Launch pipeline execution result: {data}")
-
-            if data.get("__typename") == "LaunchPipelineRunSuccess":
-                logger.info(f"Successfully launched job '{job_name}'")
-                return {
-                    "run_id": data["run"]["runId"],
-                    "status": data["run"]["status"]
-                }
-            elif data.get("__typename") == "PipelineNotFoundError":
-                error_message = data.get("message", "Pipeline not found")
-                logger.error(f"Pipeline not found error: {error_message}")
-
-                if attempt == 0 and job_name != default_job_name:
-                    # If this is the first attempt and we're not using the default job name,
-                    # try again with the default name
-                    logger.info(f"Job '{job_name}' not found. Trying with default name: {default_job_name}")
-                    job_name = default_job_name
-                    variables["executionParams"]["selector"]["pipelineName"] = job_name
-                    attempt += 1
-                    continue
-                else:
-                    raise Exception(f"Pipeline not found: {error_message}")
-            else:
-                error_type = data.get("__typename", "Unknown error type")
-                error_message = data.get("message", "Unknown error")
-
-                if error_type == "PythonError" and "stack" in data:
-                    logger.error(f"Python error: {error_message}")
-                    logger.error(f"Stack trace: {data['stack']}")
-                elif error_type == "RunConfigValidationInvalid" and "errors" in data:
-                    validation_errors = "; ".join([e.get("message", "") for e in data["errors"]])
-                    logger.error(f"Config validation errors: {validation_errors}")
-
-                logger.error(f"Failed to launch job ({error_type}): {error_message}")
-
-                if attempt == 0 and job_name != default_job_name:
-                    # Try again with default name
-                    job_name = default_job_name
-                    variables["executionParams"]["selector"]["pipelineName"] = job_name
-                    attempt += 1
-                    last_error = f"{error_type}: {error_message}"
-                    continue
-                else:
-                    raise Exception(f"Failed to launch job: {error_message}")
-        except Exception as e:
-            last_error = str(e)
-            logger.error(f"Error launching Dagster job with name '{job_name}': {last_error}")
-
-            if attempt == 0 and job_name != default_job_name:
-                # Try again with default name
-                job_name = default_job_name
-                variables["executionParams"]["selector"]["pipelineName"] = job_name
-                attempt += 1
-            else:
-                # Re-raise the exception on the final attempt
-                raise Exception(f"Failed to launch job after {attempt+1} attempts: {last_error}")
-
-        attempt += 1
-
-    # We should never reach here due to raise statements above
-    raise Exception(f"Unexpected error in run_dagster_job: {last_error}")
+async def create_run_record(db: Session, workflow_id: int, triggered_by: int, input_file_path: str, dagster_run_id: str, status: str, run_config: dict) -> dict:
+    result = await execute_db_query(
+        db,
+        """
+        INSERT INTO workflow.run (
+            workflow_id, triggered_by, status, started_at,
+            input_file_path, dagster_run_id, config_used, config_validation_passed
+        ) VALUES (
+            :workflow_id, :triggered_by, :status, NOW(),
+            :input_file_path, :dagster_run_id, :config_used, :config_validation_passed
+        )
+        RETURNING id, workflow_id, triggered_by, status, started_at, input_file_path, dagster_run_id
+        """,
+        {
+            "workflow_id": workflow_id,
+            "triggered_by": triggered_by,
+            "status": status,
+            "input_file_path": input_file_path,
+            "dagster_run_id": dagster_run_id,
+            "config_used": json.dumps(run_config),
+            "config_validation_passed": True
+        }
+    )
+    return result.fetchone()
 
 @router.post("/run/new")
 async def trigger_workflow_run(
@@ -311,18 +349,21 @@ async def trigger_workflow_run(
     db: Session = Depends(get_db)
 ):
     try:
-        # Validate workflow existence
-        workflow = db.execute(
-            text("""
-                SELECT id, name, input_file_path, input_structure, destination, dag_path
-                FROM workflow.workflow
-                WHERE id = :workflow_id
-            """),
-            {"workflow_id": workflow_id}
-        ).fetchone()
-        if not workflow:
-            logger.error(f"Workflow {workflow_id} not found")
-            raise HTTPException(404, f"Workflow {workflow_id} not found")
+        # Validate workflow
+        workflow = await validate_workflow(workflow_id, db)
+        
+        # Get config template
+        config_template = await get_workflow_config(workflow_id, db)
+        
+        # Handle input structure
+        expected_structure = None
+        if workflow.input_structure:
+            try:
+                expected_structure = (workflow.input_structure if isinstance(workflow.input_structure, dict) 
+                                    else json.loads(workflow.input_structure))
+            except json.JSONDecodeError:
+                logger.warning(f"Invalid input_structure format for workflow {workflow_id}")
+                expected_structure = None
 
         # Parse parameters
         run_parameters = {}
@@ -332,217 +373,143 @@ async def trigger_workflow_run(
             except json.JSONDecodeError as e:
                 logger.error(f"Invalid parameters format: {str(e)}")
                 raise HTTPException(400, f"Invalid parameters format: {str(e)}")
+        else:
+            result = await execute_db_query(
+                db,
+                "SELECT default_parameters FROM workflow.workflow WHERE id = :workflow_id",
+                {"workflow_id": workflow_id}
+            )
+            run_parameters = result.fetchone().default_parameters or {"Title": "Untitled Report"}
 
-        # Handle file upload and validation
+        # Handle file upload
         input_file_path = workflow.input_file_path
         if file and file.filename:
-            file_ext = file.filename.split(".")[-1].lower()
-            if file_ext not in ["csv"]:
-                logger.error(f"Unsupported file type: {file_ext}")
-                raise HTTPException(400, f"Unsupported file type: {file_ext}")
+            input_file_path = await handle_file_upload(file, workflow_id, expected_structure)
 
-            # Parse and validate file
-            parser = parser_map.get(file_ext)
-            if not parser:
-                logger.error(f"Unsupported file type: {file_ext}")
-                raise HTTPException(400, f"Unsupported file type: {file_ext}")
+        # Prepare run config
+        output_file_path = f"workflow-files/outputs/{uuid.uuid4()}.json"
+        run_config = config_template.copy()
+        run_config["ops"][f"load_input_workflow_job_{workflow_id}"]["config"]["input_file_path"] = input_file_path
+        run_config["ops"][f"load_input_workflow_job_{workflow_id}"]["config"]["output_file_path"] = output_file_path
+        run_config["ops"][f"transform_workflow_job_{workflow_id}"]["config"]["parameters"] = run_parameters
+        run_config["ops"][f"save_output_workflow_job_{workflow_id}"]["config"]["output_file_path"] = output_file_path
 
-            content = await file.read()
-            try:
-                df = await parser.parse(content)
-            except Exception as parse_error:
-                logger.error(f"Failed to parse file: {str(parse_error)}")
-                raise HTTPException(500, f"File parsing failed: {str(parse_error)}")
+        # Validate job existence
+        job_name = f"workflow_job_{workflow_id}"
+        available_jobs = get_available_jobs({
+            "repositoryLocationName": "server.app.dagster.repo",
+            "repositoryName": "workflow_repository"
+        })
+        if not any(job["name"] == job_name for job in available_jobs):
+            logger.error(f"Job {job_name} not found in repository")
+            raise HTTPException(404, f"Job {job_name} not found in Dagster repository")
 
-            # Validate file structure
-            expected_structure = workflow.input_structure if isinstance(workflow.input_structure, dict) else json.loads(workflow.input_structure or "{}")
-            validate_file_structure(df, expected_structure)
+        # Validate config
+        if not validate_dagster_config(os.getenv("DAGSTER_API_URL"), job_name, run_config):
+            logger.warning(f"Primary config invalid, attempting last successful config")
+            result = await execute_db_query(
+                db,
+                "SELECT last_successful_config FROM workflow.workflow WHERE id = :workflow_id",
+                {"workflow_id": workflow_id}
+            )
+            last_config = result.fetchone().last_successful_config
+            if last_config:
+                run_config = last_config
+                if not validate_dagster_config(os.getenv("DAGSTER_API_URL"), job_name, run_config):
+                    raise HTTPException(400, f"Last successful config invalid for job {job_name}")
+            else:
+                raise HTTPException(400, f"Invalid Dagster configuration for job {job_name} and no fallback available")
 
-            # Upload file to Supabase
-            file_path = f"runs/{workflow_id}/{uuid.uuid4()}.{file_ext}"
-            input_file_path = upload_to_storage(file_path, content)
-
-        # Create run record
-        dagster_run_id = str(uuid.uuid4())
-        run_result = db.execute(
-            text("""
-                INSERT INTO workflow.run (
-                    workflow_id, triggered_by, status, started_at,
-                    input_file_path, dagster_run_id
-                ) VALUES (
-                    :workflow_id, :triggered_by, :status, NOW(),
-                    :input_file_path, :dagster_run_id
-                )
-                RETURNING id, workflow_id, triggered_by, status, started_at, input_file_path, dagster_run_id
-            """),
+        # Log config validation
+        await execute_db_query(
+            db,
+            """
+            INSERT INTO workflow.config_validation_log (
+                workflow_id, config_data, validation_result, is_valid, dagster_job_name
+            ) VALUES (
+                :workflow_id, :config_data, :validation_result, :is_valid, :dagster_job_name
+            )
+            """,
             {
                 "workflow_id": workflow_id,
-                "triggered_by": triggered_by,
-                "status": "Running",
-                "input_file_path": input_file_path,
-                "dagster_run_id": dagster_run_id
+                "config_data": json.dumps(run_config),
+                "validation_result": json.dumps({"status": "valid"}),
+                "is_valid": True,
+                "dagster_job_name": job_name
             }
         )
-        run_record = run_result.fetchone()
-        db.commit()
-        logger.info(f"Run {run_record.id} created for workflow {workflow_id}")
-
-        # Log initial run log entry
-        db.execute(
-            text("""
-                INSERT INTO workflow.run_log (
-                    run_id, dagster_step, log_level, message, timestamp,
-                    dagster_run_id, workflow_id
-                ) VALUES (
-                    :run_id, :dagster_step, :log_level, :message, NOW(),
-                    :dagster_run_id, :workflow_id
-                )
-            """),
-            {
-                "run_id": run_record.id,
-                "dagster_step": "Initialization",
-                "log_level": "INFO",
-                "message": "Workflow run initiated",
-                "dagster_run_id": dagster_run_id,
-                "workflow_id": str(workflow_id)
-            }
-        )
-        db.commit()
-
-        # Fetch workflow steps
-        steps = db.execute(
-            text("""
-                SELECT id, step_order, label, code, parameters, step_code, code_type
-                FROM workflow.workflow_step
-                WHERE workflow_id = :workflow_id
-                ORDER BY step_order
-            """),
-            {"workflow_id": workflow_id}
-        ).fetchall()
-
-        # Fetch destination
-        destination = db.execute(
-            text("""
-                SELECT workflow_id, file_path, file_format
-                FROM workflow.workflow_destination
-                WHERE workflow_id = :workflow_id
-            """),
-            {"workflow_id": workflow_id}
-        ).fetchone()
-
-        # Prepare run config for Dagster to match manual configuration
-        output_file_path = f"workflow-files/outputs/{uuid.uuid4()}.json"
-        run_config = {
-            "ops": {
-                f"load_input_json_converter_{workflow_id}": {
-                    "config": {
-                        "input_file_path": input_file_path,
-                        "output_file_path": output_file_path,
-                        "workflow_id": workflow_id
-                    }
-                },
-                f"transform_json_converter_{workflow_id}": {
-                    "config": {
-                        "workflow_id": workflow_id,
-                        "steps": [
-                            {
-                                "id": step.id,
-                                "label": step.label,
-                                "code_type": step.code_type,
-                                "code": step.code,
-                                "parameters": json.loads(step.parameters) if step.parameters else {},
-                                "step_code": step.step_code
-                            } for step in steps
-                        ],
-                        "parameters": run_parameters or {"Title": "Untitled Report"}
-                    }
-                },
-                f"save_output_json_converter_{workflow_id}": {
-                    "config": {
-                        "output_file_path": output_file_path,
-                        "workflow_id": workflow_id
-                    }
-                }
-            }
-        }
 
         # Trigger Dagster job
         try:
-            # Pass workflow_id to the updated run_dagster_job function
             dagster_result = run_dagster_job(workflow_id, run_config, db)
-            dagster_run_id = dagster_result.get("run_id")
+            dagster_run_id = dagster_result["run_id"]
             status = "Running"
             error_message = None
         except Exception as e:
+            logger.error(f"Failed to launch Dagster job: {str(e)}")
             status = "Failed"
             error_message = str(e)
-            # Log error in run_log
-            db.execute(
-                text("""
-                    INSERT INTO workflow.run_log (
-                        run_id, dagster_step, log_level, message, timestamp,
-                        dagster_run_id, workflow_id
-                    ) VALUES (
-                        :run_id, :dagster_step, :log_level, :message, NOW(),
-                        :dagster_run_id, :workflow_id
-                    )
-                """),
-                {
-                    "run_id": run_record.id,
-                    "dagster_step": "Execution",
-                    "log_level": "ERROR",
-                    "message": f"Run failed: {error_message}",
-                    "dagster_run_id": dagster_run_id,
-                    "workflow_id": str(workflow_id)
-                }
-            )
-            db.commit()
+            dagster_run_id = None
 
-        # Update run status
-        db.execute(
-            text("""
-                UPDATE workflow.run
-                SET status = :status,
-                    finished_at = :finished_at,
-                    error_message = :error_message,
-                    dagster_run_id = :dagster_run_id,
-                    output_file_path = :output_file_path
-                WHERE id = :run_id
-            """),
+        # Create run record
+        run_record = await create_run_record(db, workflow_id, triggered_by, input_file_path, dagster_run_id, status, run_config)
+
+        # Log initial run log entry
+        await execute_db_query(
+            db,
+            """
+            INSERT INTO workflow.run_log (
+                run_id, dagster_step, log_level, message, timestamp,
+                dagster_run_id, workflow_id, config_snapshot
+            ) VALUES (
+                :run_id, :dagster_step, :log_level, :message, NOW(),
+                :dagster_run_id, :workflow_id, :config_snapshot
+            )
+            """,
             {
-                "status": status,
-                "finished_at": None if status == "Running" else "NOW()",
-                "error_message": error_message,
+                "run_id": run_record.id,
+                "dagster_step": "Initialization",
+                "log_level": "INFO" if status == "Running" else "ERROR",
+                "message": "Workflow run initiated" if status == "Running" else f"Workflow run failed: {error_message}",
                 "dagster_run_id": dagster_run_id,
-                "output_file_path": output_file_path,
-                "run_id": run_record.id
+                "workflow_id": str(workflow_id),
+                "config_snapshot": json.dumps(run_config)
             }
         )
-        db.commit()
 
-        # Insert initial step status records
-        for step in steps:
+        # Insert step status records
+        steps = await execute_db_query(
+            db,
+            """
+            SELECT id, step_order, label, code, parameters, step_code, code_type
+            FROM workflow.workflow_step
+            WHERE workflow_id = :workflow_id
+            ORDER BY step_order
+            """,
+            {"workflow_id": workflow_id}
+        )
+        for step in steps.fetchall():
             step_parameters = json.loads(step.parameters) if step.parameters else {}
-            merged_parameters = {**step_parameters, **(run_parameters or {})}
-            db.execute(
-                text("""
-                    INSERT INTO workflow.run_step_status (
-                        run_id, step_id, status, started_at, input_data,
-                        step_code, created_at, updated_at
-                    ) VALUES (
-                        :run_id, :step_id, :status, NOW(), :input_data,
-                        :step_code, NOW(), NOW()
-                    )
-                """),
+            merged_parameters = {**step_parameters, **run_parameters}
+            await execute_db_query(
+                db,
+                """
+                INSERT INTO workflow.run_step_status (
+                    run_id, step_id, status, started_at, input_data,
+                    step_code, created_at, updated_at
+                ) VALUES (
+                    :run_id, :step_id, :status, NOW(), :input_data,
+                    :step_code, NOW(), NOW()
+                )
+                """,
                 {
                     "run_id": run_record.id,
                     "step_id": step.id,
-                    "status": "Running",
+                    "status": "Running" if status == "Running" else "Failed",
                     "input_data": json.dumps({"file_path": input_file_path, "parameters": merged_parameters}),
                     "step_code": step.step_code
                 }
             )
-            db.commit()
 
         return {
             "message": "Workflow run triggered successfully",

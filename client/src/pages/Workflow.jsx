@@ -241,19 +241,6 @@ const Workflow = () => {
                     })
                 });
 
-                // Trigger GET request after 2 seconds
-                setTimeout(async () => {
-                    try {
-                        const response = await fetch(`http://localhost:8000/dags/dag/${workflowId}`, {
-                            headers: { 'accept': 'application/json' }
-                        });
-                        const dagData = await response.json();
-                        console.log('DAG data:', dagData);
-                    } catch (error) {
-                        console.error('Error fetching DAG:', error);
-                    }
-                }, 2000);
-
                 // Refresh workflow details after 3 seconds
                 setTimeout(async () => {
                     try {

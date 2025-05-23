@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronLeft, FileInput, Settings2, Save, CheckCircle2, Code, 
-  File, Database, Waypoints, FileSpreadsheet
+  File, Database, Waypoints, FileSpreadsheet, FileX
 } from 'lucide-react';
 import { 
   StepCard, FileUploadArea, ErrorAlert, StepNavigation, SuccessAlert 
@@ -43,6 +43,7 @@ const NewWorkflow = () => {
     authToken: ''
   });
   const [successMessage, setSuccessMessage] = useState(null);
+  const [skipFileUpload, setSkipFileUpload] = useState(false);
 
   const steps = [
     { id: 1, title: 'Workflow Details', icon: FileInput },
@@ -53,47 +54,58 @@ const NewWorkflow = () => {
     { id: 6, title: 'Destination', icon: Save },
   ];
 
-  const handleFileUpload = useCallback(async (file) => {
-    if (!workflowName) {
-      setUploadError('Please enter a workflow name');
-      return;
-    }
-    if (!workflowDescription) {
-      setUploadError('Please enter a workflow description');
-      return;
-    }
-    if (!userId) {
-      setUploadError('Please enter a user ID');
-      return;
-    }
+const handleFileUpload = useCallback(async (file) => {
+  if (!workflowName) {
+    setUploadError('Please enter a workflow name');
+    return;
+  }
+  if (!workflowDescription) {
+    setUploadError('Please enter a workflow description');
+    return;
+  }
 
-    setIsUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('name', workflowName);
-    formData.append('description', workflowDescription);
-    formData.append('created_by', userId);
-    formData.append('status', 'Draft');
-    formData.append('destination', destinationType);
+  setIsUploading(true);
+  
+  try {
+    let response;
+    if (skipFileUpload) {
+      // Send as JSON when skipping file upload
+      response = await fetch('http://localhost:8000/workflows/workflow/new', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: workflowName,
+          description: workflowDescription,
+          created_by: parseInt(userId),
+          status: 'Draft',
+          skip_structure: true
+        }),
+      });
+    } else {
+      // Send as FormData when including file
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('name', workflowName);
+      formData.append('description', workflowDescription);
+      formData.append('created_by', userId);
+      formData.append('status', 'Draft');
+      formData.append('skip_structure', skipFileUpload);
 
-    try {
-      const response = await fetch('http://localhost:8000/workflows/workflow/new', {
+      response = await fetch('http://localhost:8000/workflows/workflow/new', {
         method: 'POST',
         body: formData,
       });
+    }
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Server error: ${response.status} - ${errorText}`);
-      }
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Server error: ${response.status} - ${errorText}`);
+    }
 
-      const data = await response.json();
-
-      if (!data.workflow || !data.file_info || !data.file_info.schema || !data.file_info.preview) {
-        throw new Error('Invalid response format from server');
-      }
-
-      setWorkflowId(data.workflow.id);
+    const data = await response.json();
+    setWorkflowId(data.workflow.id);
+    
+    if (!skipFileUpload && data.file_info) {
       const structure = Object.entries(data.file_info.schema).map(([column, typeInfo]) => ({
         column,
         detectedType: typeInfo.type,
@@ -101,19 +113,113 @@ const NewWorkflow = () => {
         format: typeInfo.format || 'none',
         samples: data.file_info.preview.slice(0, 3).map(row => row[column]),
       }));
-
       setParsedFileStructure(structure);
-      setIsFileUploaded(true);
-      setUploadError(null);
-      setCurrentStep(3);
-    } catch (error) {
-      console.error('Upload error:', error);
-      setUploadError(error.message);
-      setIsFileUploaded(false);
-    } finally {
-      setIsUploading(false);
     }
-  }, [workflowName, workflowDescription, userId, destinationType]);
+
+    setIsFileUploaded(true);
+    setUploadError(null);
+    setCurrentStep(3);
+  } catch (error) {
+    console.error('Upload error:', error);
+    setUploadError(error.message);
+    setIsFileUploaded(false);
+  } finally {
+    setIsUploading(false);
+  }
+}, [workflowName, workflowDescription, userId, skipFileUpload]);
+
+const handleSaveWorkflow = async () => {
+  if (!workflowName) {
+    setUploadError('Workflow name is required');
+    return;
+  }
+
+  if (!workflowDescription) {
+    setUploadError('Workflow description is required');
+    return;
+  }
+
+  try {
+    // First create/update the workflow
+    const workflowResponse = await fetch(
+      workflowId 
+        ? `http://localhost:8000/workflows/workflow/update` 
+        : `http://localhost:8000/workflows/workflow/new`,
+      {
+        method: workflowId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(workflowId && { workflow_id: workflowId }),
+          name: workflowName,
+          description: workflowDescription,
+          created_by: parseInt(userId),
+          status: 'Draft',
+          parameters: parameters.filter(param => param.name),
+          destination: destinationType,
+          destination_config: destinationType === 'database' 
+            ? databaseConfig 
+            : destinationType === 'api' 
+            ? apiConfig 
+            : null,
+          skip_structure: skipFileUpload
+        }),
+      }
+    );
+
+    if (!workflowResponse.ok) {
+      const errorText = await workflowResponse.text();
+      throw new Error(`Failed to ${workflowId ? 'update' : 'create'} workflow: ${errorText}`);
+    }
+
+    const workflowData = await workflowResponse.json();
+    const finalWorkflowId = workflowData.workflow?.id || workflowId;
+
+    // Then create steps
+    const stepPromises = workflowSteps.map((step, index) => {
+      return fetch(`http://localhost:8000/workflows/workflow/steps`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workflow_id: finalWorkflowId,
+          label: step.label,
+          description: step.description,
+          code_type: step.code_type,
+          code: step.code,
+          step_order: index + 1,
+        }),
+      });
+    });
+
+    const stepResponses = await Promise.all(stepPromises);
+    for (const response of stepResponses) {
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create step: ${errorText}`);
+      }
+    }
+
+    setSuccessMessage('Workflow saved successfully!');
+    setTimeout(() => {
+      // Reset form
+      setCurrentStep(1);
+      setWorkflowName('');
+      setWorkflowDescription('');
+      setParsedFileStructure([]);
+      setIsFileUploaded(false);
+      setParameters([]);
+      setWorkflowSteps([]);
+      setWorkflowId(null);
+      setDestinationType('csv');
+      setDatabaseConfig({ connectionId: '', schema: '', tableName: '', createIfNotExists: false });
+      setApiConfig({ endpoint: '', authToken: '' });
+      setSuccessMessage(null);
+      setSkipFileUpload(false);
+    }, 2000);
+  } catch (error) {
+    console.error('Save error:', error);
+    setUploadError(error.message);
+  }
+};
 
   const handleTypeChange = (column, newType) => {
     setParsedFileStructure(prev =>
@@ -126,7 +232,7 @@ const NewWorkflow = () => {
   const handleAddParameter = () => {
     setParameters(prev => [
       ...prev,
-      { name: '', type: 'string', mandatory: false }
+      { name: '', type: 'text', description: '', mandatory: false }
     ]);
   };
 
@@ -182,91 +288,6 @@ const NewWorkflow = () => {
     }
   };
 
-  const handleSaveWorkflow = async () => {
-    if (!workflowId) {
-      setUploadError('No workflow ID available. Please upload a file first.');
-      return;
-    }
-
-    for (const step of workflowSteps) {
-      if (!step.label || !step.code) {
-        setUploadError('All steps must have a label and code.');
-        return;
-      }
-      const error = validateCode(step.code, step.code_type);
-      if (error) {
-        setCodeError(error);
-        return;
-      }
-    }
-
-    const workflowData = {
-      workflow_id: workflowId,
-      name: workflowName,
-      description: workflowDescription,
-      created_by: parseInt(userId),
-      status: 'Draft',
-      parameters: parameters.filter(param => param.name),
-      destination: destinationType,
-      destination_config: destinationType === 'database' 
-        ? databaseConfig 
-        : destinationType === 'api' 
-        ? apiConfig 
-        : null
-    };
-
-    try {
-      for (const step of workflowSteps) {
-        const response = await fetch(`http://localhost:8000/workflows/workflow/steps`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workflow_id: workflowId,
-            label: step.label,
-            description: step.description,
-            code_type: step.code_type,
-            code: step.code,
-            step_order: step.step_order,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to create step: ${response.status} - ${errorText}`);
-        }
-      }
-
-      const response = await fetch(`http://localhost:8000/workflows/workflow/update`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(workflowData),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update workflow');
-      }
-
-      setSuccessMessage('Workflow saved successfully!');
-      setTimeout(() => {
-        setCurrentStep(1);
-        setWorkflowName('');
-        setWorkflowDescription('');
-        setUserId('1001');
-        setParsedFileStructure([]);
-        setIsFileUploaded(false);
-        setParameters([]);
-        setWorkflowSteps([]);
-        setWorkflowId(null);
-        setDestinationType('csv');
-        setDatabaseConfig({ connectionId: '', schema: '', tableName: '', createIfNotExists: false });
-        setApiConfig({ endpoint: '', authToken: '' });
-        setSuccessMessage(null);
-      }, 2000);
-    } catch (error) {
-      console.error('Save error:', error);
-      setUploadError(error.message);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -355,52 +376,87 @@ const NewWorkflow = () => {
 
               {currentStep === 2 && (
                 <div className="space-y-6">
-                  <FileUploadArea
-                    onFileUpload={handleFileUpload}
-                    isUploading={isUploading}
-                    isDragging={isDragging}
-                    error={uploadError}
-                  />
+                  <div className="flex items-center gap-3 mb-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                    <input
+                      type="checkbox"
+                      id="skipFileUpload"
+                      checked={skipFileUpload}
+                      onChange={(e) => setSkipFileUpload(e.target.checked)}
+                      className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <label htmlFor="skipFileUpload" className="flex items-center gap-2 text-gray-700">
+                      <FileX className="w-5 h-5 text-gray-500" />
+                      <span>No fixed file structure (skip file upload)</span>
+                    </label>
+                  </div>
+                  
+                  {!skipFileUpload && (
+                    <FileUploadArea
+                      onFileUpload={handleFileUpload}
+                      isUploading={isUploading}
+                      isDragging={isDragging}
+                      error={uploadError}
+                    />
+                  )}
                 </div>
               )}
 
               {currentStep === 3 && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-medium text-gray-800">Detected File Structure</h3>
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Column</th>
-                          <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Type</th>
-                          <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Sample Values</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {parsedFileStructure.map((col) => (
-                          <tr key={col.column}>
-                            <td className="px-6 py-4 text-sm text-gray-700">{col.column}</td>
-                            <td className="px-6 py-4 text-sm text-gray-700">
-                              <select
-                                value={col.type}
-                                onChange={(e) => handleTypeChange(col.column, e.target.value)}
-                                className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                              >
-                                <option value="string">String</option>
-                                <option value="integer">Integer</option>
-                                <option value="float">Float</option>
-                                <option value="boolean">Boolean</option>
-                                <option value="date">Date</option>
-                              </select>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-700">
-                              {col.samples?.join(', ') || 'N/A'}
-                            </td>
+                  <h3 className="text-lg font-medium text-gray-800">File Structure Preview</h3>
+                  
+                  {skipFileUpload ? (
+                    <div className="p-8 text-center bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                      <FileX className="mx-auto h-12 w-12 text-gray-400" />
+                      <h4 className="mt-2 text-lg font-medium text-gray-700">No file structure preview</h4>
+                      <p className="mt-1 text-gray-500">
+                        This workflow doesn't require a fixed file structure.
+                      </p>
+                    </div>
+                  ) : parsedFileStructure.length > 0 ? (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Column</th>
+                            <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Type</th>
+                            <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Sample Values</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {parsedFileStructure.map((col) => (
+                            <tr key={col.column}>
+                              <td className="px-6 py-4 text-sm text-gray-700">{col.column}</td>
+                              <td className="px-6 py-4 text-sm text-gray-700">
+                                <select
+                                  value={col.type}
+                                  onChange={(e) => handleTypeChange(col.column, e.target.value)}
+                                  className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="string">String</option>
+                                  <option value="integer">Integer</option>
+                                  <option value="float">Float</option>
+                                  <option value="boolean">Boolean</option>
+                                  <option value="date">Date</option>
+                                </select>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-700">
+                                {col.samples?.join(', ') || 'N/A'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                      <File className="mx-auto h-12 w-12 text-gray-400" />
+                      <h4 className="mt-2 text-lg font-medium text-gray-700">No file uploaded</h4>
+                      <p className="mt-1 text-gray-500">
+                        Upload a file to preview its structure.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -408,39 +464,60 @@ const NewWorkflow = () => {
                 <div className="space-y-6">
                   <h3 className="text-lg font-medium text-gray-800">Workflow Parameters</h3>
                   {parameters.map((param, index) => (
-                    <div key={index} className="flex gap-4 items-center">
-                      <input
-                        type="text"
-                        value={param.name}
-                        onChange={(e) => handleParameterChange(index, 'name', e.target.value)}
-                        placeholder="Parameter name"
-                        className="flex-1 p-3 bg-white border border-gray-300 rounded-lg"
-                      />
-                      <select
-                        value={param.type}
-                        onChange={(e) => handleParameterChange(index, 'type', e.target.value)}
-                        className="p-3 border rounded-lg"
-                      >
-                        <option value="string">String</option>
-                        <option value="integer">Integer</option>
-                        <option value="float">Float</option>
-                        <option value="boolean">Boolean</option>
-                      </select>
-                      <label className="flex items-center gap-2">
+                    <div key={index} className="grid grid-cols-12 gap-4 items-center p-4 bg-gray-50 rounded-lg">
+                      <div className="col-span-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                         <input
-                          type="checkbox"
-                          checked={param.mandatory}
-                          onChange={(e) => handleParameterChange(index, 'mandatory', e.target.checked)}
+                          type="text"
+                          value={param.name}
+                          onChange={(e) => handleParameterChange(index, 'name', e.target.value)}
+                          placeholder="Parameter name"
+                          className="w-full p-2 bg-white border border-gray-300 rounded-lg"
                         />
-                        Mandatory
-                      </label>
+                      </div>
+                      <div className="col-span-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                        <select
+                          value={param.type}
+                          onChange={(e) => handleParameterChange(index, 'type', e.target.value)}
+                          className="w-full p-2 border rounded-lg"
+                        >
+                          <option value="text">Text</option>
+                          <option value="textbox">Textbox</option>
+                          <option value="numeric">Numeric</option>
+                          <option value="integer">Integer</option>
+                          <option value="date">Date</option>
+                        </select>
+                      </div>
+                      <div className="col-span-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <input
+                          type="text"
+                          value={param.description}
+                          onChange={(e) => handleParameterChange(index, 'description', e.target.value)}
+                          placeholder="Parameter description"
+                          className="w-full p-2 bg-white border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div className="col-span-1 flex items-center justify-center">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={param.mandatory}
+                            onChange={(e) => handleParameterChange(index, 'mandatory', e.target.checked)}
+                            className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">Req.</span>
+                        </label>
+                      </div>
                     </div>
                   ))}
                   <button
                     onClick={handleAddParameter}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    Add Parameter
+                    <span>+</span>
+                    <span>Add Parameter</span>
                   </button>
                 </div>
               )}
@@ -571,6 +648,7 @@ const NewWorkflow = () => {
                           type="checkbox"
                           checked={databaseConfig.createIfNotExists}
                           onChange={(e) => setDatabaseConfig(prev => ({ ...prev, createIfNotExists: e.target.checked }))}
+                          className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
                         />
                         Create table if it doesn't exist
                       </label>

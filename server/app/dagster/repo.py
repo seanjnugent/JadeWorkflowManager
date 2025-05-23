@@ -1,9 +1,12 @@
-from dagster import repository, JobDefinition
+from dagster import repository, JobDefinition, success_hook, failure_hook, OpExecutionContext
+from sqlalchemy import create_engine, text
 import importlib
 import pathlib
 import sys
 import logging
-from .sensors import workflow_run_sensor
+import os  # Added this import
+from dotenv import load_dotenv
+from .dagster_event_listener import workflow_run_status_sensor  # Removed workflow_run_sensor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -16,35 +19,70 @@ jobs_dir = pathlib.Path(__file__).parent / "jobs"
 if str(jobs_dir) not in sys.path:
     sys.path.append(str(jobs_dir))
 
+load_dotenv()
+
+@success_hook(required_resource_keys={"db_engine"})
+def log_success(context: OpExecutionContext):
+    """Hook that runs on successful completion of an operation"""
+    workflow_id = context.op_config.get("workflow_id")
+    try:
+        with context.resources.db_engine.connect() as conn:
+            conn.execute(
+                text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_id, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, :log_level, :message, NOW())'),
+                {
+                    "run_id": context.run_id,
+                    "workflow_id": workflow_id,
+                    "step_id": context.op.name,
+                    "log_level": "info",
+                    "message": f"Operation {context.op.name} completed successfully"
+                }
+            )
+            conn.commit()
+            logger.info(f"Logged success for op {context.op.name}, workflow {workflow_id}, run {context.run_id}")
+    except Exception as e:
+        logger.error(f"Failed to log success for op {context.op.name}: {str(e)}")
+
+@failure_hook(required_resource_keys={"db_engine"})
+def log_failure(context: OpExecutionContext):
+    """Hook that runs on operation failure"""
+    workflow_id = context.op_config.get("workflow_id")
+    error_message = context.op_exception.message if context.op_exception else "Unknown error"
+    
+    try:
+        with context.resources.db_engine.connect() as conn:
+            conn.execute(
+                text('INSERT INTO workflow.run_log (dagster_run_id, workflow_id, step_id, log_level, message, timestamp) VALUES (:run_id, :workflow_id, :step_id, :log_level, :message, NOW())'),
+                {
+                    "run_id": context.run_id,
+                    "workflow_id": workflow_id,
+                    "step_id": context.op.name,
+                    "log_level": "error",
+                    "message": f"Operation {context.op.name} failed: {error_message}"
+                }
+            )
+            conn.commit()
+            logger.info(f"Logged failure for op {context.op.name}, workflow {workflow_id}, run {context.run_id}")
+    except Exception as e:
+        logger.error(f"Failed to log failure for op {context.op.name}: {str(e)}")
+
 @repository
 def workflow_repository():
-    """Dynamically load jobs from the jobs directory based on workflow_id tags"""
+    # Dynamically load jobs
     jobs = []
-    
-    # Scan jobs directory for .py files
-    for py_file in jobs_dir.glob("*.py"):
-        module_name = py_file.stem
-        if module_name == "__init__":
-            continue
-            
+    for job_file in jobs_dir.glob("*.py"):
+        module_name = job_file.stem
         try:
-            # Import the module
             module = importlib.import_module(module_name)
-            # Inspect all attributes for JobDefinition instances
             for attr_name in dir(module):
                 attr = getattr(module, attr_name)
                 if isinstance(attr, JobDefinition):
-                    # Extract workflow_id from tags
-                    workflow_id = attr.tags.get("workflow_id")
-                    if workflow_id:
-                        logger.info(f"Loaded job {attr.name} for workflow_id {workflow_id}")
-                        jobs.append(attr)
-                    else:
-                        logger.warning(f"Job {attr.name} in {module_name} has no workflow_id tag, skipping")
+                    jobs.append(attr)
         except Exception as e:
-            logger.error(f"Failed to load module {module_name}: {str(e)}")
-
-    if not jobs:
-        logger.warning("No jobs loaded from jobs directory")
-
-    return jobs + [workflow_run_sensor]
+            logger.error(f"Failed to load job from {module_name}: {str(e)}")
+    
+    # Include sensors
+    sensors = [
+        workflow_run_status_sensor  # Removed workflow_run_sensor and db_engine parameter
+    ]
+    
+    return jobs + sensors

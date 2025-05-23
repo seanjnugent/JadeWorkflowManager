@@ -12,3 +12,4 @@ dagit
 dagster
 supabase
 psycopg2
+tenacity
