@@ -1,74 +1,94 @@
-from typing import Optional
-from fastapi import APIRouter, File, UploadFile, Form, Depends, HTTPException, requests
+from fastapi import APIRouter, File, UploadFile, Form, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import Optional, Dict, Any, List
 import json
 import uuid
 import logging
 import os
 import pandas as pd
-import supabase
-from app.file_parser import parser_map
-from app.config_manager import WorkflowConfig
 from sqlalchemy import text
-from ..get_health_check import get_db
+from ..config.get_run_config import WorkflowConfig
+from app.file_parser import parser_map
+from ..get_health_check import get_db, supabase
+from ..dagster_execute import execute_workflow, validate_dagster_config
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/runs", tags=["runs"])
+router = APIRouter(prefix="/runs", tags=["workflow"])
 
-async def validate_workflow(workflow_id: int, db: Session) -> dict:
-    """Validate workflow exists and return its details"""
-    result = await db.execute(
-        text("""
-        SELECT id, name, input_file_path, input_structure, destination 
-        FROM workflow.workflow 
-        WHERE id = :workflow_id
-        """),
-        {"workflow_id": workflow_id}
-    )
-    workflow = result.fetchone()
-    if not workflow:
-        logger.error(f"Workflow {workflow_id} not found")
-        raise HTTPException(404, f"Workflow {workflow_id} not found")
-    return workflow
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "workflow-files")
 
-async def handle_file_upload(
-    file: UploadFile, 
-    workflow_id: int, 
-    expected_structure: Optional[dict]
-) -> str:
-    """Handle file upload and validate structure if needed"""
+def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
+    try:
+        result = db.execute(
+            text("""
+            SELECT id, name, input_file_path, input_structure, destination,
+                   config_template, default_parameters, parameters
+            FROM workflow.workflow
+            WHERE id = :workflow_id
+            """),
+            {"workflow_id": workflow_id}
+        )
+        workflow_row = result.fetchone()
+        if not workflow_row:
+            logger.error(f"Workflow {workflow_id} not found")
+            raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
+
+        workflow = {
+            "id": workflow_row.id,
+            "name": workflow_row.name,
+            "input_file_path": workflow_row.input_file_path,
+            "input_structure": workflow_row.input_structure,
+            "destination": workflow_row.destination,
+            "config_template": workflow_row.config_template,
+            "default_parameters": workflow_row.default_parameters,
+            "parameters": workflow_row.parameters
+        }
+
+        json_fields = ["input_structure", "config_template", "default_parameters", "parameters"]
+        for field in json_fields:
+            if workflow[field] and isinstance(workflow[field], str):
+                try:
+                    workflow[field] = json.loads(workflow[field])
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid JSON in {field}: {str(e)}")
+                    raise HTTPException(status_code=400, detail=f"Invalid JSON in {field}: {str(e)}")
+            elif workflow[field] is None:
+                workflow[field] = {} if field != "parameters" else []
+
+        return workflow
+    except Exception as e:
+        logger.error(f"Error validating workflow {workflow_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Workflow validation failed: {str(e)}")
+
+async def handle_file_upload(file: UploadFile, workflow_id: int, expected_structure: Optional[Dict]) -> str:
     if not file or not file.filename:
-        return None
-        
-    # Validate file type
+        raise HTTPException(status_code=400, detail="No file provided")
+
     file_ext = file.filename.split('.')[-1].lower()
     if file_ext not in parser_map:
-        raise HTTPException(400, f"Unsupported file type: {file_ext}")
-    
-    # Parse and validate
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file_ext}")
+
     try:
         content = await file.read()
         df = await parser_map[file_ext].parse(content)
-        
         if expected_structure:
             validate_file_structure(df, expected_structure)
-            
-        # Upload to storage
-        file_path = f"runs/{workflow_id}/{uuid.uuid4()}.{file_ext}"
-        return await upload_to_storage(file_path, content)
-        
-    except Exception as e:
-        logger.error(f"File processing failed: {str(e)}")
-        raise HTTPException(500, f"File processing failed: {str(e)}")
 
-def validate_file_structure(df: pd.DataFrame, expected_structure: dict) -> None:
-    """Validate DataFrame matches expected column structure"""
+        file_path = f"runs/{workflow_id}/{uuid.uuid4()}.{file_ext}"
+        # Remove the await keyword here
+        supabase.storage.from_(SUPABASE_BUCKET).upload(file_path, content, {"content-type": "application/octet-stream"})
+        logger.info(f"File uploaded to {SUPABASE_BUCKET}/{file_path}")
+        return f"{SUPABASE_BUCKET}/{file_path}"
+    except Exception as e:
+        logger.error(f"File upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
+
+def validate_file_structure(df: pd.DataFrame, expected_structure: Dict[str, Any]) -> None:
     if not expected_structure.get("columns"):
         return
-        
+
     actual_columns = set(df.columns)
     expected_columns = {col["name"] for col in expected_structure["columns"]}
-    
     if actual_columns != expected_columns:
         missing = expected_columns - actual_columns
         extra = actual_columns - expected_columns
@@ -78,124 +98,62 @@ def validate_file_structure(df: pd.DataFrame, expected_structure: dict) -> None:
         if extra:
             errors.append(f"Unexpected columns: {', '.join(extra)}")
         raise ValueError("; ".join(errors))
-    
-    # Validate column types if specified
-    for col in expected_structure["columns"]:
-        if "type" in col:
-            actual_type = parser_map["csv"]._detect_type(df[col["name"]])
-            if actual_type != col["type"]:
-                raise ValueError(f"Type mismatch in {col['name']}: expected {col['type']}, got {actual_type}")
 
-async def upload_to_storage(file_path: str, content: bytes) -> str:
-    """Upload file to Supabase storage"""
-    try:
-        supabase.storage.from_(os.getenv("SUPABASE_BUCKET")).upload(
-            path=file_path,
-            file=content,
-            file_options={"content-type": "application/octet-stream"}
-        )
-        return f"{os.getenv('SUPABASE_BUCKET')}/{file_path}"
-    except Exception as e:
-        logger.error(f"Upload failed: {str(e)}")
-        raise HTTPException(500, "File upload failed")
+def validate_parameters(input_params: Dict[str, Any], expected_params: List[Dict[str, Any]]) -> None:
+    expected_param_names = {p["name"] for p in expected_params}
+    input_param_names = set(input_params.keys())
+    missing_params = expected_param_names - input_param_names
+    extra_params = input_param_names - expected_param_names
 
-def validate_dagster_config(job_name: str, config: dict) -> bool:
-    """Validate configuration against Dagster job"""
-    try:
-        response = requests.post(
-            os.getenv("DAGSTER_API_URL"),
-            json={
-                "query": """
-                query ValidateConfig($job: String!, $config: RunConfigData!) {
-                    pipeline(pipelineName: $job) {
-                        isRunConfigValid(runConfigData: $config) {
-                            isValid
-                            errors { message }
-                        }
-                    }
-                }
-                """,
-                "variables": {
-                    "job": job_name,
-                    "config": config
-                }
-            },
-            timeout=10
-        )
-        data = response.json()
-        if "errors" in data:
-            logger.error(f"Config validation errors: {data['errors']}")
-            return False
-            
-        validation = data.get("data", {}).get("pipeline", {}).get("isRunConfigValid", {})
-        if not validation.get("isValid", False):
-            logger.error(f"Invalid config: {validation.get('errors', [])}")
-        return validation.get("isValid", False)
-        
-    except Exception as e:
-        logger.error(f"Config validation failed: {str(e)}")
-        return False
+    errors = []
+    if missing_params:
+        errors.append(f"Missing parameters: {', '.join(missing_params)}")
+    if extra_params:
+        errors.append(f"Unexpected parameters: {', '.join(extra_params)}")
 
-async def execute_workflow(
-    workflow_id: int,
-    run_config: dict,
-    db: Session
-) -> dict:
-    """Execute workflow through Dagster"""
-    job_name = f"workflow_job_{workflow_id}"
+    for param in expected_params:
+        if param["name"] in input_params:
+            expected_type = param["type"]
+            actual_value = input_params[param["name"]]
+            if expected_type == "string" and not isinstance(actual_value, str):
+                errors.append(f"Parameter {param['name']} must be a string")
+            elif expected_type == "integer" and not isinstance(actual_value, int):
+                errors.append(f"Parameter {param['name']} must be an integer")
+            if param.get("mandatory") and not actual_value:
+                errors.append(f"Parameter {param['name']} is mandatory")
+
+    if errors:
+        raise ValueError("; ".join(errors))
+
+def create_run_record(db: Session, workflow_id: int, triggered_by: int, input_path: str,
+                    dagster_run_id: str, status: str, config: Dict[str, Any]) -> Dict[str, Any]:
     try:
-        response = requests.post(
-            os.getenv("DAGSTER_API_URL"),
-            json={
-                "query": """
-                mutation LaunchRun($executionParams: ExecutionParams!) {
-                    launchPipelineExecution(executionParams: $executionParams) {
-                        __typename
-                        ... on LaunchPipelineRunSuccess {
-                            run { runId status }
-                        }
-                        ... on PipelineNotFoundError {
-                            message
-                        }
-                        ... on RunConfigValidationInvalid {
-                            errors { message }
-                        }
-                    }
-                }
-                """,
-                "variables": {
-                    "executionParams": {
-                        "selector": {
-                            "repositoryLocationName": "server.app.dagster.repo",
-                            "repositoryName": "workflow_repository",
-                            "pipelineName": job_name
-                        },
-                        "runConfigData": run_config,
-                        "mode": "default"
-                    }
-                }
-            },
-            timeout=30
+        result = db.execute(
+            text("""
+                INSERT INTO workflow.run (
+                    workflow_id, triggered_by, status, input_file_path,
+                    dagster_run_id, config_used, started_at
+                ) VALUES (
+                    :workflow_id, :triggered_by, :status, :input_path,
+                    :dagster_run_id, :config, NOW()
+                )
+                RETURNING id, status, dagster_run_id
+            """),
+            {
+                "workflow_id": workflow_id,
+                "triggered_by": triggered_by,
+                "status": status,
+                "input_path": input_path,
+                "dagster_run_id": dagster_run_id,
+                "config": json.dumps(config)
+            }
         )
-        
-        if response.status_code != 200:
-            raise Exception(f"Dagster API error: {response.status_code}")
-            
-        data = response.json()
-        if "errors" in data:
-            raise Exception(f"GraphQL errors: {data['errors']}")
-            
-        if data["data"]["launchPipelineExecution"]["__typename"] != "LaunchPipelineRunSuccess":
-            raise Exception(f"Execution failed: {data['data']['launchPipelineExecution'].get('message', 'Unknown error')}")
-            
-        return {
-            "run_id": data["data"]["launchPipelineExecution"]["run"]["runId"],
-            "status": data["data"]["launchPipelineExecution"]["run"]["status"]
-        }
-        
+        db.commit()
+        return dict(result.fetchone())
     except Exception as e:
-        logger.error(f"Workflow execution failed: {str(e)}")
-        raise HTTPException(500, f"Failed to execute workflow: {str(e)}")
+        logger.error(f"Failed to create run record: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create run record: {str(e)}")
 
 @router.post("/run/new")
 async def trigger_workflow_run(
@@ -204,91 +162,51 @@ async def trigger_workflow_run(
     parameters: str = Form("{}"),
     file: UploadFile = File(None),
     db: Session = Depends(get_db)
-):
-    """Main workflow execution endpoint"""
+) -> Dict[str, Any]:
     try:
-        # 1. Validate workflow exists
-        workflow = await validate_workflow(workflow_id, db)
-        
-        # 2. Parse expected structure if exists
-        expected_structure = None
-        if workflow.input_structure:
-            try:
-                expected_structure = (workflow.input_structure if isinstance(workflow.input_structure, dict)
-                                else json.loads(workflow.input_structure))
-            except json.JSONDecodeError:
-                logger.warning(f"Invalid input_structure for workflow {workflow_id}")
-        
-        # 3. Handle file upload if needed
-        input_path = workflow.input_file_path
+        workflow = validate_workflow(workflow_id, db)
+        try:
+            input_params = json.loads(parameters)
+            if workflow.get("parameters"):
+                validate_parameters(input_params, workflow["parameters"])
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid parameters format: {str(e)}")
+
+        input_path = workflow.get("input_file_path")
         if file and file.filename:
-            input_path = await handle_file_upload(file, workflow_id, expected_structure)
-        
-        # 4. Load and build config
-        config = await WorkflowConfig(workflow_id, db)
-        run_params = {**config.default_params, **json.loads(parameters)}
+            input_path = await handle_file_upload(file, workflow_id, workflow.get("input_structure"))
+        elif workflow.get("input_file_path") and not file:
+            raise HTTPException(status_code=400, detail="Input file required")
+
+        config_template = workflow.get("config_template", {})
+        defaults = workflow.get("default_parameters", {})
+        config = WorkflowConfig(workflow_id, config_template, defaults)
+        run_params = {**defaults, **input_params}
         run_config = config.build_config(input_path, run_params)
-        
-        # 5. Validate config
-        if not validate_dagster_config(config.job_name, run_config):
-            raise HTTPException(400, "Invalid workflow configuration")
-        
-        # 6. Execute workflow
+
+        is_valid, error_msg = validate_dagster_config(f"workflow_job_{workflow_id}", run_config)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=f"Invalid configuration: {error_msg}")
+
         result = await execute_workflow(workflow_id, run_config, db)
-        
-        # 7. Create run record
-        run_record = await create_run_record(
-            db,
-            workflow_id,
-            triggered_by,
-            input_path,
-            result["run_id"],
-            result["status"],
-            run_config
+        run_record = create_run_record(
+            db, workflow_id, triggered_by, input_path,
+            result["run_id"], result["status"], run_config
         )
-        
-        return {
+
+        output_path = run_config.get("ops", {}).get("save_output_{workflow_id}", {}).get("config", {}).get("output_file_path")
+        response = {
             "run_id": run_record["id"],
             "status": run_record["status"],
-            "dagster_run_id": result["run_id"]
+            "dagster_run_id": run_record["dagster_run_id"]
         }
-        
-    except HTTPException:
+        if output_path:
+            response["output_file"] = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/{output_path}"
+        return response
+
+    except HTTPException as he:
         raise
     except Exception as e:
         logger.error(f"Workflow run failed: {str(e)}")
         db.rollback()
-        raise HTTPException(500, f"Workflow execution failed: {str(e)}")
-
-async def create_run_record(
-    db: Session,
-    workflow_id: int,
-    triggered_by: int,
-    input_path: str,
-    dagster_run_id: str,
-    status: str,
-    config: dict
-) -> dict:
-    """Create database record for the workflow run"""
-    result = await db.execute(
-        text("""
-        INSERT INTO workflow.run (
-            workflow_id, triggered_by, status, input_file_path,
-            dagster_run_id, config_used, started_at
-        ) VALUES (
-            :workflow_id, :triggered_by, :status, :input_path,
-            :dagster_run_id, :config, NOW()
-        )
-        RETURNING id, status, dagster_run_id
-        """),
-        {
-            "workflow_id": workflow_id,
-            "triggered_by": triggered_by,
-            "status": status,
-            "input_path": input_path,
-            "dagster_run_id": dagster_run_id,
-            "config": json.dumps(config)
-        }
-    )
-    db.commit()
-    return result.fetchone()
+        raise HTTPException(status_code=500, detail=f"Workflow execution failed: {str(e)}")

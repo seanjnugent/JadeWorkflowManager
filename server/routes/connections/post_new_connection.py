@@ -13,7 +13,7 @@ class ConnectionCreate(BaseModel):
     host: str
     port: int
     database_name: str
-    username: str
+    first_name: str
     password: str
     created_by: int
 
@@ -31,11 +31,11 @@ async def create_connection(
             text("""
                 INSERT INTO workflow.connection (
                     name, type, host, port,
-                    database_name, username, password_hash,
+                    database_name, first_name, password_hash,
                     created_by, created_at, updated_at
                 ) VALUES (
                     :name, :type, :host, :port,
-                    :database_name, :username, crypt(:password, gen_salt('bf')),
+                    :database_name, :first_name, crypt(:password, gen_salt('bf')),
                     :created_by, NOW(), NOW()
                 )
                 RETURNING id, name, type, host
@@ -46,7 +46,7 @@ async def create_connection(
                 "host": connection.host,
                 "port": connection.port,
                 "database_name": connection.database_name,
-                "username": connection.username,
+                "first_name": connection.first_name,
                 "password": connection.password,
                 "created_by": connection.created_by
             }

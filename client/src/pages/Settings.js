@@ -1,6 +1,24 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Workflow,
+  BarChart2,
+  Users,
+  Wrench,
+  LogOut,
+  Edit2,
+  Check,
+  X,
+  Lock,
+  Unlock,
+  Shield,
+  ChevronRight,
+  Activity,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Wrench, Activity, Users, Shield, Edit2, Check, X, Lock, Unlock, Workflow, BarChart2, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useLogout } from '../utils/AuthUtils'; // Import useLogout
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 const Settings = () => {
   const [healthStatus, setHealthStatus] = useState(null);
@@ -10,49 +28,82 @@ const Settings = () => {
   const [editingPermission, setEditingPermission] = useState(null);
   const [editableUser, setEditableUser] = useState({});
   const [editablePermission, setEditablePermission] = useState({});
+  const [error, setError] = useState('');
 
-  // Simulated admin user ID (replace with auth context)
-  const adminUserId = 1;
+  const adminUserId = 1; // Consider fetching this dynamically or removing if unused
+  const navigate = useNavigate();
+  const logout = useLogout();
+  const userId = localStorage.getItem('userId'); // Get userId from localStorage
 
   useEffect(() => {
-    // Fetch health check
-    const fetchHealthCheck = async () => {
+    const fetchData = async () => {
+      const accessToken = localStorage.getItem('access_token');
+
+      if (!accessToken || !userId) {
+        navigate('/login');
+        return;
+      }
+
       try {
-        const response = await fetch('http://localhost:8000/health_check');
-        const data = await response.json();
-        setHealthStatus(data);
+        // Fetch Health Check
+        const healthResponse = await fetch(`${API_BASE_URL}/health_check`, {
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+        if (!healthResponse.ok) {
+          if (healthResponse.status === 401) {
+            navigate('/login');
+            return;
+          }
+          throw new Error('Failed to fetch health status');
+        }
+        const healthData = await healthResponse.json();
+        setHealthStatus(healthData);
+
+        // Fetch Users
+        const usersResponse = await fetch(`${API_BASE_URL}/users`, {
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+        if (!usersResponse.ok) {
+          if (usersResponse.status === 401) {
+            navigate('/login');
+            return;
+          }
+          throw new Error('Failed to fetch users');
+        }
+        const usersData = await usersResponse.json();
+        setUsers(Array.isArray(usersData) ? usersData : usersData.users || []);
+
+        // Fetch Permissions
+        const permissionsResponse = await fetch(`${API_BASE_URL}/workflow_permissions`, {
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+        if (!permissionsResponse.ok) {
+          if (permissionsResponse.status === 401) {
+            navigate('/login');
+            return;
+          }
+          throw new Error('Failed to fetch permissions');
+        }
+        const permissionsData = await permissionsResponse.json();
+        setPermissions(permissionsData.permissions || []);
       } catch (error) {
-        console.error('Error fetching health check:', error);
-        setHealthStatus({ status: 'error', details: { error: 'Failed to fetch health status' } });
+        console.error('Error fetching data:', error);
+        setError('Failed to load data. Please try again.');
+        setTimeout(() => setError(''), 5000);
       }
     };
 
-    // Fetch users
-    const fetchUsers = async () => {
-      try {
-        const response = await fetch('http://localhost:8000/users');
-        const data = await response.json();
-        setUsers(data.users || []);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
-    };
-
-    // Fetch permissions
-    const fetchPermissions = async () => {
-      try {
-        const response = await fetch('http://localhost:8000/workflow_permissions');
-        const data = await response.json();
-        setPermissions(data.permissions || []);
-      } catch (error) {
-        console.error('Error fetching permissions:', error);
-      }
-    };
-
-    fetchHealthCheck();
-    fetchUsers();
-    fetchPermissions();
-  }, []);
+    fetchData();
+  }, [navigate, userId]);
 
   const handleUserEdit = (user) => {
     setEditingUser(user.id);
@@ -65,12 +116,17 @@ const Settings = () => {
   };
 
   const saveUser = async (userId) => {
+    const accessToken = localStorage.getItem('access_token');
     try {
-      const response = await fetch(`http://localhost:8000/users/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify(editableUser),
       });
+
       if (response.ok) {
         setUsers(users.map((u) => (u.id === userId ? { ...u, ...editableUser } : u)));
         setEditingUser(null);
@@ -84,14 +140,23 @@ const Settings = () => {
   };
 
   const savePermission = async (permissionId) => {
+    const accessToken = localStorage.getItem('access_token');
     try {
-      const response = await fetch(`http://localhost:8000/workflow_permissions/${permissionId}`, {
+      const response = await fetch(`${API_BASE_URL}/workflow_permissions/${permissionId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify(editablePermission),
       });
+
       if (response.ok) {
-        setPermissions(permissions.map((p) => (p.id === permissionId ? { ...p, ...editablePermission } : p)));
+        setPermissions(
+          permissions.map((p) =>
+            p.id === permissionId ? { ...p, ...editablePermission } : p
+          )
+        );
         setEditingPermission(null);
       } else {
         alert('Failed to update permission');
@@ -103,14 +168,21 @@ const Settings = () => {
   };
 
   const toggleUserLock = async (userId, isLocked) => {
+    const accessToken = localStorage.getItem('access_token');
     try {
-      const response = await fetch(`http://localhost:8000/users/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ is_locked: !isLocked }),
       });
+
       if (response.ok) {
-        setUsers(users.map((u) => (u.id === userId ? { ...u, is_locked: !isLocked } : u)));
+        setUsers(
+          users.map((u) => (u.id === userId ? { ...u, is_locked: !isLocked } : u))
+        );
       } else {
         alert('Failed to toggle user lock');
       }
@@ -120,73 +192,114 @@ const Settings = () => {
     }
   };
 
+  const capitalizeFirstLetter = (str) => {
+    if (!str) return str;
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  };
+
+  if (!userId) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-gray-50">
+        <p className="text-gray-600">Please log in to access settings.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 overflow-hidden relative">
-      {/* Background Gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-50 opacity-80 z-0"></div>
-
-      <div className="relative z-10 flex min-h-screen">
-        {/* Sidebar */}
-        <motion.aside
-          initial={{ x: -100, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="w-64 bg-white bg-opacity-90 border-r border-gray-200 p-8 flex-shrink-0 backdrop-blur-md"
-        >
-          <div className="text-2xl font-bold text-indigo-600 mb-8">ETL Workflow</div>
-          <nav className="space-y-6">
-            {[
-              { Icon: Workflow, text: 'Workflows', href: '/workflows' },
-              { Icon: BarChart2, text: 'Analytics', href: '/analytics' },
-              { Icon: Users, text: 'Profile', href: '/profile' },
-              { Icon: Wrench, text: 'Settings', href: '/settings' },
-              { Icon: LogOut, text: 'Logout', href: '/logout' },
-            ].map((item, index) => (
-              <motion.a
-                key={index}
-                href={item.href}
-                whileHover={{ scale: 1.02 }}
-                className="flex items-center text-lg text-gray-600 hover:text-indigo-600 transition-colors"
-              >
-                <item.Icon size={20} className="mr-4" /> {item.text}
-              </motion.a>
-            ))}
-          </nav>
-        </motion.aside>
-
-        {/* Main Content */}
-        <motion.main
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="flex-1 p-12"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="bg-white bg-opacity-90 border border-gray-200 rounded-xl p-10 shadow-lg backdrop-blur-md"
-          >
-            <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-10">
-              System Settings
-            </h1>
-
-            {/* System Health */}
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className="bg-white bg-opacity-80 rounded-xl p-6 border border-gray-200 mb-8 backdrop-blur-md"
+    <div className="min-h-screen bg-white text-gray-900">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center mx-auto max-w-2xl mt-4">
+          {error}
+        </div>
+      )}
+      <div className="container mx-auto px-6 py-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Sidebar Navigation */}
+          <div className="space-y-4">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              onClick={() => navigate('/workflows')}
+              className="w-full bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
             >
-              <h2 className="text-2xl font-semibold text-indigo-600 mb-6 flex items-center">
-                <Activity size={24} className="mr-2" /> System Health
+              <div className="flex items-center space-x-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-2">
+                  <Workflow className="w-6 h-6 text-blue-600" />
+                </div>
+                <span className="font-medium text-gray-800">Workflows</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              onClick={() => navigate('/analytics')}
+              className="w-full bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-2">
+                  <BarChart2 className="w-6 h-6 text-green-600" />
+                </div>
+                <span className="font-medium text-gray-800">Analytics</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              onClick={() => navigate(`/profile/${userId}`)}
+              className="w-full bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-2">
+                  <Users className="w-6 h-6 text-indigo-600" />
+                </div>
+                <span className="font-medium text-gray-800">Profile</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              onClick={() => navigate('/settings')}
+              className="w-full bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-2">
+                  <Wrench className="w-6 h-6 text-yellow-600" />
+                </div>
+                <span className="font-medium text-gray-800">Settings</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              onClick={logout}
+              className="w-full bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-2">
+                  <LogOut className="w-6 h-6 text-red-600" />
+                </div>
+                <span className="font-medium text-gray-800">Logout</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </motion.button>
+          </div>
+
+          {/* Settings Sections */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* System Health Section */}
+            <div className="bg-white border border-gray-200 rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <Activity className="mr-2 text-blue-600" /> System Health
               </h2>
               {healthStatus ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-center">
                     <span className="text-gray-600 mr-2">Overall Status:</span>
                     <span className={`font-semibold ${healthStatus.status === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>
-                      {healthStatus.status.toUpperCase()}
+                      {capitalizeFirstLetter(healthStatus.status)}
                     </span>
                   </div>
                   <div className="flex items-center">
@@ -217,76 +330,103 @@ const Settings = () => {
               ) : (
                 <p className="text-gray-600">Loading health status...</p>
               )}
-            </motion.div>
+            </div>
 
-            {/* User Management */}
-            <motion.div
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3, duration: 0.5 }}
-              className="bg-white bg-opacity-80 rounded-xl p-6 border border-gray-200 mb-8 backdrop-blur-md"
-            >
-              <h2 className="text-2xl font-semibold text-indigo-600 mb-6 flex items-center">
-                <Users size={24} className="mr-2" /> User Management
+            {/* User Management Section */}
+            <div className="bg-white border border-gray-200 rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <Users className="mr-2 text-indigo-600" /> User Management
               </h2>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {users.map((user) => (
                       <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td
+                          className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 cursor-pointer hover:text-indigo-600 underline"
+                          onClick={() => navigate(`/profile/${user.id}`)}
+                        >
                           {editingUser === user.id ? (
-                            <input
-                              value={editableUser.username}
-                              onChange={(e) => setEditableUser({ ...editableUser, username: e.target.value })}
-                              className="px-2 py-1 bg-gray-50 border border-gray-300 rounded text-gray-900"
-                            />
+                            <>
+                              <input
+                                value={editableUser.first_name}
+                                onChange={(e) =>
+                                  setEditableUser({
+                                    ...editableUser,
+                                    first_name: e.target.value,
+                                  })
+                                }
+                                placeholder="First Name"
+                                className="px-2 py-1 bg-gray-50 border border-gray-300 rounded text-gray-900 w-full"
+                              />
+                              <input
+                                value={editableUser.surname}
+                                onChange={(e) =>
+                                  setEditableUser({
+                                    ...editableUser,
+                                    surname: e.target.value,
+                                  })
+                                }
+                                placeholder="Last Name"
+                                className="mt-1 px-2 py-1 bg-gray-50 border border-gray-300 rounded text-gray-900 w-full"
+                              />
+                            </>
                           ) : (
-                            user.username
+                            <span>{user.first_name} {user.surname}</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                           {editingUser === user.id ? (
                             <input
                               value={editableUser.email}
-                              onChange={(e) => setEditableUser({ ...editableUser, email: e.target.value })}
+                              onChange={(e) =>
+                                setEditableUser({
+                                  ...editableUser,
+                                  email: e.target.value,
+                                })
+                              }
                               className="px-2 py-1 bg-gray-50 border border-gray-300 rounded text-gray-900"
                             />
                           ) : (
                             user.email
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                           {editingUser === user.id ? (
                             <select
                               value={editableUser.role}
-                              onChange={(e) => setEditableUser({ ...editableUser, role: e.target.value })}
+                              onChange={(e) =>
+                                setEditableUser({
+                                  ...editableUser,
+                                  role: e.target.value,
+                                })
+                              }
                               className="px-2 py-1 bg-gray-50 border border-gray-300 rounded text-gray-900"
                             >
                               <option value="admin">Admin</option>
                               <option value="user">User</option>
                             </select>
                           ) : (
-                            user.role
+                            capitalizeFirstLetter(user.role)
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                           {user.is_locked ? (
                             <span className="text-red-600">Locked</span>
                           ) : (
                             <span className="text-green-600">Active</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                           {editingUser === user.id ? (
                             <div className="flex gap-2">
                               <motion.button
@@ -332,38 +472,38 @@ const Settings = () => {
                   </tbody>
                 </table>
               </div>
-            </motion.div>
+            </div>
 
-            {/* Permission Management */}
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4, duration: 0.5 }}
-              className="bg-white bg-opacity-80 rounded-xl p-6 border border-gray-200 backdrop-blur-md"
-            >
-              <h2 className="text-2xl font-semibold text-indigo-600 mb-6 flex items-center">
-                <Shield size={24} className="mr-2" /> Permission Management
+            {/* Permission Management Section */}
+            <div className="bg-white border border-gray-200 rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <Shield className="mr-2 text-purple-600" /> Permission Management
               </h2>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workflow</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Permission Level</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workflow</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Permission Level</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {permissions.map((perm) => (
                       <tr key={perm.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{perm.username}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{perm.workflow_name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{perm.username}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{perm.workflow_name}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                           {editingPermission === perm.id ? (
                             <select
                               value={editablePermission.permission_level}
-                              onChange={(e) => setEditablePermission({ ...editablePermission, permission_level: e.target.value })}
+                              onChange={(e) =>
+                                setEditablePermission({
+                                  ...editablePermission,
+                                  permission_level: e.target.value,
+                                })
+                              }
                               className="px-2 py-1 bg-gray-50 border border-gray-300 rounded text-gray-900"
                             >
                               <option value="read">Read</option>
@@ -374,7 +514,7 @@ const Settings = () => {
                             perm.permission_level
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                           {editingPermission === perm.id ? (
                             <div className="flex gap-2">
                               <motion.button
@@ -410,9 +550,9 @@ const Settings = () => {
                   </tbody>
                 </table>
               </div>
-            </motion.div>
-          </motion.div>
-        </motion.main>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

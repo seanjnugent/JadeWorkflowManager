@@ -1,342 +1,319 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Shield, Clock, Lock, Edit2, Check, X, Eye } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  User,
+  Mail,
+  Lock,
+  Clock,
+  ChevronRight,
+  Activity,
+  Edit2,
+  Check,
+  X,
+  Users,
+  BarChart2,
+  Wrench,
+  LogOut,
+} from 'lucide-react';
+
+const capitalizeFirstLetter = (str) => {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
 
 const Profile = () => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-  const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
-  const [userDetails, setUserDetails] = useState({
-    id: null,
-    username: '',
-    email: '',
-    role: '',
-    last_login_at: '',
-    login_count: 0,
-  });
-  const [editableDetails, setEditableDetails] = useState({ ...userDetails });
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
-  const [permissions, setPermissions] = useState([]);
-
-  // Simulated user ID (replace with auth context in a real app)
-  const userId = 1;
+  const { userId } = useParams();
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [editableUser, setEditableUser] = useState({});
 
   useEffect(() => {
-    // Fetch user details
-    const fetchUserDetails = async () => {
+    const fetchUser = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/users/${userId}`);
+        const response = await fetch(`http://localhost:8000/users/user/${userId}`);
         const data = await response.json();
-        setUserDetails(data);
-        setEditableDetails(data);
+
+        if (!data.user) {
+          throw new Error("User not found");
+        }
+
+        setUser(data.user);
+        setEditableUser(data.user);
       } catch (error) {
-        console.error('Error fetching user details:', error);
+        console.error("Failed to fetch user:", error);
+        navigate("/settings", { replace: true });
       }
     };
 
-    // Fetch workflow permissions
-    const fetchPermissions = async () => {
-      try {
-        const response = await fetch(`http://localhost:8000/workflow_permissions/${userId}`);
-        const data = await response.json();
-        setPermissions(data.permissions || []);
-      } catch (error) {
-        console.error('Error fetching permissions:', error);
-      }
-    };
+    fetchUser();
+  }, [userId, navigate]);
 
-    fetchUserDetails();
-    fetchPermissions();
-  }, []);
-
-  const handleDetailChange = (field, value) => {
-    setEditableDetails((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const saveDetails = async () => {
+  const handleSave = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/users/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editableDetails),
+      const response = await fetch(`http://localhost:8000/users/user/${userId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(editableUser)
       });
+
       if (response.ok) {
-        setUserDetails(editableDetails);
-        setIsEditing(false);
+        const updatedUser = await response.json();
+        setUser(updatedUser.user || updatedUser);
+        setEditing(false);
       } else {
-        alert('Failed to save details');
+        alert("Failed to save changes.");
       }
     } catch (error) {
-      console.error('Error saving details:', error);
-      alert('Error saving details');
+      console.error("Error saving user:", error);
+      alert("An error occurred while saving.");
     }
   };
 
-  const handlePasswordChange = (e) => {
-    const { name, value } = e.target;
-    setPasswordForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const submitPasswordChange = async () => {
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      alert('Passwords do not match');
-      return;
-    }
-    try {
-      const response = await fetch(`http://localhost:8000/users/${userId}/change-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          current_password: passwordForm.currentPassword,
-          new_password: passwordForm.newPassword,
-        }),
-      });
-      if (response.ok) {
-        alert('Password changed successfully!');
-        setIsPasswordModalOpen(false);
-        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      } else {
-        alert('Failed to change password');
-      }
-    } catch (error) {
-      console.error('Error changing password:', error);
-      alert('Error changing password');
-    }
-  };
+  if (!user) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-gray-50">
+        <p className="text-gray-600">Loading user...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 overflow-hidden relative">
-      <div className="flex min-h-screen">
-        {/* Sidebar */}
-        <motion.aside
-          initial={{ x: -100, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="w-64 bg-white border-r border-gray-200 p-6 flex-shrink-0"
-        >
-          <div className="text-xl font-bold text-gray-800 mb-8">Profile</div>
-          <nav className="space-y-4">
-            {[
-              { Icon: User, text: 'Profile', href: '/profile' },
-              { Icon: Shield, text: 'Logout', href: '/logout' },
-            ].map((item, index) => (
-              <motion.a
-                key={index}
-                href={item.href}
-                whileHover={{ scale: 1.02 }}
-                className="flex items-center text-base text-gray-600 hover:text-indigo-600 transition-colors"
-              >
-                <item.Icon size={18} className="mr-3" /> {item.text}
-              </motion.a>
-            ))}
-          </nav>
-        </motion.aside>
-
-        {/* Main Content */}
-        <motion.main
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="flex-1 p-8"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="bg-white border border-gray-200 p-8"
-          >
-            <div className="flex justify-between items-center mb-8">
-              <h1 className="text-2xl font-bold text-gray-800">
-                User Profile
-              </h1>
-              {!isEditing ? (
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setIsEditing(true)}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-all"
-                >
-                  <Edit2 size={16} className="inline mr-2" /> Edit
-                </motion.button>
-              ) : (
-                <div className="flex gap-3">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      setEditableDetails(userDetails);
-                      setIsEditing(false);
-                    }}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 transition-all"
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={saveDetails}
-                    className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
-                  >
-                    <Check size={16} className="inline mr-2" /> Save
-                  </motion.button>
-                </div>
-              )}
-            </div>
-
-            {/* User Information */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className="bg-gray-50 p-6 border border-gray-200 mb-6"
+    <div className="min-h-screen bg-white text-gray-900">
+      {/* Main Content */}
+      <div className="container mx-auto px-6 py-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Sidebar Navigation */}
+          <div className="space-y-4">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              onClick={() => navigate('/workflows')}
+              className="w-full bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
             >
-              <h2 className="text-lg font-semibold text-gray-700 mb-4">User Info</h2>
-              <div className="space-y-4">
-                <div className="flex items-center">
-                  <User className="mr-3 text-indigo-600" size={18} />
-                  {isEditing ? (
-                    <input
-                      value={editableDetails.username}
-                      onChange={(e) => handleDetailChange('username', e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900"
-                      placeholder="Username"
-                    />
-                  ) : (
-                    <span className="text-gray-900">{userDetails.username}</span>
-                  )}
+              <div className="flex items-center space-x-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-2">
+                  <Activity className="w-6 h-6 text-blue-600" />
                 </div>
-                <div className="flex items-center">
-                  <Mail className="mr-3 text-indigo-600" size={18} />
-                  {isEditing ? (
-                    <input
-                      value={editableDetails.email}
-                      onChange={(e) => handleDetailChange('email', e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900"
-                      placeholder="Email Address"
-                    />
-                  ) : (
-                    <span className="text-gray-900">{userDetails.email}</span>
-                  )}
+                <span className="font-medium text-gray-800">Workflows</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              onClick={() => navigate('/analytics')}
+              className="w-full bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-2">
+                  <BarChart2 className="w-6 h-6 text-green-600" />
                 </div>
-                <div className="flex items-center">
-                  <Shield className="mr-3 text-indigo-600" size={18} />
-                  <span className="text-gray-900">{userDetails.role}</span>
+                <span className="font-medium text-gray-800">Analytics</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              onClick={() => navigate('/profile')}
+              className="w-full bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-2">
+                  <User className="w-6 h-6 text-indigo-600" />
                 </div>
-                <div className="flex items-center">
-                  <Clock className="mr-3 text-indigo-600" size={18} />
-                  <span className="text-gray-900">
-                    Last Login: {userDetails.last_login_at ? new Date(userDetails.last_login_at).toLocaleString() : 'N/A'}
+                <span className="font-medium text-gray-800">Profile</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              onClick={() => navigate('/settings')}
+              className="w-full bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-2">
+                  <Wrench className="w-6 h-6 text-yellow-600" />
+                </div>
+                <span className="font-medium text-gray-800">Settings</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              onClick={() => navigate('/logout')}
+              className="w-full bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-2">
+                  <LogOut className="w-6 h-6 text-red-600" />
+                </div>
+                <span className="font-medium text-gray-800">Logout</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </motion.button>
+          </div>
+
+          {/* Profile Section */}
+          <div className="lg:col-span-2 space-y-8">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                <User className="mr-2 text-indigo-600" /> User Profile
+              </h2>
+
+              <div className="flex items-center space-x-4 mb-6">
+                <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <span className="text-2xl font-bold text-indigo-700">
+                    {editableUser.first_name?.charAt(0).toUpperCase()}
                   </span>
                 </div>
-              </div>
-            </motion.div>
-
-            {/* Security Section */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4, duration: 0.5 }}
-              className="border-t border-gray-200 pt-6 flex justify-between items-center"
-            >
-              <h2 className="text-lg font-semibold text-gray-700">Security</h2>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setIsPasswordModalOpen(true)}
-                className="px-4 py-2 bg-red-100 text-red-600 hover:bg-red-200 transition-all"
-              >
-                <Lock size={16} className="inline mr-2" /> Change Password
-              </motion.button>
-            </motion.div>
-          </motion.div>
-        </motion.main>
-
-        {/* Password Change Modal */}
-        <AnimatePresence>
-          {isPasswordModalOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white p-6 w-full max-w-md border border-gray-200 shadow-lg"
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-semibold text-gray-700">Change Password</h2>
-                  <motion.button
-                    whileHover={{ rotate: 90 }}
-                    onClick={() => setIsPasswordModalOpen(false)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    <X size={20} />
-                  </motion.button>
+                <div>
+                  <h3 className="text-xl font-semibold">
+                    {editableUser.first_name} {editableUser.surname}
+                  </h3>
+                  <p className="text-sm text-gray-500">ID: {user.id}</p>
                 </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-gray-700 mb-1">Current Password</label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                  {editing ? (
                     <input
-                      type="password"
-                      name="currentPassword"
-                      value={passwordForm.currentPassword}
-                      onChange={handlePasswordChange}
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900"
-                      placeholder="Enter current password"
+                      type="text"
+                      value={editableUser.first_name}
+                      onChange={(e) =>
+                        setEditableUser({ ...editableUser, first_name: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-gray-700 mb-1">New Password</label>
+                  ) : (
+                    <p className="text-gray-900">{user.first_name}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                  {editing ? (
                     <input
-                      type="password"
-                      name="newPassword"
-                      value={passwordForm.newPassword}
-                      onChange={handlePasswordChange}
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900"
-                      placeholder="Enter new password"
+                      type="text"
+                      value={editableUser.surname}
+                      onChange={(e) =>
+                        setEditableUser({ ...editableUser, surname: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-gray-700 mb-1">Confirm New Password</label>
+                  ) : (
+                    <p className="text-gray-900">{user.surname}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  {editing ? (
                     <input
-                      type="password"
-                      name="confirmPassword"
-                      value={passwordForm.confirmPassword}
-                      onChange={handlePasswordChange}
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900"
-                      placeholder="Confirm new password"
+                      type="email"
+                      value={editableUser.email}
+                      onChange={(e) =>
+                        setEditableUser({ ...editableUser, email: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
-                  </div>
-                  <div className="flex justify-end space-x-3 pt-4">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setIsPasswordModalOpen(false)}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 transition-all"
+                  ) : (
+                    <p className="text-gray-900 flex items-center">
+                      <Mail className="w-4 h-4 mr-2 text-gray-500" /> {user.email}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                  {editing ? (
+                    <select
+                      value={editableUser.role}
+                      onChange={(e) =>
+                        setEditableUser({ ...editableUser, role: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="user">User</option>
+                    </select>
+                  ) : (
+                    <p className="text-gray-900 capitalize">
+                      {capitalizeFirstLetter(user.role)}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <p className="text-gray-900 flex items-center">
+                    {user.is_locked ? (
+                      <>
+                        <Lock className="w-4 h-4 mr-2 text-red-500" /> Locked
+                      </>
+                    ) : (
+                      <>
+                        <Activity className="w-4 h-4 mr-2 text-green-500" /> Active
+                      </>
+                    )}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Login Count</label>
+                  <p className="text-gray-900">{user.login_count || 0}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Login</label>
+                  <p className="text-gray-900">
+                    {new Date(user.last_login_at).toLocaleString() || "Never"}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Created At</label>
+                  <p className="text-gray-900">
+                    {new Date(user.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-6 flex justify-end space-x-3">
+                {editing ? (
+                  <>
+                    <button
+                      onClick={() => setEditing(false)}
+                      className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100"
                     >
                       Cancel
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={submitPasswordChange}
-                      className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
                     >
-                      Change Password
-                    </motion.button>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                      Save Changes
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setEditing(true)}
+                    className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                  >
+                    <Edit2 size={16} className="mr-2" /> Edit Profile
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

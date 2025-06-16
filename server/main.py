@@ -38,7 +38,9 @@ from routes.runs.post_new_run import router as post_new_run_router
 from routes.connections.post_new_connection import router as connections_router
 from routes.workflows.post_update_workflow import router as update_workflow_router
 from routes.workflows.post_new_workflow_step import router as new_workflow_steps_router
-from routes.users.post_user_authentication import router as user_authentication
+from routes.users.user_authentication import router as user_authentication
+from routes.users.user_details import router as user_details
+from routes.users.user_list import router as user_list
 from routes.dags.post_new_dag import router as post_new_dag_router
 
 # Include routers
@@ -64,6 +66,8 @@ app.include_router(post_new_run_router)
 
 # Users
 app.include_router(user_authentication)
+app.include_router(user_details)
+app.include_router(user_list)
 
 # ========== Configuration Validation ==========
 def validate_config():

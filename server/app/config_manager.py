@@ -5,6 +5,7 @@ import requests
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
+import uuid
 
 logger = logging.getLogger(__name__)
 
