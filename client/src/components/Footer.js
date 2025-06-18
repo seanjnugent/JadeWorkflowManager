@@ -1,62 +1,43 @@
 import React from 'react';
-import { Github } from 'lucide-react';
 
 const Footer = () => {
-  const currentYear = new Date().getFullYear();
-
-  const footerLinks = [
-    { title: 'Privacy', href: '/privacy' },
-    { title: 'Accessibility', href: '/accessibility' },
-    { title: 'Terms of Service', href: '/terms' },
-    { title: 'Contact', href: '/contact' }
-  ];
-
-  const socialLinks = [
-    { 
-      icon: <Github className="w-5 h-5" />, 
-      href: 'https://github.com/seanjnugent/Conduit' 
-    }
-  ];
-
   return (
-    <footer className="bg-white border-t border-gray-200">
-      <div className="container mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* Company Info */}
-          <div>
-            <h2 className="text-xl font-bold text-blue-600 mb-4">Data Workflow Tool</h2>
-            <p className="text-gray-600 mb-4">
-              Transform your data workflows with intelligent automation and seamless integrations.
-            </p>
-            <div className="flex space-x-3">
-              {socialLinks.map((link, index) => (
-                <a 
-                  key={index} 
-                  href={link.href} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-gray-500 hover:text-blue-600 transition-colors"
-                >
-                  {link.icon}
-                </a>
-              ))}
-            </div>
-          </div>
+    <footer className="ds_site-footer">
+      <div className="ds_wrapper">
+        <div className="ds_site-footer__content">
+          {/* Navigation Links */}
+          <ul className="ds_site-footer__site-items">
+            <li className="ds_site-items__item">
+              <a href="/privacy">Privacy</a>
+            </li>
+            <li className="ds_site-items__item">
+              <a href="/accessibility">Accessibility statement</a>
+            </li>
+            <li className="ds_site-items__item">
+              <a href="/contact">Contact</a>
+            </li>
+            <li className="ds_site-items__item">
+              <a href="/help">How to use this site</a>
+            </li>
+          </ul>
 
-          {/* Quick Links */}
-          <div>
-            <h3 className="font-bold text-gray-800 mb-4">Quick Links</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {footerLinks.map((link, index) => (
-                <a 
-                  key={index} 
-                  href={link.href} 
-                  className="text-gray-600 hover:text-blue-600 transition-colors text-sm"
-                >
-                  {link.title}
-                </a>
-              ))}
-            </div>
+
+          {/* Organization Info */}
+          <div className="ds_site-footer__org">
+            <a
+              className="ds_site-footer__org-link"
+              title="The Scottish Government"
+              href="https://www.gov.scot/"
+            >
+              <img
+                loading="lazy"
+                width="300"
+                height="57"
+                className="ds_site-footer__org-logo"
+                src="/assets/images/logos/scottish-government--min.svg"
+                alt="gov.scot"
+              />
+            </a>
           </div>
         </div>
       </div>

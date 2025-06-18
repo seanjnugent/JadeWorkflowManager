@@ -8,11 +8,9 @@ import '../App.css';
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 const Header = () => {
-  const [showHeader, setShowHeader] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
-  const lastScrollY = useRef(0);
   const navigate = useNavigate();
   const location = useLocation();
   const menuCheckboxRef = useRef(null);
@@ -64,35 +62,6 @@ const Header = () => {
 
     fetchUser();
   }, [userId, navigate]);
-
-  // Scroll behavior
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
-        setShowHeader(false);
-      } else if (currentScrollY < lastScrollY.current) {
-        setShowHeader(true);
-      }
-      lastScrollY.current = currentScrollY;
-    };
-
-    let throttleTimeout;
-    const throttledHandleScroll = () => {
-      if (!throttleTimeout) {
-        throttleTimeout = setTimeout(() => {
-          handleScroll();
-          throttleTimeout = null;
-        }, 100);
-      }
-    };
-
-    window.addEventListener('scroll', throttledHandleScroll);
-    return () => {
-      window.removeEventListener('scroll', throttledHandleScroll);
-      if (throttleTimeout) clearTimeout(throttleTimeout);
-    };
-  }, []);
 
   // Set --header-height CSS variable
   useEffect(() => {
@@ -166,7 +135,7 @@ const Header = () => {
   }
 
   return (
-    <header className={`ds_site-header ds_site-header--gradient ${!showHeader ? 'header-hidden' : ''}`} role="banner">
+    <header className="ds_site-header ds_site-header--gradient" role="banner">
       {/* Skip to main content link */}
       <div className="ds_skip-links" ref={skipLinkRef}>
         <ul className="ds_skip-links__list">
@@ -182,25 +151,25 @@ const Header = () => {
         <div className="ds_site-header__content">
           <div className="ds_site-branding">
             <NavLink to="/home" className="ds_site-branding__logo ds_site-branding__link">
-              <img 
-                className="ds_site-branding__logo-image" 
-                src="/assets/images/logos/scottish-government.svg" 
-                alt="Scottish Government" 
+              <img
+                className="ds_site-branding__logo-image"
+                src="/assets/images/logos/scottish-government.svg"
+                alt="Scottish Government"
               />
             </NavLink>
-            <div className="ds_site-branding__title">Workflow Manager</div>
+            <div className="ds_site-branding__title">Cinnabar</div>
           </div>
 
           {/* User actions positioned at header level */}
           <div className="ds_site-header__user-actions">
-            <button 
+            <button
               className="ds_site-header__action-button ds_site-header__action-icon"
               title="Notifications"
             >
               <Bell className="ds_icon" size={18} />
               <span className="visually-hidden">Notifications</span>
             </button>
-            
+
             <button
               onClick={() => navigate(`/profile/${userId}`)}
               className="ds_site-header__action-button ds_site-header__action-avatar"
@@ -210,7 +179,7 @@ const Header = () => {
                 {user ? getInitials() : '--'}
               </span>
             </button>
-            
+
             <button
               onClick={logout}
               className="ds_site-header__action-button ds_site-header__action-logout"
@@ -220,7 +189,7 @@ const Header = () => {
               <span className="ds_site-header__logout-text">Logout</span>
             </button>
           </div>
-          
+
           <div className="ds_site-header__controls">
             <button
               aria-controls="mobile-navigation"

@@ -13,7 +13,7 @@ const AppContent = () => {
   return (
     <div className="flex flex-col min-h-screen">
       {!isLoginPage && <Header />}
-      <main className={`flex-grow ${!isLoginPage ? 'pt-16' : ''}`}>
+      <main className={`flex-grow`}>
         <Routes>
           {routes.map(({ path, element, protected: isProtected }, index) => (
             <Route

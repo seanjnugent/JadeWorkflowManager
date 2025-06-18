@@ -64,10 +64,12 @@ const Workflows = () => {
   }, [workflows, filter]);
 
   return (
-    <div className="min-h-screen bg-white text-gray-900">
-      <div className="container mx-auto px-6 py-10">
-        <div className="flex justify-between items-center mb-6">
+   <div className="ds_page__middle">
+      <div className="ds_wrapper">
+        <header className="ds_page-header">
           <h2 className="text-2xl font-bold text-gray-800">Workflows</h2>
+          </header>
+
           <div className="flex items-center gap-4">
             <div className="relative">
               <input
@@ -174,7 +176,6 @@ const Workflows = () => {
           </div>
         </div>
       </div>
-    </div>
   );
 };
 

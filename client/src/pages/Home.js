@@ -14,28 +14,48 @@ const Home = () => {
   const [workflows, setWorkflows] = useState([]);
   const [user, setUser] = useState(null);
 
-  useEffect(() => {
-    // Fetch workflows data from the API
-    fetch('http://localhost:8000/workflows/?page=1&limit=10', {
-      headers: {
-        'accept': 'application/json'
-      }
-    })
-    .then(response => response.json())
-    .then(data => {
-      // Map over the workflows to add icons and other necessary fields
-      const mappedWorkflows = data.workflows.slice(0, 3).map((workflow) => {
-        const { icon, color } = getDestinationIconAndColor(workflow.destination);
-        return {
-          ...workflow,
-          icon: icon,
-          lastRun: "Never run" // Update lastRun text
-        };
-      });
-      setWorkflows(mappedWorkflows);
-    })
-    .catch(error => console.error('Error fetching workflows:', error));
-  }, []);
+ useEffect(() => {
+  // Get user ID from localStorage
+  const userId = localStorage.getItem('userId');
+  
+  // Build the API URL with optional user_id parameter
+  const apiUrl = userId 
+    ? `${API_BASE_URL}/workflows/?page=1&limit=10&user_id=${userId}`
+    : `${API_BASE_URL}/workflows/?page=1&limit=10`;
+
+  // Fetch workflows data from the API
+  fetch(apiUrl, {
+    headers: {
+      'accept': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    // Map over the workflows to add icons and other necessary fields
+    const mappedWorkflows = data.workflows.slice(0, 3).map((workflow) => {
+      const { icon, color } = getDestinationIconAndColor(workflow.destination);
+      return {
+        ...workflow,
+        icon: icon,
+        lastRun: workflow.last_run ? formatLastRunDate(workflow.last_run) : "Never run"
+      };
+    });
+    setWorkflows(mappedWorkflows);
+  })
+  .catch(error => console.error('Error fetching workflows:', error));
+}, []);
+
+// Helper function to format last run date
+const formatLastRunDate = (dateString) => {
+  return new Date(dateString).toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+};
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -94,17 +114,15 @@ const Home = () => {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-6 py-8">
+    <div className="ds_page__middle">
+      <div className="ds_wrapper">
         {/* Header Section */}
-        <div className="mb-8">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Hi {user ? `${user.first_name}` : 'User'},</h1>
-            <p className="text-gray-600 mt-2">
-              Manage and monitor your dataset processing pipelines and publications
-            </p>
-          </div>
-        </div>
+        <header className="ds_page-header">
+          <h1 className="ds_page-header__title">Hi {user ? `${user.first_name}` : ''},</h1>
+          <p className="ds_page-header__subtitle">
+            Manage and monitor your dataset processing pipelines and publications
+          </p>
+        </header>
 
         {/* Rest of your component remains the same */}
         {/* Recent Activity Card */}
@@ -224,7 +242,7 @@ const Home = () => {
                       <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[120px]">Category</th>
                       <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[100px]">Status</th>
                       <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[110px]">Last Run</th>
-                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[250px]">User Log</th>
+                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[250px]">Workflow Owner</th>
                       <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[120px]">Actions</th>
                     </tr>
                   </thead>
@@ -238,8 +256,9 @@ const Home = () => {
                         <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[280px]">
                           <div className="max-w-[260px]">
                             <div className="font-semibold text-gray-900 break-words leading-tight">{workflow.name}</div>
-                            <div className="text-sm text-gray-600 mt-1">{workflow.id}</div>
-                          </div>
+<div className="text-sm text-gray-600 mt-1">
+  WF{String(workflow.id).padStart(4, '0')}
+</div>                          </div>
                         </td>
                         <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[120px]">
                           <span className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium w-fit bg-gray-100 text-gray-800 border border-gray-200 whitespace-nowrap">
@@ -257,19 +276,24 @@ const Home = () => {
                         </td>
                         <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[110px]">
                           <div className="max-w-[90px]">
-                            <div className="font-semibold text-gray-900 whitespace-nowrap">
-                              {workflow.lastRun === "Never run" ? "Never run" : "2025-06-11"}
-                            </div>
-                            {workflow.lastRun !== "Never run" && (
-                              <div className="text-sm text-gray-600 mt-1 whitespace-nowrap">09:30</div>
-                            )}
+                            <div className="text-gray-900 whitespace-nowrap">
+{workflow.last_run 
+  ? new Date(workflow.last_run).toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  : 'Never Run'}                           </div>
+
                           </div>
                         </td>
                         <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[250px]">
                           <div className="max-w-[230px]">
-                            <div className="font-semibold text-gray-900 break-words leading-tight">Alex Campbell</div>
+                            <div className="font-semibold text-gray-900 break-words leading-tight">{workflow.owner}</div>
                             <div className="text-sm text-gray-600 mt-1 break-words leading-tight">
-                              {workflow.description || 'No description available'}
+                              {workflow.group_name || ''}
                             </div>
                           </div>
                         </td>
@@ -338,8 +362,9 @@ const Home = () => {
             </motion.button>
           </div>
         </div>
-      </div>
-    </main>
+          </div>
+          </div>
+
   );
 };
 

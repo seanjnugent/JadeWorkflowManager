@@ -30,6 +30,9 @@ from routes.workflows.get_workflows import router as get_workflows_router
 from routes.workflows.post_new_workflow import router as post_new_workflow_router
 from routes.analytics.get_analytics import router as get_analytics_router
 
+
+from routes.files.get_file import router as file_router
+
 from routes.runs.get_run import router as get_run_router
 from routes.runs.get_runs import router as get_runs_router
 from routes.runs.post_run_step_status import router as post_run_step_status_router
@@ -54,6 +57,8 @@ app.include_router(get_workflows_router)
 app.include_router(get_workflow_router)
 app.include_router(post_new_workflow_router)
 app.include_router(workflow_permissions)
+
+app.include_router(file_router)
 
 # Runs
 app.include_router(get_run_router)

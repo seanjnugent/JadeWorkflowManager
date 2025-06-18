@@ -6,7 +6,6 @@ import axios from "axios";
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
-// Axios instance with default headers
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -15,7 +14,6 @@ const api = axios.create({
   }
 });
 
-// Add token to requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token');
   if (token) {
@@ -24,7 +22,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle token refresh on 401
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -54,13 +51,17 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState({ message: "", type: "" });
+  const [remainingAttempts, setRemainingAttempts] = useState(null);
+  const [lockedUntil, setLockedUntil] = useState(null);
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setError("");
+    setError({ message: "", type: "" });
+    setRemainingAttempts(null);
+    setLockedUntil(null);
 
     try {
       const response = await api.post('/users/user/authenticate', {
@@ -75,14 +76,44 @@ const Login = () => {
       navigate('/home');
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.response?.data?.detail?.message || err.message || 'An unexpected error occurred');
+      
+      if (err.response?.data?.detail) {
+        const errorDetail = err.response.data.detail;
+        
+        if (errorDetail.error_code === "account_locked") {
+          setError({
+            message: "Your account is locked. Please try again later.",
+            type: "locked"
+          });
+          setLockedUntil(errorDetail.lockedUntil);
+        } else if (errorDetail.error_code === "invalid_credentials") {
+          setError({
+            message: "Invalid email or password",
+            type: "credentials"
+          });
+          if (errorDetail.remainingAttempts !== null) {
+            setRemainingAttempts(errorDetail.remainingAttempts);
+          }
+        } else {
+          setError({
+            message: errorDetail.message || "An unexpected error occurred",
+            type: "generic"
+          });
+        }
+      } else {
+        setError({
+          message: err.message || "An unexpected error occurred",
+          type: "generic"
+        });
+      }
+      
       setIsLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 relative overflow-hidden flex">
-      {/* Animated Blue Gradient Left Side */}
+      {/* Left Side */}
       <div className="hidden lg:block w-1/2 relative overflow-hidden">
         <motion.div 
           className="absolute -inset-[25%]"
@@ -131,13 +162,13 @@ const Login = () => {
         />
         <div className="relative h-full flex items-center justify-center p-12 z-10">
           <div className="max-w-md space-y-6 text-white">
-            <h1 className="text-5xl font-bold">Conduit</h1>
+            <h1 className="text-5xl font-bold">Cinnabar</h1>
             <p className="text-xl text-white/80">
-              Transform your data workflows with intelligent automation
+              Data Workflow Manager
             </p>
             <div className="flex items-center gap-4">
               <div className="w-2 h-2 bg-white/70 rounded-full animate-pulse" />
-              <span className="text-white/70 text-sm">Secure cloud processing</span>
+              <span className="text-white/70 text-sm">Execute pipelines and data processing code in the cloud</span>
             </div>
           </div>
         </div>
@@ -147,7 +178,7 @@ const Login = () => {
       <div className="w-full lg:w-1/2 bg-white shadow-2xl">
         <div className="min-h-screen flex items-center justify-center p-8">
           <div className="w-full max-w-md">
-            <div className="text-center mb-10">
+            <div className="text mb-10">
               <h2 className="text-3xl font-bold text-gray-800 mb-2">
                 Welcome Back
               </h2>
@@ -155,9 +186,23 @@ const Login = () => {
             </div>
 
             <form onSubmit={handleLogin} className="space-y-6">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center">
-                  {error}
+              {error.message && (
+                <div className={`px-4 py-3 rounded-lg text-center ${
+                  error.type === "locked" 
+                    ? "bg-yellow-50 border border-yellow-200 text-yellow-700"
+                    : "bg-red-50 border border-red-200 text-red-700"
+                }`}>
+                  <p>{error.message}</p>
+                  {lockedUntil && (
+                    <p className="text-sm mt-1">
+                      Locked until: {new Date(lockedUntil).toLocaleString()}
+                    </p>
+                  )}
+                  {remainingAttempts !== null && remainingAttempts > 0 && (
+                    <p className="text-sm mt-1">
+                      {remainingAttempts} attempt{remainingAttempts !== 1 ? 's' : ''} remaining
+                    </p>
+                  )}
                 </div>
               )}
 

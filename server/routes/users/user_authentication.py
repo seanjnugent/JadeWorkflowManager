@@ -77,6 +77,22 @@ async def authenticate_user(user_login: UserLogin, db: Session = Depends(get_db)
     password = user_login.password
 
     try:
+        # Check if user exists (before checking locked status)
+        user_exists = db.execute(
+            text("SELECT EXISTS(SELECT 1 FROM workflow.\"user\" WHERE email = :email)"),
+            {"email": email}
+        ).scalar()
+
+        if not user_exists:
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "message": "Invalid email or password",
+                    "error_code": "invalid_credentials",
+                    "remainingAttempts": None
+                }
+            )
+
         # Check if user is locked
         locked_user = db.execute(
             text("""
@@ -94,7 +110,9 @@ async def authenticate_user(user_login: UserLogin, db: Session = Depends(get_db)
                 status_code=403,
                 detail={
                     "message": "Account locked",
-                    "lockedUntil": locked_user.locked_until.isoformat()
+                    "error_code": "account_locked",
+                    "lockedUntil": locked_user.locked_until.isoformat(),
+                    "remainingAttempts": 0
                 }
             )
 
@@ -127,17 +145,19 @@ async def authenticate_user(user_login: UserLogin, db: Session = Depends(get_db)
             failed_attempts = failed_data[0] or 0
             remaining_attempts = max(0, 5 - failed_attempts)
             
-            if failed_data[1]:
-                detail = {
+            detail = {
+                "message": "Invalid email or password",
+                "error_code": "invalid_credentials",
+                "remainingAttempts": remaining_attempts
+            }
+            
+            if failed_data[1]:  # If account is now locked
+                detail.update({
                     "message": "Account locked due to too many failed attempts",
+                    "error_code": "account_locked",
                     "lockedUntil": failed_data[2].isoformat(),
                     "remainingAttempts": 0
-                }
-            else:
-                detail = {
-                    "message": "Invalid email or password",
-                    "remainingAttempts": remaining_attempts
-                }
+                })
             
             raise HTTPException(status_code=401, detail=detail)
 
@@ -194,8 +214,14 @@ async def authenticate_user(user_login: UserLogin, db: Session = Depends(get_db)
     except Exception as err:
         db.rollback()
         logger.error(f"Error during login: {str(err)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
-
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Internal server error",
+                "error_code": "server_error"
+            }
+        )
+    
 @router.post("/user/refresh")
 async def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
     try:
