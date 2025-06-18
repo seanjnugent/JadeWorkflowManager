@@ -7,31 +7,35 @@ import logging
 import os
 import pandas as pd
 from sqlalchemy import text
-from ..config.get_run_config import WorkflowConfig
+import requests
 from app.file_parser import parser_map
 from ..get_health_check import get_db, supabase
-from ..dagster_execute import execute_workflow, validate_dagster_config
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/runs", tags=["workflow"])
 
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "workflow-files")
+DAGSTER_HOST = os.getenv("DAGSTER_HOST", "localhost")
+DAGSTER_PORT = os.getenv("DAGSTER_PORT", "3500")
 
 def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
+    """Validate and retrieve workflow configuration from database"""
     try:
         result = db.execute(
             text("""
             SELECT id, name, input_file_path, input_structure, destination,
-                   config_template, default_parameters, parameters
+                   config_template, default_parameters, parameters, resources_config,
+                   dagster_location_name, dagster_repository_name, requires_file,
+                   output_file_pattern, supported_file_types
             FROM workflow.workflow
-            WHERE id = :workflow_id
+            WHERE id = :workflow_id AND status = 'Active'
             """),
             {"workflow_id": workflow_id}
         )
         workflow_row = result.fetchone()
         if not workflow_row:
-            logger.error(f"Workflow {workflow_id} not found")
-            raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
+            logger.error(f"Active workflow {workflow_id} not found")
+            raise HTTPException(status_code=404, detail=f"Active workflow {workflow_id} not found")
 
         workflow = {
             "id": workflow_row.id,
@@ -41,10 +45,17 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
             "destination": workflow_row.destination,
             "config_template": workflow_row.config_template,
             "default_parameters": workflow_row.default_parameters,
-            "parameters": workflow_row.parameters
+            "parameters": workflow_row.parameters,
+            "resources_config": workflow_row.resources_config,
+            "dagster_location_name": workflow_row.dagster_location_name or "server.app.dagster.repo",
+            "dagster_repository_name": workflow_row.dagster_repository_name or "__repository__",
+            "requires_file": workflow_row.requires_file,
+            "output_file_pattern": workflow_row.output_file_pattern,
+            "supported_file_types": workflow_row.supported_file_types
         }
 
-        json_fields = ["input_structure", "config_template", "default_parameters", "parameters"]
+        # Parse JSON fields
+        json_fields = ["input_structure", "config_template", "default_parameters", "parameters", "resources_config", "supported_file_types"]
         for field in json_fields:
             if workflow[field] and isinstance(workflow[field], str):
                 try:
@@ -53,80 +64,231 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
                     logger.error(f"Invalid JSON in {field}: {str(e)}")
                     raise HTTPException(status_code=400, detail=f"Invalid JSON in {field}: {str(e)}")
             elif workflow[field] is None:
-                workflow[field] = {} if field != "parameters" else []
+                if field == "parameters":
+                    workflow[field] = []
+                elif field == "supported_file_types":
+                    workflow[field] = ["csv", "xlsx", "json"]
+                else:
+                    workflow[field] = {}
 
         return workflow
     except Exception as e:
         logger.error(f"Error validating workflow {workflow_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Workflow validation failed: {str(e)}")
 
-async def handle_file_upload(file: UploadFile, workflow_id: int, expected_structure: Optional[Dict]) -> str:
+async def handle_file_upload(file: UploadFile, workflow: Dict[str, Any]) -> str:
+    """Handle file upload to Supabase storage"""
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
     file_ext = file.filename.split('.')[-1].lower()
+    supported_types = workflow.get("supported_file_types", ["csv", "xlsx", "json"])
+
+    if file_ext not in supported_types:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file_ext}. Supported types: {', '.join(supported_types)}")
+
     if file_ext not in parser_map:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file_ext}")
+        raise HTTPException(status_code=400, detail=f"No parser available for file type: {file_ext}")
 
     try:
         content = await file.read()
         df = await parser_map[file_ext].parse(content)
-        if expected_structure:
-            validate_file_structure(df, expected_structure)
 
+        if workflow.get("input_structure"):
+            validate_file_structure(df, workflow["input_structure"])
+
+        # Generate unique file path
+        workflow_id = workflow["id"]
         file_path = f"runs/{workflow_id}/{uuid.uuid4()}.{file_ext}"
-        # Remove the await keyword here
-        supabase.storage.from_(SUPABASE_BUCKET).upload(file_path, content, {"content-type": "application/octet-stream"})
+
+        # Upload to Supabase
+        response = supabase.storage.from_(SUPABASE_BUCKET).upload(
+            file_path,
+            content,
+            {"content-type": "application/octet-stream"}
+        )
+
+        # Handle Supabase response (compatible with supabase-py >= 2.0.0)
+        if hasattr(response, 'error') and response.error:
+            raise Exception(f"Supabase upload error: {response.error.message}")
+        elif hasattr(response, 'status_code') and response.status_code >= 400:
+            raise Exception(f"Supabase upload error: HTTP {response.status_code}")
+
         logger.info(f"File uploaded to {SUPABASE_BUCKET}/{file_path}")
         return f"{SUPABASE_BUCKET}/{file_path}"
+
     except Exception as e:
         logger.error(f"File upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
 def validate_file_structure(df: pd.DataFrame, expected_structure: Dict[str, Any]) -> None:
+    """Validate uploaded file structure against expected schema"""
     if not expected_structure.get("columns"):
         return
 
-    actual_columns = set(df.columns)
-    expected_columns = {col["name"] for col in expected_structure["columns"]}
-    if actual_columns != expected_columns:
-        missing = expected_columns - actual_columns
-        extra = actual_columns - expected_columns
+    try:
+        actual_columns = set(df.columns)
+        expected_columns = {col["name"] for col in expected_structure["columns"]}
+
+        if actual_columns != expected_columns:
+            missing = expected_columns - actual_columns
+            extra = actual_columns - expected_columns
+            errors = []
+            if missing:
+                errors.append(f"Missing columns: {', '.join(missing)}")
+            if extra:
+                errors.append(f"Unexpected columns: {', '.join(extra)}")
+            if errors:
+                raise HTTPException(status_code=400, detail="; ".join(errors))
+    except Exception as e:
+        logger.error(f"File structure validation failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"File structure validation failed: {str(e)}")
+
+def validate_parameters(input_params: Dict[str, Any], parameters: List[Dict[str, Any]]) -> None:
+    """Validate input parameters against workflow requirements"""
+    try:
+        expected_param_names = {p["name"] for p in parameters}
+        input_param_names = set(input_params.keys())
+        missing_params = expected_param_names - input_param_names
+        extra_params = input_param_names - expected_param_names
+
         errors = []
-        if missing:
-            errors.append(f"Missing columns: {', '.join(missing)}")
-        if extra:
-            errors.append(f"Unexpected columns: {', '.join(extra)}")
-        raise ValueError("; ".join(errors))
+        if missing_params:
+            errors.append(f"Missing parameters: {', '.join(missing_params)}")
+        if extra_params:
+            errors.append(f"Unexpected parameters: {', '.join(extra_params)}")
 
-def validate_parameters(input_params: Dict[str, Any], expected_params: List[Dict[str, Any]]) -> None:
-    expected_param_names = {p["name"] for p in expected_params}
-    input_param_names = set(input_params.keys())
-    missing_params = expected_param_names - input_param_names
-    extra_params = input_param_names - expected_param_names
+        for param in parameters:
+            if param["name"] in input_params:
+                expected_type = param["type"]
+                actual_value = input_params[param["name"]]
+                if expected_type == "string" and not isinstance(actual_value, str):
+                    errors.append(f"Parameter {param['name']} must be a string")
+                elif expected_type == "integer" and not isinstance(actual_value, int):
+                    errors.append(f"Parameter {param['name']} must be an integer")
+                if param.get("mandatory") and not actual_value:
+                    errors.append(f"Parameter {param['name']} is mandatory")
 
-    errors = []
-    if missing_params:
-        errors.append(f"Missing parameters: {', '.join(missing_params)}")
-    if extra_params:
-        errors.append(f"Unexpected parameters: {', '.join(extra_params)}")
+        if errors:
+            raise HTTPException(status_code=400, detail="; ".join(errors))
+    except Exception as e:
+        logger.error(f"Parameter validation failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Parameter validation failed: {str(e)}")
 
-    for param in expected_params:
-        if param["name"] in input_params:
-            expected_type = param["type"]
-            actual_value = input_params[param["name"]]
-            if expected_type == "string" and not isinstance(actual_value, str):
-                errors.append(f"Parameter {param['name']} must be a string")
-            elif expected_type == "integer" and not isinstance(actual_value, int):
-                errors.append(f"Parameter {param['name']} must be an integer")
-            if param.get("mandatory") and not actual_value:
-                errors.append(f"Parameter {param['name']} is mandatory")
+def substitute_template_variables(template: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
+    """Replace template variables like {variable} with actual values in a dictionary, preserving types."""
+    def replace_in_dict(obj, vars_dict):
+        if isinstance(obj, dict):
+            return {k: replace_in_dict(v, vars_dict) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [replace_in_dict(item, vars_dict) for item in obj]
+        elif isinstance(obj, str):
+            # Handle both {key} and {{key}} patterns
+            result = obj
+            for key, value in vars_dict.items():
+                # Replace {key} pattern
+                placeholder = f"{{{key}}}"
+                if placeholder in result:
+                    # Replace with the value, preserving its type
+                    result = result.replace(placeholder, str(value))
+                    # If the entire string was the placeholder, return the original type
+                    if result == str(value) and isinstance(value, (int, float, bool)):
+                        return value
+                # Replace {{key}} pattern
+                placeholder = f"{{{{{key}}}}}"
+                if placeholder in result:
+                    # Replace with the value, preserving its type
+                    result = result.replace(placeholder, str(value))
+                    # If the entire string was the placeholder, return the original type
+                    if result == str(value) and isinstance(value, (int, float, bool)):
+                        return value
+            return result
+        return obj
 
-    if errors:
-        raise ValueError("; ".join(errors))
+    return replace_in_dict(template, variables)
+
+def build_dagster_config(workflow: Dict[str, Any], input_path: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    """Build Dagster configuration from workflow template"""
+    workflow_id = workflow["id"]
+
+    # Generate run UUID
+    run_uuid = str(uuid.uuid4())
+
+    # Build output path with proper substitution
+    output_pattern = workflow.get("output_file_pattern", "workflow-files/outputs/output_{workflow_id}_{run_uuid}.json")
+    output_extension = workflow.get("destination", "json").lower()
+
+    # Manual substitution for output pattern (since it's not in the template yet)
+    output_path = output_pattern.replace("{workflow_id}", str(workflow_id)) \
+                               .replace("{run_uuid}", run_uuid) \
+                               .replace("{output_extension}", output_extension)
+
+    # Build template variables
+    template_vars = {
+        "workflow_id": int(workflow_id),  # Cast to integer
+        "input_file_path": input_path or "",
+        "output_file_path": output_path,
+        "run_uuid": run_uuid,
+        "parameters_json": json.dumps(parameters)
+    }
+
+    # Add individual parameters as template variables
+    for key, value in parameters.items():
+        template_vars[key] = value
+
+    # Get config template and substitute variables
+    config_template = workflow.get("config_template", {})
+    logger.info(f"Config template before substitution: {json.dumps(config_template, indent=2)}")
+    logger.info(f"Template variables: {json.dumps(template_vars, indent=2)}")
+
+    # Apply template substitution
+    dagster_config = substitute_template_variables(config_template, template_vars)
+    logger.info(f"Config template after substitution: {json.dumps(dagster_config, indent=2)}")
+
+    # **FIX: Properly inject parameters into each operation's config**
+    if "ops" in dagster_config:
+        for op_name, op_config in dagster_config["ops"].items():
+            if "config" in op_config:
+                # Replace empty parameters with actual parameters
+                if "parameters" in op_config["config"]:
+                    op_config["config"]["parameters"] = parameters
+                else:
+                    # Add parameters if not present
+                    op_config["config"]["parameters"] = parameters
+
+    # Add resources configuration
+    resources_config = workflow.get("resources_config", {})
+    if resources_config:
+        if "resources" not in dagster_config:
+            dagster_config["resources"] = {}
+        dagster_config["resources"].update(resources_config)
+    else:
+        if "resources" not in dagster_config:
+            dagster_config["resources"] = {}
+        dagster_config["resources"].update({
+            "db_engine": {
+                "config": {
+                    "DATABASE_URL": {"env": "DATABASE_URL"}
+                }
+            },
+            "supabase": {
+                "config": {
+                    "S3_ACCESS_KEY_ID": {"env": "S3_ACCESS_KEY_ID"},
+                    "S3_ENDPOINT": {"env": "S3_ENDPOINT"},
+                    "S3_REGION": "eu-west-2",
+                    "S3_SECRET_ACCESS_KEY": {"env": "S3_SECRET_ACCESS_KEY"},
+                    "SUPABASE_KEY": {"env": "SUPABASE_KEY"},
+                    "SUPABASE_URL": {"env": "SUPABASE_URL"}
+                }
+            }
+        })
+
+    logger.info(f"Final Dagster config: {json.dumps(dagster_config, indent=2)}")
+    return dagster_config
 
 def create_run_record(db: Session, workflow_id: int, triggered_by: int, input_path: str,
                     dagster_run_id: str, status: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    """Create run record in database"""
     try:
         result = db.execute(
             text("""
@@ -149,13 +311,152 @@ def create_run_record(db: Session, workflow_id: int, triggered_by: int, input_pa
             }
         )
         db.commit()
-        return dict(result.fetchone())
+        run_record = result.fetchone()
+        return dict(run_record)
     except Exception as e:
         logger.error(f"Failed to create run record: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create run record: {str(e)}")
+async def execute_dagster_workflow_direct(workflow: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, str]:
+    """Execute Dagster workflow via direct GraphQL API call - For Dagster 1.10.x"""
+    try:
+        workflow_id = workflow["id"]
+        job_name = f"workflow_job_{workflow_id}"
+        location_name = workflow.get("dagster_location_name", "server.app.dagster.repo")
+        repository_name = workflow.get("dagster_repository_name", "__repository__")
 
-@router.post("/run/new")
+        # Updated GraphQL mutation for Dagster 1.10.x
+        # Using the correct mutation structure
+        mutation = """
+        mutation LaunchPipelineExecution(
+            $repositoryLocationName: String!
+            $repositoryName: String!
+            $pipelineName: String!
+            $runConfigData: RunConfigData!
+        ) {
+            launchPipelineExecution(
+                executionParams: {
+                    selector: {
+                        repositoryLocationName: $repositoryLocationName
+                        repositoryName: $repositoryName
+                        pipelineName: $pipelineName
+                    }
+                    runConfigData: $runConfigData
+                }
+            ) {
+                __typename
+                ... on LaunchPipelineRunSuccess {
+                    run {
+                        runId
+                        status
+                    }
+                }
+                ... on InvalidStepError {
+                    invalidStepKey
+                }
+                ... on InvalidOutputError {
+                    stepKey
+                    invalidOutputName
+                }
+                ... on RunConfigValidationInvalid {
+                    errors {
+                        message
+                        reason
+                        path
+                    }
+                }
+                ... on PipelineNotFoundError {
+                    message
+                    pipelineName
+                }
+                ... on PythonError {
+                    message
+                    stack
+                }
+            }
+        }
+        """
+
+        variables = {
+            "repositoryLocationName": location_name,
+            "repositoryName": repository_name,
+            "pipelineName": job_name,  # Note: using pipelineName instead of jobName
+            "runConfigData": config
+        }
+
+        logger.info(f"Submitting GraphQL mutation with variables: {json.dumps(variables, indent=2)}")
+
+        # Make direct HTTP request to Dagster GraphQL endpoint
+        dagster_url = f"http://{DAGSTER_HOST}:{DAGSTER_PORT}/graphql"
+
+        response = requests.post(
+            dagster_url,
+            json={
+                "query": mutation,
+                "variables": variables
+            },
+            headers={"Content-Type": "application/json"},
+            timeout=30
+        )
+
+        logger.info(f"HTTP Response Status: {response.status_code}")
+        logger.info(f"HTTP Response Headers: {dict(response.headers)}")
+        
+        # Log the raw response for debugging
+        try:
+            response_text = response.text
+            logger.info(f"Raw response: {response_text}")
+        except:
+            logger.info("Could not log raw response")
+
+        response.raise_for_status()
+        result = response.json()
+
+        logger.info(f"GraphQL response: {json.dumps(result, indent=2)}")
+
+        if "errors" in result:
+            error_msg = f"GraphQL errors: {result['errors']}"
+            logger.error(error_msg)
+            raise HTTPException(status_code=500, detail=error_msg)
+
+        launch_result = result.get("data", {}).get("launchPipelineExecution", {})
+
+        if launch_result.get("__typename") == "LaunchPipelineRunSuccess":
+            run_info = launch_result["run"]
+            run_id = run_info["runId"]
+            status = run_info.get("status", "SUBMITTED")
+            logger.info(f"Successfully submitted Dagster job {job_name} with run_id: {run_id}")
+            return {
+                "run_id": run_id,
+                "status": status
+            }
+        elif launch_result.get("__typename") == "RunConfigValidationInvalid":
+            errors = launch_result.get("errors", [])
+            error_messages = [f"{err.get('message', '')} (path: {err.get('path', '')}, reason: {err.get('reason', '')})" for err in errors]
+            error_msg = f"Config validation failed: {'; '.join(error_messages)}"
+            logger.error(error_msg)
+            raise HTTPException(status_code=400, detail=error_msg)
+        elif launch_result.get("__typename") == "PipelineNotFoundError":
+            error_msg = f"Pipeline not found: {launch_result.get('message', '')} (pipeline: {launch_result.get('pipelineName', job_name)})"
+            logger.error(error_msg)
+            raise HTTPException(status_code=404, detail=error_msg)
+        elif launch_result.get("__typename") == "PythonError":
+            error_msg = f"Python error: {launch_result.get('message', '')}"
+            logger.error(error_msg)
+            raise HTTPException(status_code=500, detail=error_msg)
+        else:
+            error_msg = f"Unknown response type: {launch_result}"
+            logger.error(error_msg)
+            raise HTTPException(status_code=500, detail=error_msg)
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"HTTP request failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to connect to Dagster: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error executing Dagster workflow: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Workflow execution failed: {str(e)}")
+
+@router.post("/trigger")
 async def trigger_workflow_run(
     workflow_id: int = Form(...),
     triggered_by: int = Form(...),
@@ -163,8 +464,12 @@ async def trigger_workflow_run(
     file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
+    """Trigger a workflow run"""
     try:
+        # Validate workflow exists and is active
         workflow = validate_workflow(workflow_id, db)
+
+        # Parse and validate parameters
         try:
             input_params = json.loads(parameters)
             if workflow.get("parameters"):
@@ -172,41 +477,87 @@ async def trigger_workflow_run(
         except json.JSONDecodeError as e:
             raise HTTPException(status_code=400, detail=f"Invalid parameters format: {str(e)}")
 
-        input_path = workflow.get("input_file_path")
+        # Handle file upload if provided
+        input_path = None
         if file and file.filename:
-            input_path = await handle_file_upload(file, workflow_id, workflow.get("input_structure"))
-        elif workflow.get("input_file_path") and not file:
+            input_path = await handle_file_upload(file, workflow)
+        elif workflow.get("requires_file"):
             raise HTTPException(status_code=400, detail="Input file required")
 
-        config_template = workflow.get("config_template", {})
-        defaults = workflow.get("default_parameters", {})
-        config = WorkflowConfig(workflow_id, config_template, defaults)
-        run_params = {**defaults, **input_params}
-        run_config = config.build_config(input_path, run_params)
+        # Merge default parameters with user parameters
+        default_params = workflow.get("default_parameters", {})
+        run_params = {**default_params, **input_params}
 
-        is_valid, error_msg = validate_dagster_config(f"workflow_job_{workflow_id}", run_config)
-        if not is_valid:
-            raise HTTPException(status_code=400, detail=f"Invalid configuration: {error_msg}")
+        # Build Dagster configuration
+        dagster_config = build_dagster_config(workflow, input_path, run_params)
 
-        result = await execute_workflow(workflow_id, run_config, db)
+        # Execute workflow in Dagster using direct GraphQL
+        execution_result = await execute_dagster_workflow_direct(workflow, dagster_config)
+
+        # Create run record
         run_record = create_run_record(
-            db, workflow_id, triggered_by, input_path,
-            result["run_id"], result["status"], run_config
+            db, workflow["id"], triggered_by, input_path or "",
+            execution_result["run_id"], execution_result["status"], dagster_config
         )
 
-        output_path = run_config.get("ops", {}).get("save_output_{workflow_id}", {}).get("config", {}).get("output_file_path")
+        # Build response
+        output_path = None
+        for op_name, op_config in dagster_config.get("ops", {}).items():
+            if "save_output" in op_name and "config" in op_config:
+                output_path = op_config["config"].get("output_path")
+                break
+
         response = {
             "run_id": run_record["id"],
             "status": run_record["status"],
-            "dagster_run_id": run_record["dagster_run_id"]
+            "dagster_run_id": run_record["dagster_run_id"],
+            "message": f"Workflow {workflow['name']} triggered successfully"
         }
+
         if output_path:
-            response["output_file"] = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/{output_path}"
+            response["output_file_url"] = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/{output_path}"
+
         return response
 
-    except HTTPException as he:
+    except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Workflow run failed: {str(e)}")
-        db.rollback()
+        if 'db' in locals():
+            db.rollback()
         raise HTTPException(status_code=500, detail=f"Workflow execution failed: {str(e)}")
+
+# Test function to debug template substitution
+def test_template_substitution():
+    """Test function to verify template substitution works"""
+    template = {
+        "ops": {
+            "load_input": {
+                "config": {
+                    "input_path": "{input_file_path}",
+                    "output_path": "{output_file_path}",
+                    "workflow_id": "{workflow_id}"
+                }
+            }
+        }
+    }
+
+    variables = {
+        "workflow_id": "22",
+        "input_file_path": "test/input.csv",
+        "output_file_path": "test/output.json"
+    }
+
+    result = substitute_template_variables(template, variables)
+    print("Template substitution test:")
+    print("Before:", json.dumps(template, indent=2))
+    print("Variables:", json.dumps(variables, indent=2))
+    print("After:", json.dumps(result, indent=2))
+
+    # Verify substitution worked
+    assert result["ops"]["load_input"]["config"]["workflow_id"] == "22"
+    assert "{workflow_id}" not in json.dumps(result)
+    print("✅ Template substitution test passed!")
+
+# Uncomment to test:
+# test_template_substitution()
