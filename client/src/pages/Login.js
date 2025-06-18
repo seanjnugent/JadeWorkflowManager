@@ -168,7 +168,7 @@ const Login = () => {
             </p>
             <div className="flex items-center gap-4">
               <div className="w-2 h-2 bg-white/70 rounded-full animate-pulse" />
-              <span className="text-white/70 text-sm">Execute pipelines and data processing code in the cloud</span>
+              <span className="text-white/70 text-sm">Execute pipelines and process data in the cloud</span>
             </div>
           </div>
         </div>

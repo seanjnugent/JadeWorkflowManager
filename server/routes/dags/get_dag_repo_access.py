@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 import logging
 from github import Github, GithubException
 import os
+import re
 from dotenv import load_dotenv
 from typing import Optional
-from ..get_health_check import get_db  # Adjust import based on your project structure
+from ..get_health_check import get_db
 
 # Load environment variables
 load_dotenv()
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 # Initialize router
 router = APIRouter(prefix="/api", tags=["github"])
 
-# GitHub configuration (matching Dagster setup)
+# GitHub configuration
 GITHUB_ACCESS_TOKEN = os.getenv("GITHUB_ACCESS_TOKEN")
 GITHUB_REPO_OWNER = os.getenv("GITHUB_REPO_OWNER", "seanjnugent")
 GITHUB_REPO_NAME = os.getenv("GITHUB_REPO_NAME", "DataWorkflowTool-Workflows")
@@ -26,36 +27,67 @@ if not GITHUB_ACCESS_TOKEN:
     logger.error("GITHUB_ACCESS_TOKEN environment variable not set")
     raise RuntimeError("GITHUB_ACCESS_TOKEN environment variable is required")
 
+def extract_job_name(dag_path: str) -> Optional[str]:
+    """
+    Extract the workflow job name (e.g., 'workflow_job_2') from various formats.
+    
+    Handles:
+    - Full Windows/Linux paths
+    - Python module paths
+    - Just the job name
+    """
+    if not dag_path:
+        return None
+    
+    # Try extracting last part after dots or slashes
+    segments = []
+
+    # Split by dot (for Python module paths)
+    segments.extend(dag_path.split("."))
+    
+    # Split by OS path separators
+    segments.extend(dag_path.replace("\\", "/").split("/"))
+
+    # Look for any segment matching workflow_job_{number}
+    workflow_pattern = re.compile(r"^workflow_job_\d+$")
+    for seg in reversed(segments):
+        if workflow_pattern.match(seg):
+            return seg
+
+    # Fallback: strip everything except alphanum and match pattern
+    cleaned = re.sub(r"[^a-zA-Z0-9_]", "", dag_path)
+    match = re.search(r"workflow_job_\d+", cleaned)
+    if match:
+        return match.group(0)
+
+    return None
+
 @router.get("/github-dag-info")
 async def get_github_dag_info(
     dag_path: str,
-    db: Session = Depends(get_db)  # Included for consistency, optional for logging
+    db: Session = Depends(get_db)
 ):
     """
     Fetch metadata for a DAG file in the GitHub repository.
-
-    Args:
-        dag_path: Path to the DAG file relative to DAGs/ directory (e.g., 'workflow_job_2')
-        db: Database session (for potential logging or auditing)
-
-    Returns:
-        dict: {
-            "authorized": bool,
-            "last_updated": str (ISO 8601 timestamp),
-            "commit_message": str,
-            "author": str
-        } if access granted, or {"authorized": false} if not
+    Returns authorized status, last commit date, author, message, and version (1.x where x is padded file commit count).
     """
     try:
-        logger.info(f"Fetching GitHub DAG info for {dag_path}")
+        logger.info(f"Fetching GitHub DAG info for raw dag_path: {dag_path}")
 
         # Validate input
         if not dag_path:
             logger.error("Missing required parameter: dag_path")
             raise HTTPException(status_code=400, detail="Missing required parameter: dag_path")
 
-        # Construct file path (e.g., DAGs/workflow_job_2.py)
-        file_path = f"DAGs/{dag_path}.py"
+        # Extract clean job name
+        job_name = extract_job_name(dag_path)
+        if not job_name:
+            logger.warning(f"Could not extract job name from dag_path: {dag_path}")
+            return {"authorized": False}
+
+        # Construct GitHub file path
+        file_path = f"DAGs/{job_name}.py"
+        logger.info(f"Constructed GitHub path: {file_path}")
 
         # Initialize GitHub client
         g = Github(GITHUB_ACCESS_TOKEN)
@@ -66,24 +98,35 @@ async def get_github_dag_info(
             # Get file contents to check existence
             repo.get_contents(file_path, ref=GITHUB_BRANCH)
 
-            # Get last commit for the file
-            commits = repo.get_commits(path=file_path, sha=GITHUB_BRANCH)
-            latest_commit = commits[0]  # First commit is the most recent
+            # Get commits for the specific file (file-level history)
+            commits = list(repo.get_commits(path=file_path, sha=GITHUB_BRANCH))
+            
+            if not commits:
+                logger.warning(f"No commits found for file: {file_path}")
+                return {"authorized": False}
 
-            # Extract metadata
+            # Get the most recent commit for this file
+            latest_commit = commits[0]
+            
+            # Count the actual number of commits that modified this specific file
+            file_commit_count = len(commits)
+
+            # Extract metadata from the latest commit
             last_updated = latest_commit.commit.author.date.isoformat()
             commit_message = latest_commit.commit.message
-            author = latest_commit.commit.author.name or latest_commit.author.login
+            author = latest_commit.commit.author.name or (latest_commit.author.login if latest_commit.author else "Unknown")
+            version = f"1.{file_commit_count:02d}"
 
-            logger.info(f"Metadata retrieved for {file_path}: last_updated={last_updated}, author={author}")
-            # Optionally log to database
-            # db.execute(text("INSERT INTO github_dag_access_log (dag_path, success) VALUES (:dag_path, :success)"), {"dag_path": file_path, "success": True})
+            logger.info(f"File-level metadata retrieved for {file_path}: last_updated={last_updated}, author={author}, version={version}, commits={file_commit_count}")
 
             return {
                 "authorized": True,
                 "last_updated": last_updated,
                 "commit_message": commit_message,
-                "author": author
+                "author": author,
+                "version": version,
+                "file_commit_count": file_commit_count,
+                "file_path": file_path
             }
 
         except GithubException as e:

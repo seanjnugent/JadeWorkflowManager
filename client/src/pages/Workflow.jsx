@@ -81,9 +81,25 @@ const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
   const [dagInfo, setDagInfo] = useState({ authorized: false });
   const [loading, setLoading] = useState(true);
 
-  // Construct file path and GitHub URL
-  const filePath = dagPath.split('.').pop(); // e.g., 'workflow_job_2' from 'server.app.dagster.jobs.workflow_job_2'
-  const githubUrl = `https://github.com/${repoOwner}/${repoName}/blob/main/DAGs/${filePath}.py`;
+  // Extract workflow_job_X pattern from any path or module name
+  const extractJobName = (path) => {
+    if (!path) return null;
+
+    const match = path.match(/workflow_job_(\d+)/);
+    if (match) return match[0];
+
+    const segments = [...path.split('.'), ...path.replace(/\\/g, '/').split('/')];
+    for (let seg of segments.reverse()) {
+      const jobMatch = seg.match(/workflow_job_\d+/);
+      if (jobMatch) return jobMatch[0];
+    }
+
+    return null;
+  };
+
+  const dagJobName = extractJobName(dagPath);
+  const filePath = dagJobName || 'unknown';
+  const githubUrl = `https://github.com/${repoOwner}/${repoName}/blob/main/DAGs/${filePath}.py`; 
 
   useEffect(() => {
     const fetchDagInfo = async () => {
@@ -91,14 +107,15 @@ const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
         const response = await fetch(`http://localhost:8000/api/github-dag-info?dag_path=${filePath}`, {
           headers: { 'Accept': 'application/json' }
         });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
         const data = await response.json();
         setDagInfo(data);
-        if (data.authorized) {
+
+        if (data.authorized && setVersionControl) {
           setVersionControl({
-            version: 'v2.1.0', // Hardcoded; replace with dynamic version if available
+            version: 'v'+data.version,
             lastModified: new Date(data.last_updated).toLocaleDateString(),
             modifiedBy: data.author
           });
@@ -110,20 +127,22 @@ const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
         setLoading(false);
       }
     };
+
     fetchDagInfo();
   }, [filePath, repoOwner, repoName, setVersionControl]);
 
   if (loading) {
-    return <span className="inline-block h-8 w-8 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin"></span>;
+    return (
+      <span className="inline-block h-8 w-8 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin"></span>
+    );
   }
 
-  // Format tooltip content with metadata
   const tooltipContent = dagInfo.authorized ? (
     <div className="space-y-1">
       <p>View DAG in GitHub</p>
       <p className="text-xs">Last updated: {new Date(dagInfo.last_updated).toLocaleString()}</p>
       <p className="text-xs">Author: {dagInfo.author}</p>
-      <p className="text-xs">Commit: {dagInfo.commit_message.split('\n')[0]}</p>
+      <p className="text-xs">Commit: {dagInfo.commit_message?.split('\n')[0]}</p>
     </div>
   ) : (
     'No access to GitHub repository'
@@ -135,7 +154,12 @@ const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
         href={dagInfo.authorized ? githubUrl : '#'}
         target={dagInfo.authorized ? '_blank' : undefined}
         rel={dagInfo.authorized ? 'noopener noreferrer' : undefined}
-        className={`w-full inline-flex items-center justify-center bg-white border rounded-md px-3 py-2 text-sm no-underline hover:no-underline ${!dagInfo.authorized ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`w-full inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 bg-white border px-3 py-2 no-underline hover:no-underline ${
+          !dagInfo.authorized ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
+        onClick={(e) => {
+          if (!dagInfo.authorized) e.preventDefault();
+        }}
       >
         <Github className="h-4 w-4 mr-2" aria-hidden="true" />
         View on GitHub
@@ -168,11 +192,13 @@ const StatusBadge = ({ status }) => {
       text: 'Running'
     }
   };
+
   const config = statusConfig[status?.toLowerCase()] || {
     color: 'bg-gray-100 text-gray-800 border-gray-200',
     icon: <svg className="h-4 w-4 text-gray-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>,
     text: status || 'Unknown'
   };
+
   return (
     <div className="flex items-center space-x-2">
       {config.icon}
@@ -183,6 +209,7 @@ const StatusBadge = ({ status }) => {
   );
 };
 
+// Main Workflow Component
 const Workflow = () => {
   const { workflowId } = useParams();
   const navigate = useNavigate();
@@ -192,7 +219,6 @@ const Workflow = () => {
   const [showInputModal, setShowInputModal] = useState(false);
   const [versionControl, setVersionControl] = useState(null);
 
-  // GitHub configuration
   const GITHUB_REPO_OWNER = 'seanjnugent';
   const GITHUB_REPO_NAME = 'DataWorkflowTool-Workflows';
 
@@ -285,7 +311,10 @@ const Workflow = () => {
                 </div>
                 <div className="flex items-center text-sm text-gray-600">
                   <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" />
+                    <path d="M8 2v4" />
+                    <path d="M16 2v4" />
+                    <rect width="18" height="18" x="3" y="4" rx="2" />
+                    <path d="M3 10h18" />
                   </svg>
                   Last updated: {new Date(workflow.updated_at).toLocaleDateString()}
                 </div>
@@ -347,7 +376,7 @@ const Workflow = () => {
           </div>
 
           {/* Version Control */}
-          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border border-l-4 border-l-blue-600">
+          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border border-l-4 border-l-blue-600 pb-6">
             <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 pb-3">
               <h4 className="leading-none flex items-center">
                 <GitBranch className="h-5 w-5 mr-2 text-blue-600" aria-hidden="true" />
@@ -411,7 +440,7 @@ const Workflow = () => {
           </div>
 
           {/* Recent Activity */}
-          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border lg-col-span-3">
+          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border lg:col-span-3">
             <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 border-b border-gray-200 pb-4">
               <h4 className="leading-none">Recent Activity</h4>
               <p className="text-gray-600 text-sm">Last 5 executions of this workflow</p>
@@ -472,8 +501,8 @@ const Workflow = () => {
             </div>
           </div>
 
-          {/* Input File Structure (Sidebar) */}
-          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border lg-col-span-3">
+          {/* Input File Structure */}
+          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border lg:col-span-3">
             <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 border-b border-gray-200 pb-4">
               <h4 className="leading-none">Input File Structure</h4>
               <p className="text-gray-600 text-sm">Required input format for this workflow</p>
@@ -492,7 +521,9 @@ const Workflow = () => {
                   onClick={handleDownloadTemplate}
                 >
                   <svg className="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
                   Download Template
                 </button>
@@ -506,7 +537,7 @@ const Workflow = () => {
           </div>
 
           {/* Parameters */}
-          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border lg-col-span-3">
+          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border lg:col-span-3">
             <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 border-b border-gray-200 pb-4">
               <h4 className="leading-none">Parameters</h4>
               <p className="text-gray-600 text-sm">Configuration parameters for this workflow</p>
@@ -516,9 +547,7 @@ const Workflow = () => {
                 <div className="space-y-2">
                   {workflow.parameters.map((param) => (
                     <CustomTooltip key={param.name} content={`${param.type} • ${param.mandatory ? 'Required' : 'Optional'}`}>
-                      <span
-                        className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 border bg-gray-100 text-gray-800 border-gray-200"
-                      >
+                      <span className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 border bg-gray-100 text-gray-800 border-gray-200">
                         {param.name}
                       </span>
                     </CustomTooltip>
@@ -531,7 +560,7 @@ const Workflow = () => {
           </div>
 
           {/* Destination */}
-          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border lg-col-span-3">
+          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border lg:col-span-3">
             <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 border-b border-gray-200 pb-4">
               <h4 className="leading-none">Destination</h4>
               <p className="text-gray-600 text-sm">Output destination for this workflow</p>

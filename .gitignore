@@ -202,4 +202,5 @@ cython_debug/
 .pypirc
 
 dags/storage
-dags/history
+dags/history/runs.db
+*.db
