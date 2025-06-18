@@ -19,8 +19,14 @@ from dagster import (
     job,
     success_hook,
     failure_hook,
+    sensor,
+    SensorEvaluationContext,
+    RunRequest,
+    DagsterRunStatus,
+    DagsterEventType,
 )
 from sqlalchemy import create_engine, text
+from dagster._core.storage.event_log.sql_event_log import SqlEventLogStorage
 
 # Configure logging
 logging.basicConfig(
@@ -134,6 +140,215 @@ def log_failure(context: OpExecutionContext):
     except Exception as e:
         logger.error(f"Failed to log failure for op {context.op.name}: {str(e)}")
 
+# --- Sensor ---
+@sensor(
+    job_name=None,
+    minimum_interval_seconds=30,
+    required_resource_keys={"db_engine"}
+)
+def run_status_sensor(context: SensorEvaluationContext):
+    """Sensor to monitor Dagster run and step status and update database."""
+    context.log.info("Starting sensor evaluation")  # Use context.log instead of logger
+    
+    try:
+        # Get event log storage
+        event_log_storage = context.instance.event_log_storage
+        if not isinstance(event_log_storage, SqlEventLogStorage):
+            context.log.error("Event log storage is not SQL-based")
+            return
+
+        # Use cursor to track processed events
+        last_event_id = int(context.cursor) if context.cursor else 0
+        events = event_log_storage.get_logs_for_all_runs_by_log_id(
+            after_id=last_event_id,
+            limit=1000
+        )
+
+        if not events:
+            logger.info("No new events to process")
+            return
+
+        # Process events
+        for event in events:
+            event_id = event[0]
+            dagster_event = event[1].dagster_event
+            if not dagster_event:
+                continue
+
+            run_id = event[1].run_id
+            timestamp = event[1].timestamp
+            workflow_id = None
+            config = None
+
+            # Fetch run config to get workflow_id
+            run = context.instance.get_run_by_id(run_id)
+            if run and run.run_config:
+                config = run.run_config
+                workflow_id = config.get("ops", {}).get(list(config.get("ops", {}).keys())[0], {}).get("config", {}).get("workflow_id")
+
+            with context.resources.db_engine.connect() as conn:
+                # Handle run-level events
+                if dagster_event.event_type in [
+                    DagsterEventType.RUN_START,
+                    DagsterEventType.RUN_SUCCESS,
+                    DagsterEventType.RUN_FAILURE,
+                    DagsterEventType.RUN_CANCELED
+                ]:
+                    status = {
+                        DagsterEventType.RUN_START: "STARTED",
+                        DagsterEventType.RUN_SUCCESS: "SUCCESS",
+                        DagsterEventType.RUN_FAILURE: "FAILURE",
+                        DagsterEventType.RUN_CANCELED: "CANCELED"
+                    }.get(dagster_event.event_type, "UNKNOWN")
+                    error_message = dagster_event.event_specific_data.error.message if dagster_event.event_specific_data and dagster_event.event_specific_data.error else None
+
+                    # Update workflow.run
+                    conn.execute(
+                        text('''
+                        UPDATE workflow.run
+                        SET
+                            status = :status,
+                            finished_at = CASE WHEN :status IN ('SUCCESS', 'FAILURE', 'CANCELED') THEN :timestamp ELSE finished_at END,
+                            duration_ms = CASE WHEN :status IN ('SUCCESS', 'FAILURE', 'CANCELED') THEN EXTRACT(EPOCH FROM (:timestamp - started_at)) * 1000 ELSE duration_ms END,
+                            error_message = :error_message
+                        WHERE dagster_run_id = :run_id
+                        '''),
+                        {
+                            "status": status,
+                            "timestamp": timestamp,
+                            "run_id": run_id,
+                            "error_message": error_message
+                        }
+                    )
+
+                    # Log to workflow.run_log
+                    conn.execute(
+                        text('''
+                        INSERT INTO workflow.run_log
+                        (dagster_run_id, workflow_id, step_code, log_level, message, timestamp)
+                        VALUES (:run_id, :workflow_id, :step_code, :log_level, :message, :timestamp)
+                        '''),
+                        {
+                            "run_id": run_id,
+                            "workflow_id": workflow_id,
+                            "step_code": None,
+                            "log_level": "info" if status != "FAILURE" else "error",
+                            "message": f"Run {status.lower()}",
+                            "timestamp": timestamp
+                        }
+                    )
+
+                # Handle step-level events
+                if dagster_event.event_type in [
+                    DagsterEventType.STEP_START,
+                    DagsterEventType.STEP_SUCCESS,
+                    DagsterEventType.STEP_FAILURE
+                ]:
+                    step_key = dagster_event.step_key
+                    status = {
+                        DagsterEventType.STEP_START: "STARTED",
+                        DagsterEventType.STEP_SUCCESS: "SUCCESS",
+                        DagsterEventType.STEP_FAILURE: "FAILURE"
+                    }.get(dagster_event.event_type, "UNKNOWN")
+                    error_message = dagster_event.event_specific_data.error.message if dagster_event.event_specific_data and dagster_event.event_specific_data.error else None
+
+                    # Check if step status exists
+                    result = conn.execute(
+                        text('''
+                        SELECT id FROM workflow.run_step_status
+                        WHERE dagster_run_id = :run_id AND step_code = :step_code
+                        '''),
+                        {"run_id": run_id, "step_code": step_key}
+                    )
+                    step_status_id = result.fetchone()
+
+                    if step_status_id:
+                        # Update existing step status
+                        conn.execute(
+                            text('''
+                            UPDATE workflow.run_step_status
+                            SET
+                                status = :status,
+                                end_time = CASE WHEN :status IN ('SUCCESS', 'FAILURE') THEN :timestamp ELSE end_time END,
+                                duration_ms = CASE WHEN :status IN ('SUCCESS', 'FAILURE') THEN EXTRACT(EPOCH FROM (:timestamp - start_time)) * 1000 ELSE duration_ms END,
+                                error_message = :error_message
+                            WHERE id = :id
+                            '''),
+                            {
+                                "status": status,
+                                "timestamp": timestamp,
+                                "error_message": error_message,
+                                "id": step_status_id[0]
+                            }
+                        )
+                    else:
+                        # Insert new step status
+                        conn.execute(
+                            text('''
+                            INSERT INTO workflow.run_step_status
+                            (dagster_run_id, workflow_id, step_code, status, start_time, run_id)
+                            VALUES (:run_id, :workflow_id, :step_code, :status, :timestamp, (SELECT id FROM workflow.run WHERE dagster_run_id = :run_id))
+                            '''),
+                            {
+                                "run_id": run_id,
+                                "workflow_id": workflow_id,
+                                "step_code": step_key,
+                                "status": status,
+                                "timestamp": timestamp
+                            }
+                        )
+
+                    # Log to workflow.run_log
+                    conn.execute(
+                        text('''
+                        INSERT INTO workflow.run_log
+                        (dagster_run_id, workflow_id, step_code, log_level, message, timestamp)
+                        VALUES (:run_id, :workflow_id, :step_code, :log_level, :message, :timestamp)
+                        '''),
+                        {
+                            "run_id": run_id,
+                            "workflow_id": workflow_id,
+                            "step_code": step_key,
+                            "log_level": "info" if status != "FAILURE" else "error",
+                            "message": f"Step {step_key} {status.lower()}",
+                            "timestamp": timestamp
+                        }
+                    )
+
+                # Handle custom log messages
+                if dagster_event.event_type == DagsterEventType.LOG_MESSAGE:
+                    log_message = dagster_event.event_specific_data.log_message
+                    log_level = dagster_event.event_specific_data.level.lower()
+                    step_key = dagster_event.step_key
+
+                    conn.execute(
+                        text('''
+                        INSERT INTO workflow.run_log
+                        (dagster_run_id, workflow_id, step_code, log_level, message, timestamp)
+                        VALUES (:run_id, :workflow_id, :step_code, :log_level, :message, :timestamp)
+                        '''),
+                        {
+                            "run_id": run_id,
+                            "workflow_id": workflow_id,
+                            "step_code": step_key,
+                            "log_level": log_level,
+                            "message": log_message,
+                            "timestamp": timestamp
+                        }
+                    )
+
+                conn.commit()
+
+            # Update cursor to the last processed event
+            context.update_cursor(str(event_id))
+
+        logger.info(f"Processed {len(events)} events, last event ID: {event_id}")
+
+    except Exception as e:
+        logger.error(f"Sensor failed: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+
 # --- Dynamic Job Loader ---
 def load_jobs_from_github(directory: str = "DAGs") -> List[JobDefinition]:
     jobs = []
@@ -160,23 +375,19 @@ def load_jobs_from_github(directory: str = "DAGs") -> List[JobDefinition]:
                 try:
                     file_content = content.decoded_content.decode('utf-8')
                     
-                    # Create a clean module namespace
                     module_globals = {
                         '__name__': module_name,
                         '__file__': f'<github:{content.path}>',
-                        # Standard library imports
                         'sys': sys,
                         'os': os,
                         'json': __import__('json'),
                         'io': __import__('io'),
                         'datetime': __import__('datetime'),
                         'load_dotenv': load_dotenv,
-                        # Third party imports
                         'pd': __import__('pandas'),
                         'boto3': boto3,
                         'create_engine': create_engine,
                         'text': text,
-                        # Dagster imports
                         'job': job,
                         'op': __import__('dagster').op,
                         'OpExecutionContext': OpExecutionContext,
@@ -186,32 +397,26 @@ def load_jobs_from_github(directory: str = "DAGs") -> List[JobDefinition]:
                         'Int': __import__('dagster').Int,
                         'String': __import__('dagster').String,
                         'Permissive': __import__('dagster').Permissive,
-                        # Type hints
                         'Dict': dict,
                         'Optional': type(None),
                         'List': list,
                     }
                     
-                    # Import botocore Config with alias to avoid conflicts
                     try:
                         from botocore.config import Config as BotoConfig
                         module_globals['BotoConfig'] = BotoConfig
                     except ImportError:
                         pass
                     
-                    # Execute the file content
                     exec(file_content, module_globals)
                     
-                    # Find JobDefinition objects
                     for name, obj in module_globals.items():
                         if isinstance(obj, JobDefinition):
-                            # Update the job's resource_defs and hooks directly
                             obj._resource_defs = {
                                 "supabase": supabase_resource,
                                 "db_engine": db_engine_resource
                             }
                             obj._hooks = {log_success, log_failure}
-                            
                             jobs.append(obj)
                             logger.info(f"Successfully loaded job: {name} from {content.path}")
                             break
@@ -257,7 +462,8 @@ defs = Definitions(
     resources={
         "supabase": supabase_resource,
         "db_engine": db_engine_resource
-    }
+    },
+    sensors=[run_status_sensor]
 )
 
 if __name__ == "__main__":

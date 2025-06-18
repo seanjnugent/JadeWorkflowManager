@@ -22,8 +22,8 @@ async def get_workflow_run_stats(days: int = 30, db: Session = Depends(get_db)):
                 SELECT 
                     DATE(started_at) as run_date,
                     COUNT(*) as total_runs,
-                    SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_runs,
-                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_runs,
+SUM(CASE WHEN LOWER(status) = 'success' THEN 1 ELSE 0 END) as successful_runs,
+SUM(CASE WHEN LOWER(status) IN ('failed', 'failure') THEN 1 ELSE 0 END) as failed_runs,
                     AVG(duration_ms::float / 1000) as avg_duration_seconds
                 FROM workflow.run
                 WHERE started_at >= :start_date AND started_at <= :end_date
@@ -151,7 +151,7 @@ async def get_step_performance(days: int = 30, db: Session = Depends(get_db)):
                     AVG(rss.duration_ms::float / 1000) as avg_duration_seconds
                 FROM workflow.workflow_step ws
                 JOIN workflow.workflow w ON ws.workflow_id = w.id
-                LEFT JOIN workflow.run_step_status rss ON ws.id = rss.step_id
+                LEFT JOIN workflow.run_step_status rss ON ws.step_code = rss.step_code
                 WHERE rss.started_at >= :start_date AND rss.started_at <= :end_date
                 GROUP BY ws.workflow_id, w.name, ws.label, ws.step_code
                 ORDER BY failure_count DESC, avg_duration_seconds DESC

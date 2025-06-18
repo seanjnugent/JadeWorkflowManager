@@ -13,10 +13,11 @@ import {
   Shield,
   ChevronRight,
   Activity,
+  Search,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { useLogout } from '../utils/AuthUtils'; // Import useLogout
+import { useLogout } from '../utils/AuthUtils';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
@@ -29,11 +30,12 @@ const Settings = () => {
   const [editableUser, setEditableUser] = useState({});
   const [editablePermission, setEditablePermission] = useState({});
   const [error, setError] = useState('');
+  const [userIdFilter, setUserIdFilter] = useState('');
 
-  const adminUserId = 1; // Consider fetching this dynamically or removing if unused
+  const adminUserId = 1;
   const navigate = useNavigate();
   const logout = useLogout();
-  const userId = localStorage.getItem('userId'); // Get userId from localStorage
+  const userId = localStorage.getItem('userId');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -48,8 +50,8 @@ const Settings = () => {
         // Fetch Health Check
         const healthResponse = await fetch(`${API_BASE_URL}/health_check`, {
           headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
           },
         });
         if (!healthResponse.ok) {
@@ -65,8 +67,8 @@ const Settings = () => {
         // Fetch Users
         const usersResponse = await fetch(`${API_BASE_URL}/users`, {
           headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
           },
         });
         if (!usersResponse.ok) {
@@ -78,23 +80,6 @@ const Settings = () => {
         }
         const usersData = await usersResponse.json();
         setUsers(Array.isArray(usersData) ? usersData : usersData.users || []);
-
-        // Fetch Permissions
-        const permissionsResponse = await fetch(`${API_BASE_URL}/workflow_permissions`, {
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        });
-        if (!permissionsResponse.ok) {
-          if (permissionsResponse.status === 401) {
-            navigate('/login');
-            return;
-          }
-          throw new Error('Failed to fetch permissions');
-        }
-        const permissionsData = await permissionsResponse.json();
-        setPermissions(permissionsData.permissions || []);
       } catch (error) {
         console.error('Error fetching data:', error);
         setError('Failed to load data. Please try again.');
@@ -104,6 +89,38 @@ const Settings = () => {
 
     fetchData();
   }, [navigate, userId]);
+
+  const fetchPermissions = async () => {
+    const accessToken = localStorage.getItem('access_token');
+    try {
+      let url = `${API_BASE_URL}/workflows/permissions`;
+      if (userIdFilter) {
+        url += `?user_id=${userIdFilter}`;
+      }
+
+      const permissionsResponse = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!permissionsResponse.ok) {
+        if (permissionsResponse.status === 401) {
+          navigate('/login');
+          return;
+        }
+        throw new Error('Failed to fetch permissions');
+      }
+
+      const permissionsData = await permissionsResponse.json();
+      setPermissions(permissionsData.permissions || []);
+    } catch (error) {
+      console.error('Error fetching permissions:', error);
+      setError('Failed to load permissions. Please try again.');
+      setTimeout(() => setError(''), 5000);
+    }
+  };
 
   const handleUserEdit = (user) => {
     setEditingUser(user.id);
@@ -122,7 +139,7 @@ const Settings = () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(editableUser),
       });
@@ -142,14 +159,17 @@ const Settings = () => {
   const savePermission = async (permissionId) => {
     const accessToken = localStorage.getItem('access_token');
     try {
-      const response = await fetch(`${API_BASE_URL}/workflow_permissions/${permissionId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(editablePermission),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/workflow_permissions/${permissionId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(editablePermission),
+        }
+      );
 
       if (response.ok) {
         setPermissions(
@@ -174,7 +194,7 @@ const Settings = () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ is_locked: !isLocked }),
       });
@@ -298,25 +318,49 @@ const Settings = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-center">
                     <span className="text-gray-600 mr-2">Overall Status:</span>
-                    <span className={`font-semibold ${healthStatus.status === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>
+                    <span
+                      className={`font-semibold ${
+                        healthStatus.status === 'healthy'
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }`}
+                    >
                       {capitalizeFirstLetter(healthStatus.status)}
                     </span>
                   </div>
                   <div className="flex items-center">
                     <span className="text-gray-600 mr-2">Supabase:</span>
-                    <span className={`font-semibold ${healthStatus.supabase === 'Connected' ? 'text-green-600' : 'text-red-600'}`}>
+                    <span
+                      className={`font-semibold ${
+                        healthStatus.supabase === 'Connected'
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }`}
+                    >
                       {healthStatus.supabase}
                     </span>
                   </div>
                   <div className="flex items-center">
                     <span className="text-gray-600 mr-2">Database:</span>
-                    <span className={`font-semibold ${healthStatus.database === 'Connected' ? 'text-green-600' : 'text-red-600'}`}>
+                    <span
+                      className={`font-semibold ${
+                        healthStatus.database === 'Connected'
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }`}
+                    >
                       {healthStatus.database}
                     </span>
                   </div>
                   <div className="flex items-center">
                     <span className="text-gray-600 mr-2">Dagster:</span>
-                    <span className={`font-semibold ${healthStatus.dagster === 'Connected' ? 'text-green-600' : 'text-red-600'}`}>
+                    <span
+                      className={`font-semibold ${
+                        healthStatus.dagster === 'Connected'
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }`}
+                    >
                       {healthStatus.dagster}
                     </span>
                   </div>
@@ -341,11 +385,21 @@ const Settings = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Role
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -381,7 +435,9 @@ const Settings = () => {
                               />
                             </>
                           ) : (
-                            <span>{user.first_name} {user.surname}</span>
+                            <span>
+                              {user.first_name} {user.surname}
+                            </span>
                           )}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
@@ -479,21 +535,51 @@ const Settings = () => {
               <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
                 <Shield className="mr-2 text-purple-600" /> Permission Management
               </h2>
+              <div className="mb-4 flex items-center">
+                <input
+                  type="text"
+                  placeholder="Enter User ID"
+                  value={userIdFilter}
+                  onChange={(e) => setUserIdFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600"
+                />
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={fetchPermissions}
+                  className="ml-2 px-4 py-2 bg-purple-600 text-white rounded-lg flex items-center"
+                >
+                  <Search className="w-5 h-5 mr-1" />
+                  Search
+                </motion.button>
+              </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workflow</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Permission Level</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        User
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Workflow
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Permission Level
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {permissions.map((perm) => (
                       <tr key={perm.id}>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{perm.username}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{perm.workflow_name}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                          {perm.user_name}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                          {perm.workflow_id}
+                        </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                           {editingPermission === perm.id ? (
                             <select

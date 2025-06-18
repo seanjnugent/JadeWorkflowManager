@@ -317,16 +317,17 @@ def create_run_record(db: Session, workflow_id: int, triggered_by: int, input_pa
         logger.error(f"Failed to create run record: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create run record: {str(e)}")
+
+
 async def execute_dagster_workflow_direct(workflow: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, str]:
-    """Execute Dagster workflow via direct GraphQL API call - For Dagster 1.10.x"""
+    """Execute Dagster workflow via direct GraphQL API call - Updated for newer Dagster versions"""
     try:
         workflow_id = workflow["id"]
         job_name = f"workflow_job_{workflow_id}"
         location_name = workflow.get("dagster_location_name", "server.app.dagster.repo")
         repository_name = workflow.get("dagster_repository_name", "__repository__")
 
-        # Updated GraphQL mutation for Dagster 1.10.x
-        # Using the correct mutation structure
+        # Keep the original working GraphQL mutation 
         mutation = """
         mutation LaunchPipelineExecution(
             $repositoryLocationName: String!
@@ -345,6 +346,12 @@ async def execute_dagster_workflow_direct(workflow: Dict[str, Any], config: Dict
                 }
             ) {
                 __typename
+                ... on LaunchRunSuccess {
+                    run {
+                        runId
+                        status
+                    }
+                }
                 ... on LaunchPipelineRunSuccess {
                     run {
                         runId
@@ -421,7 +428,8 @@ async def execute_dagster_workflow_direct(workflow: Dict[str, Any], config: Dict
 
         launch_result = result.get("data", {}).get("launchPipelineExecution", {})
 
-        if launch_result.get("__typename") == "LaunchPipelineRunSuccess":
+        # Handle both old and new response types
+        if launch_result.get("__typename") in ["LaunchRunSuccess", "LaunchPipelineRunSuccess"]:
             run_info = launch_result["run"]
             run_id = run_info["runId"]
             status = run_info.get("status", "SUBMITTED")
@@ -440,6 +448,10 @@ async def execute_dagster_workflow_direct(workflow: Dict[str, Any], config: Dict
             error_msg = f"Pipeline not found: {launch_result.get('message', '')} (pipeline: {launch_result.get('pipelineName', job_name)})"
             logger.error(error_msg)
             raise HTTPException(status_code=404, detail=error_msg)
+        elif launch_result.get("__typename") == "JobNotFoundError":
+            error_msg = f"Job not found: {launch_result.get('message', '')} (job: {launch_result.get('jobName', job_name)})"
+            logger.error(error_msg)
+            raise HTTPException(status_code=404, detail=error_msg)
         elif launch_result.get("__typename") == "PythonError":
             error_msg = f"Python error: {launch_result.get('message', '')}"
             logger.error(error_msg)
@@ -456,6 +468,48 @@ async def execute_dagster_workflow_direct(workflow: Dict[str, Any], config: Dict
         logger.error(f"Error executing Dagster workflow: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Workflow execution failed: {str(e)}")
 
+
+def create_run_record(db: Session, workflow_id: int, triggered_by: int, input_path: str,
+                    dagster_run_id: str, status: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    """Create run record in database"""
+    try:
+        result = db.execute(
+            text("""
+                INSERT INTO workflow.run (
+                    workflow_id, triggered_by, status, input_file_path,
+                    dagster_run_id, config_used, started_at
+                ) VALUES (
+                    :workflow_id, :triggered_by, :status, :input_path,
+                    :dagster_run_id, :config, NOW()
+                )
+                RETURNING id, status, dagster_run_id
+            """),
+            {
+                "workflow_id": workflow_id,
+                "triggered_by": triggered_by,
+                "status": status,
+                "input_path": input_path,
+                "dagster_run_id": dagster_run_id,
+                "config": json.dumps(config)
+            }
+        )
+        run_record = result.fetchone()
+        if run_record is None:
+            raise Exception("No record returned from INSERT")
+        
+        run_id, run_status, run_dagster_run_id = run_record
+        db.commit()
+        
+        return {
+            "id": run_id,
+            "status": run_status,
+            "dagster_run_id": run_dagster_run_id
+        }
+    except Exception as e:
+        logger.error(f"Failed to create run record: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create run record: {str(e)}")
+    
 @router.post("/trigger")
 async def trigger_workflow_run(
     workflow_id: int = Form(...),
@@ -464,7 +518,7 @@ async def trigger_workflow_run(
     file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
-    """Trigger a workflow run"""
+    """Trigger a workflow run with improved success handling"""
     try:
         # Validate workflow exists and is active
         workflow = validate_workflow(workflow_id, db)
@@ -494,29 +548,43 @@ async def trigger_workflow_run(
         # Execute workflow in Dagster using direct GraphQL
         execution_result = await execute_dagster_workflow_direct(workflow, dagster_config)
 
-        # Create run record
+        # Create run record with the actual status from Dagster
         run_record = create_run_record(
             db, workflow["id"], triggered_by, input_path or "",
             execution_result["run_id"], execution_result["status"], dagster_config
         )
 
-        # Build response
+        # Build output path from config if available
         output_path = None
+        output_file_url = None
+        
         for op_name, op_config in dagster_config.get("ops", {}).items():
             if "save_output" in op_name and "config" in op_config:
                 output_path = op_config["config"].get("output_path")
+                if output_path:
+                    output_file_url = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/{output_path}"
                 break
 
+        # Build comprehensive response
         response = {
+            "success": True,
             "run_id": run_record["id"],
             "status": run_record["status"],
             "dagster_run_id": run_record["dagster_run_id"],
-            "message": f"Workflow {workflow['name']} triggered successfully"
+            "workflow_name": workflow["name"],
+            "workflow_id": workflow["id"],
+            "started_at": run_record["started_at"].isoformat() if run_record.get("started_at") else None,
+            "message": f"Workflow '{workflow['name']}' triggered successfully with status: {execution_result['status']}"
         }
 
-        if output_path:
-            response["output_file_url"] = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/{output_path}"
+        if output_file_url:
+            response["output_file_url"] = output_file_url
+            response["expected_output_path"] = output_path
 
+        if input_path:
+            response["input_file_path"] = input_path
+
+        logger.info(f"Successfully triggered workflow {workflow_id} with run ID {run_record['id']}")
         return response
 
     except HTTPException:
@@ -526,38 +594,192 @@ async def trigger_workflow_run(
         if 'db' in locals():
             db.rollback()
         raise HTTPException(status_code=500, detail=f"Workflow execution failed: {str(e)}")
+    
 
-# Test function to debug template substitution
-def test_template_substitution():
-    """Test function to verify template substitution works"""
-    template = {
-        "ops": {
-            "load_input": {
-                "config": {
-                    "input_path": "{input_file_path}",
-                    "output_path": "{output_file_path}",
-                    "workflow_id": "{workflow_id}"
+
+
+@router.get("/status/{run_id}")
+async def get_run_status(run_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Get the current status of a workflow run"""
+    try:
+        result = db.execute(
+            text("""
+                SELECT r.id, r.dagster_run_id, r.workflow_id, r.status, r.started_at, 
+                       r.finished_at, r.input_file_path, r.output_file_path, 
+                       r.error_message, r.duration_ms, w.name as workflow_name
+                FROM workflow.run r
+                LEFT JOIN workflow.workflow w ON r.workflow_id = w.id
+                WHERE r.id = :run_id
+            """),
+            {"run_id": run_id}
+        )
+        
+        run_record = result.fetchone()
+        if not run_record:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+        
+        return {
+            "run_id": run_record.id,
+            "dagster_run_id": run_record.dagster_run_id,
+            "workflow_id": run_record.workflow_id,
+            "workflow_name": run_record.workflow_name,
+            "status": run_record.status,
+            "started_at": run_record.started_at.isoformat() if run_record.started_at else None,
+            "finished_at": run_record.finished_at.isoformat() if run_record.finished_at else None,
+            "input_file_path": run_record.input_file_path,
+            "output_file_path": run_record.output_file_path,
+            "error_message": run_record.error_message,
+            "duration_ms": run_record.duration_ms
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get run status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get run status: {str(e)}")
+
+
+# New endpoint to sync run status from Dagster
+@router.post("/sync/{dagster_run_id}")
+async def sync_run_status_from_dagster(dagster_run_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Sync run status from Dagster GraphQL API for Dagster 1.10.x"""
+    try:
+        # GraphQL query for Dagster 1.10.x, including runConfig
+        query = """
+        query RunStatus($runId: ID!) {
+            runOrError(runId: $runId) {
+                __typename
+                ... on Run {
+                    id
+                    status
+                    startTime
+                    endTime
+                    runConfig
+                }
+                ... on RunNotFoundError {
+                    message
+                }
+                ... on PythonError {
+                    message
+                    stack
                 }
             }
         }
-    }
+        """
 
-    variables = {
-        "workflow_id": "22",
-        "input_file_path": "test/input.csv",
-        "output_file_path": "test/output.json"
-    }
+        dagster_url = f"http://{DAGSTER_HOST}:{DAGSTER_PORT}/graphql"
+        request_body = {
+            "query": query,
+            "variables": {"runId": dagster_run_id}
+        }
+        
+        logger.info(f"Sending GraphQL request: {json.dumps(request_body, indent=2)}")
+        
+        response = requests.post(
+            dagster_url,
+            json=request_body,
+            headers={"Content-Type": "application/json"},
+            timeout=30
+        )
 
-    result = substitute_template_variables(template, variables)
-    print("Template substitution test:")
-    print("Before:", json.dumps(template, indent=2))
-    print("Variables:", json.dumps(variables, indent=2))
-    print("After:", json.dumps(result, indent=2))
+        # Log response details for debugging
+        logger.info(f"HTTP Response Status: {response.status_code}")
+        logger.info(f"Raw response: {response.text}")
 
-    # Verify substitution worked
-    assert result["ops"]["load_input"]["config"]["workflow_id"] == "22"
-    assert "{workflow_id}" not in json.dumps(result)
-    print("✅ Template substitution test passed!")
+        response.raise_for_status()
+        result = response.json()
 
-# Uncomment to test:
-# test_template_substitution()
+        if "errors" in result:
+            error_msg = f"GraphQL errors: {result['errors']}"
+            logger.error(error_msg)
+            raise HTTPException(status_code=500, detail=error_msg)
+
+        run_data = result.get("data", {}).get("runOrError", {})
+
+        if run_data.get("__typename") == "RunNotFoundError":
+            raise HTTPException(status_code=404, detail=f"Dagster run {dagster_run_id} not found: {run_data.get('message')}")
+        
+        if run_data.get("__typename") == "PythonError":
+            error_msg = f"Dagster Python error: {run_data.get('message')}"
+            logger.error(error_msg)
+            raise HTTPException(status_code=500, detail=error_msg)
+
+        if run_data.get("__typename") != "Run":
+            raise HTTPException(status_code=500, detail=f"Unexpected response type: {run_data.get('__typename')}")
+
+        # Extract run data
+        status = run_data.get("status", "UNKNOWN")
+        start_time = run_data.get("startTime")
+        end_time = run_data.get("endTime")
+        run_config = run_data.get("runConfig")
+
+        # Calculate duration in milliseconds if both timestamps are available
+        duration_ms = None
+        if start_time and end_time:
+            duration_ms = (float(end_time) - float(start_time)) * 1000  # Convert seconds to milliseconds
+
+        # Extract output_path from any operation in run_config if status is SUCCESS
+        output_file_path = None
+        if status == "SUCCESS" and run_config:
+            try:
+                config_data = json.loads(run_config) if isinstance(run_config, str) else run_config
+                ops = config_data.get("ops", {})
+                for op_name, op_config in ops.items():
+                    output_path = op_config.get("config", {}).get("output_path")
+                    if output_path:
+                        output_file_path = output_path
+                        logger.info(f"Extracted output_path: {output_file_path} from operation {op_name} for run {dagster_run_id}")
+                        break
+                if not output_file_path:
+                    logger.warning(f"No output_path found in any operation config for run {dagster_run_id}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse run_config JSON: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Invalid run_config format: {str(e)}")
+            except Exception as e:
+                logger.error(f"Error extracting output_path from run_config: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to extract output_path: {str(e)}")
+
+        # Update database record
+        update_result = db.execute(
+            text("""
+                UPDATE workflow.run 
+                SET status = :status,
+                    finished_at = CASE WHEN :end_time IS NOT NULL THEN to_timestamp(:end_time) ELSE NULL END,
+                    duration_ms = :duration_ms,
+                    output_file_path = :output_file_path
+                WHERE dagster_run_id = :dagster_run_id
+                RETURNING id, status, finished_at, output_file_path
+            """),
+            {
+                "status": status,
+                "end_time": end_time,
+                "duration_ms": duration_ms,
+                "output_file_path": output_file_path,
+                "dagster_run_id": dagster_run_id
+            }
+        )
+
+        updated_record = update_result.fetchone()
+        if not updated_record:
+            raise HTTPException(status_code=404, detail=f"Local run record for {dagster_run_id} not found")
+
+        db.commit()
+
+        return {
+            "success": True,
+            "run_id": updated_record.id,
+            "dagster_run_id": dagster_run_id,
+            "status": updated_record.status,
+            "finished_at": updated_record.finished_at.isoformat() if updated_record.finished_at else None,
+            "duration_ms": duration_ms,
+            "output_file_path": updated_record.output_file_path,
+            "message": f"Successfully synced status: {status}"
+        }
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"HTTP request failed: {str(e)} - Response: {e.response.text if e.response else 'No response'}")
+        raise HTTPException(status_code=500, detail=f"Failed to connect to Dagster: {str(e)}")
+    except Exception as e:
+        logger.error(f"Failed to sync run status: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to sync run status: {str(e)}")

@@ -112,41 +112,41 @@ const NewRun = () => {
     
     setIsSubmitting(true);
     try {
-      const formData = new FormData();
-      formData.append('workflow_id', workflowId);
-      formData.append('triggered_by', 1); // Replace with actual user ID when available
-      
-      if (file) {
-        formData.append('file', file);
-      }
-      
-      if (Object.keys(parameters).length) {
-        formData.append('parameters', JSON.stringify(parameters));
-      }
-      
-      if (scheduleType !== 'none') {
-        formData.append('schedule', scheduleType);
-      }
+        const formData = new FormData();
+        formData.append('workflow_id', workflowId);
+        formData.append('triggered_by', 1); // Replace with actual user ID when available
+        
+        if (file) {
+            formData.append('file', file);
+        }
+        
+        if (Object.keys(parameters).length) {
+            formData.append('parameters', JSON.stringify(parameters));
+        }
+        
+        if (scheduleType !== 'none') {
+            formData.append('schedule', scheduleType);
+        }
 
-      const response = await fetch(`http://localhost:8000/runs/run/new`, {
-        method: 'POST',
-        body: formData,
-      });
+        const response = await fetch(`http://localhost:8000/runs/trigger`, { // Changed from /runs/run/new to /runs/trigger
+            method: 'POST',
+            body: formData,
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Run failed');
-      }
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Run failed');
+        }
 
-      const result = await response.json();
-      console.log('Run created successfully:', result);
-      
-      // Navigate to the runs page
-      navigate('/runs');
+        const result = await response.json();
+        console.log('Run created successfully:', result);
+        
+        // Navigate to the runs page
+        navigate('/runs');
     } catch (err) {
-      setError(err.message || 'Failed to start run');
+        setError(err.message || 'Failed to start run');
     } finally {
-      setIsSubmitting(false);
+        setIsSubmitting(false);
     }
   };
 

@@ -20,7 +20,8 @@ import {
   ChevronUp,
   Gauge,
   Timer,
-  HardDriveDownload
+  HardDriveDownload,
+  RefreshCw
 } from 'lucide-react';
 
 // Custom Components
@@ -30,6 +31,7 @@ const StatusBadge = ({ status }) => {
     running: { color: 'bg-blue-100 text-blue-800', icon: <Loader2 className="w-4 h-4 animate-spin" />, label: 'Running' },
     success: { color: 'bg-green-100 text-green-800', icon: <CheckCircle className="w-4 h-4" />, label: 'Success' },
     failed: { color: 'bg-red-100 text-red-800', icon: <XCircle className="w-4 h-4" />, label: 'Failed' },
+    failure: { color: 'bg-red-100 text-red-800', icon: <XCircle className="w-4 h-4" />, label: 'Failed' },
     skipped: { color: 'bg-yellow-100 text-yellow-800', icon: <SkipForward className="w-4 h-4" />, label: 'Skipped' }
   };
 
@@ -103,25 +105,43 @@ const Run = () => {
   const navigate = useNavigate();
   const [runData, setRunData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [syncLoading, setSyncLoading] = useState(false);
   const [error, setError] = useState(null);
   const [expandedLogs, setExpandedLogs] = useState({});
 
-  useEffect(() => {
-    const fetchRunData = async () => {
-      try {
-        const response = await fetch(`http://localhost:8000/runs/run/${runId}`);
-        if (!response.ok) throw new Error('Failed to fetch run data');
-        const data = await response.json();
-        setRunData(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchRunData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:8000/runs/run/${runId}`);
+      if (!response.ok) throw new Error('Failed to fetch run data');
+      const data = await response.json();
+      setRunData(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchRunData();
   }, [runId]);
+
+  const handleSync = async () => {
+    if (!runData?.run?.dagster_run_id) return;
+    try {
+      setSyncLoading(true);
+      const response = await fetch(`http://localhost:8000/runs/sync/${runData.run.dagster_run_id}`, {
+        method: 'POST'
+      });
+      if (!response.ok) throw new Error('Failed to sync run status');
+      await fetchRunData(); // Refresh data after sync
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSyncLoading(false);
+    }
+  };
 
   const toggleLogExpansion = (logId) => {
     setExpandedLogs(prev => ({
@@ -182,7 +202,21 @@ const Run = () => {
                 {run.workflow_description || 'No description available'}
               </p>
             </div>
-            <StatusBadge status={run.status} />
+            <div className="flex items-center gap-4">
+              <StatusBadge status={run.status} />
+              <button
+                onClick={handleSync}
+                disabled={syncLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
+              >
+                {syncLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Sync Status
+              </button>
+            </div>
           </div>
         </div>
 
@@ -202,7 +236,7 @@ const Run = () => {
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Triggered By</p>
                   <p className="flex items-center gap-2">
                     <User className="w-4 h-4 text-gray-500" />
-                    <span>{run.triggered_by_email || 'Unknown user'}</span>
+                    <span>{run.triggered_by_email || 'Unknown user'} ({run.triggered_by_username || 'N/A'})</span>
                   </p>
                 </div>
                 
@@ -254,6 +288,33 @@ const Run = () => {
                   <p className="text-sm font-medium text-gray-700 mb-1">Output File</p>
                   <p className="text-sm text-gray-600 truncate">{run.output_file_path || 'No output generated'}</p>
                 </div>
+              </div>
+            </div>
+
+            {/* Configuration */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
+                <Code className="w-5 h-5 text-gray-500" />
+                Configuration
+              </h2>
+              
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">Workflow ID</p>
+                  <p className="text-sm text-gray-600">{run.workflow_id || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">Dagster Run ID</p>
+                  <p className="text-sm text-gray-600">{run.dagster_run_id || 'N/A'}</p>
+                </div>
+                {run.config_used && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-1">Operations</p>
+                    <pre className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md overflow-auto">
+                      {JSON.stringify(run.config_used.ops, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -41,7 +41,7 @@ async def get_run_status(
             text("""
                 SELECT rs.*, ws.label as step_name
                 FROM workflow.run_step_status rs
-                JOIN workflow.workflow_step ws ON rs.step_id = ws.id
+                JOIN workflow.workflow_step ws ON rs.step_code = ws.step_code
                 WHERE rs.run_id = :run_id
                 ORDER BY ws.step_order
             """),

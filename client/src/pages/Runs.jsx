@@ -21,30 +21,29 @@ const Runs = () => {
   const limit = 20;
 
   // Fetch runs from API
-useEffect(() => {
-  setLoading(true);
-  fetch('http://localhost:8000/runs', {
-    headers: {
-      accept: 'application/json',
-    },
-  })
-    .then((res) => res.json())
-    .then((data) => {
-      if (data.runs && Array.isArray(data.runs)) {
-        setAllRuns(data.runs); // Access the 'runs' property
-      } else {
+  useEffect(() => {
+    setLoading(true);
+    fetch('http://localhost:8000/runs', {
+      headers: {
+        accept: 'application/json',
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.runs && Array.isArray(data.runs)) {
+          setAllRuns(data.runs); // Access the 'runs' property
+        } else {
+          setAllRuns([]);
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching runs:', err);
         setAllRuns([]);
-      }
-    })
-    .catch((err) => {
-      console.error('Error fetching runs:', err);
-      setAllRuns([]);
-    })
-    .finally(() => {
-      setLoading(false);
-    });
-}, []);
-
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
 
   const totalPages = Math.ceil(allRuns.length / limit);
 
@@ -54,34 +53,37 @@ useEffect(() => {
     }
   };
 
-const getStatusIcon = (status) => {
-  const normalizedStatus = status?.toLowerCase(); // Make case-insensitive
-  switch (normalizedStatus) {
-    case 'completed':
-      return <CheckCircle className="w-5 h-5 text-green-600" />;
-    case 'failed':
-      return <XCircle className="w-5 h-5 text-red-600" />;
-    case 'running':
-      return <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />;
-    default:
-      return <Clock className="w-5 h-5 text-gray-600" />;
-  }
-};
+  const getStatusIcon = (status) => {
+    const normalizedStatus = status?.toLowerCase(); // Make case-insensitive
+    switch (normalizedStatus) {
+      case 'completed':
+        return <CheckCircle className="w-5 h-5 text-green-600" />;
+      case 'success':
+        return <CheckCircle className="w-5 h-5 text-green-600" />;
+      case 'failure':
+        return <XCircle className="w-5 h-5 text-red-600" />;
+      case 'running':
+        return <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />;
+      default:
+        return <Clock className="w-5 h-5 text-gray-600" />;
+    }
+  };
 
-const getStatusBadge = (status) => {
-  const normalizedStatus = status?.toLowerCase(); // Make case-insensitive
-  switch (normalizedStatus) {
-    case 'completed':
-      return 'bg-green-100 text-green-700 border-green-200';
-    case 'failed':
-      return 'bg-red-100 text-red-700 border-red-200';
-    case 'running':
-      return 'bg-blue-100 text-blue-700 border-blue-200';
-    default:
-      return 'bg-gray-100 text-gray-700 border-gray-200';
-  }
-};
-
+  const getStatusBadge = (status) => {
+    const normalizedStatus = status?.toLowerCase(); // Make case-insensitive
+    switch (normalizedStatus) {
+      case 'completed':
+        return 'bg-green-100 text-green-700 border-green-200';
+      case 'success':
+        return 'bg-green-100 text-green-700 border-green-200';
+      case 'failure':
+        return 'bg-red-100 text-red-700 border-red-200';
+      case 'running':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
+      default:
+        return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
 
   const requestSort = (key) => {
     let direction = 'ascending';
@@ -112,7 +114,7 @@ const getStatusBadge = (status) => {
       (run) =>
         run.id.toString().includes(filter.toLowerCase()) ||
         run.workflow_id.toString().includes(filter.toLowerCase()) ||
-        run.status.includes(filter.toLowerCase())
+        run.status.toLowerCase().includes(filter.toLowerCase()) // Make case-insensitive
     );
   }, [allRuns, sortConfig, filter]);
 
