@@ -4,6 +4,7 @@ import routes from './routes';
 import Footer from './components/Footer';
 import Header from './components/Header';
 import ProtectedRoute from './components/ProtectedRoute';
+import '@scottish-government/design-system/dist/css/design-system.min.css';
 
 const AppContent = () => {
   const location = useLocation();

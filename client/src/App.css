@@ -1,106 +1,537 @@
-.App {
-  text-align: center;
+.sg-home {
+  padding: 2rem;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+.sg-search-bar {
+  margin-top: 1rem;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+.sg-input {
+  padding: 0.5rem;
+  width: 100%;
+  max-width: 600px;
+  font-size: 1.25rem;
+  border-radius: 4px;
+  border: 2px solid #ffffff;
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #fff; /* White placeholder text */
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+.sg-button {
+  padding: 0.5rem 1rem;
+  background-color: #0065bd;
+  border-color: #ffffff;
+  position: relative;
+  color: white;
+}
+
+.sg-button:hover {
+  background-color: #004b8c;
+  border-color: #ffffff;
+}
+
+.sg-button::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7.5px solid #ffffff;
+}
+
+.ds_hint-text {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+hr {
+  border:
+none;
+  border-top:
+1px solid #b3b3b3;
+  margin-top: 1.5rem;
+  margin-bottom: calc(1.5rem + -1px);
+}
+
+/* Add these styles to your CSS */
+.ds_site-header {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 1000;
+  transition: transform 0.3s ease-in-out;
+  /* Ensure these match your existing header styles */
+  background: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.ds_page {
+  padding-top: var(--header-height, 150px); /* Fallback value */
+}
+
+.header-hidden {
+  transform: translateY(-100%);
+}
+
+/* Add these CSS rules to your App.css file to ensure keyboard accessibility */
+
+/* Ensure mobile navigation menu is visible when open */
+.ds_site-navigation--mobile.ds_site-navigation--open {
+  display: block;
+}
+
+/* Ensure focus state is clearly visible */
+.ds_site-navigation__link:focus,
+.ds_site-header__control:focus {
+  outline: 2px solid #0065bd;
+  outline-offset: 3px;
+}
+
+/* Add focus styles for links */
+.ds_site-navigation__link:focus-visible {
+  outline: 2px solid #0065bd;
+  outline-offset: 3px;
+}
+
+/* Remove default button styles */
+.ds_site-header__control {
+  border: none;
+  background: none;
+  padding: 8px;
+  cursor: pointer;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  color: inherit;
+  font: inherit;
+}
+
+/* Make sure menu button shows hand cursor */
+.ds_site-header__control {
+  cursor: pointer;
+}
+
+/* Style menu button properly for keyboard navigation */
+.ds_site-header__control:focus,
+.ds_site-header__control:focus-visible {
+  outline: 2px solid #0065bd;
+  outline-offset: 3px;
+}
+
+/* Hide checkbox */
+.ds_site-navigation__toggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* back to top */
+/* Hide checkbox */
+.ds_site-navigation__toggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* back to top */
+.custom_back-to-top {
+  transition: all 0.00s ease;
+}
+
+.custom_back-to-top__button {
+  display: flex;
   align-items: center;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
+  color: #0065bd;
+  font-family: Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  padding: 8px 16px;
+  transition: all 0.00s ease;
+  font-weight: bold;
+}
+
+.custom_back-to-top__button:hover {
+  color: #003f87; /* Darker shade for hover */
+}
+
+.custom_back-to-top__icon {
+  margin-left: 8px;
+  fill: #0065bd; /* Matches text color */
+  transition: fill 0.00s ease;
+}
+
+.custom_back-to-top__button:hover .custom_back-to-top__icon {
+  fill: #003f87; /* Matches text hover color */
+}
+
+@media (max-width: 767px) {
+  .custom_back-to-top {
+    position: fixed;
+    right: 10px !important;
+    bottom: 10px !important;
+    top: auto !important;
+  }
+  
+  .custom_back-to-top__button {
+    padding: 6px 12px;
+    font-size: 14px;
+    text-decoration: underline;
+    font-weight: bold;
+  }
+
+  .custom_back-to-top__button:hover {
+    color: #003f87;
+  }
+
+  .custom_back-to-top__button:hover .custom_back-to-top__icon {
+    fill: #003f87;
+  }
+}
+
+/* Add this CSS to your stylesheet */
+@media (max-width: 768px) {
+  .ds_layout--search-results--filters {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ds_layout__sidebar {
+    order: 2; /* Place sidebar below content */
+    width: 100%;
+  }
+
+  .ds_layout__content {
+    order: 1;
+    width: 100%;
+  }
+
+  .ds_layout__list {
+    order: 3;
+    width: 100%;
+  }
+
+  .ds_layout__header {
+    order: 0;
+    width: 100%;
+  }
+}
+
+/* Additional styles for the Scottish Government header user actions */
+
+.ds_site-navigation__wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.ds_site-header__user-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+.ds_site-header__action-icon,
+.ds_site-header__action-avatar,
+.ds_site-header__action-logout {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   color: white;
-}
-
-.App-link {
-  color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.loader {
-  width: 16px;
-  height: 16px;
-  box-shadow: 0 30px, 0 -30px;
+  padding: 0.5rem;
   border-radius: 4px;
-  background: currentColor;
-  display: block;
-  margin: -50px auto 0;
-  position: relative;
-  color: #FFF;
-  transform: translateY(30px);
-  box-sizing: border-box;
-  animation: animloader 2s ease infinite;
-}
-.loader::after,
-.loader::before {
-  content: '';  
-  box-sizing: border-box;
-  width: 16px;
-  height: 16px;
-  box-shadow: 0 30px, 0 -30px;
-  border-radius: 4px;
-  background: currentColor;
-  color: #FFF;
-  position: absolute;
-  left: 30px;
-  top: 0;
-  animation: animloader 2s 0.2s ease infinite;
-}
-.loader::before {
-  animation-delay: 0.4s;
-  left: 60px;
-}
-
-@keyframes animloader {
-  0% {
-    top: 0;
-    color: white;
-  }
-  50% {
-    top: 30px;
-    color: rgba(255, 255, 255, 0.2);
-  }
-  100% {
-    top: 0;
-    color: white;
-  }
-}
-body {
-  font-family: 'Inter', sans-serif;
-}
-input[type="file"]::-webkit-file-upload-button {
-  visibility: hidden;
-}
-input[type="file"]::before {
-  content: 'Select File';
-  display: inline-block;
-  background: #3b82f6;
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 400;
 }
-input[type="file"]::before:hover {
-  background: #2563eb;
+
+.ds_site-header__action-icon:hover,
+.ds_site-header__action-avatar:hover,
+.ds_site-header__action-logout:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.ds_site-header__action-icon:focus,
+.ds_site-header__action-avatar:focus,
+.ds_site-header__action-logout:focus {
+  outline: 2px solid #ffd100;
+  outline-offset: 2px;
+}
+
+.ds_site-header__avatar-initials {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+.ds_site-header__logout-text {
+  font-size: 0.875rem;
+}
+
+/* Hide user actions on mobile */
+@media (max-width: 768px) {
+  .ds_site-header__user-actions {
+    display: none;
+  }
+}
+
+/* Mobile menu adjustments for user actions */
+.ds_site-navigation--mobile .ds_site-header__user-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 1rem;
+}
+
+.ds_site-navigation--mobile .ds_site-header__action-icon,
+.ds_site-navigation--mobile .ds_site-header__action-avatar,
+.ds_site-navigation--mobile .ds_site-header__action-logout {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 0.75rem;
+}
+
+/* Hide header animation */
+.header-hidden {
+  transform: translateY(-100%);
+  transition: transform 0.3s ease-in-out;
+}
+
+/* Skip links styling */
+.ds_skip-links {
+  position: absolute;
+  left: -9999px;
+  z-index: 999;
+}
+
+.ds_skip-links:focus-within {
+  position: static;
+  left: auto;
+}
+
+.ds_skip-links__link:focus {
+  position: absolute;
+  left: 6px;
+  top: 7px;
+  z-index: 999;
+  background: #0065bd;
+  color: white;
+  padding: 8px 16px;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+/* Ensure proper Scottish Government branding */
+.ds_site-branding__logo-image {
+  height: 40px;
+  width: auto;
+}
+
+.ds_site-branding__title {
+  font-family: 'Roboto', Arial, sans-serif;
+  font-weight: 400;
+  color: white;
+}
+
+/* Additional styles for the Scottish Government header user actions */
+
+.ds_site-header__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 60px;
+}
+
+.ds_site-header__user-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  margin-right: 1rem;
+}
+
+.ds_site-header__action-button {
+  background: 0065bd;
+  border: none;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  height: 40px;
+  font-family: inherit;
+}
+
+.ds_site-header__action-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ds_site-header__action-button:focus {
+  outline: 2px solid #ffd100;
+  outline-offset: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ds_site-header__action-button:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ds_site-header__action-icon {
+  padding: 0.5rem;
+  width: 40px;
+  justify-content: center;
+}
+
+.ds_site-header__action-avatar {
+  padding: 0.25rem;
+  width: 40px;
+  justify-content: center;
+}
+
+.ds_site-header__avatar-initials {
+  background: #0065bd;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: rgb(255, 255, 255);
+}
+
+.ds_site-header__action-logout {
+  background: #0065bd;
+  min-width: 80px;
+  justify-content: center;
+}
+
+.ds_site-header__logout-text {
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+/* Ensure branding doesn't get squeezed */
+.ds_site-branding {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.ds_site-branding__title {
+  font-family: 'Roboto', Arial, sans-serif;
+  font-weight: 400;
+  color: rgb(0, 0, 0);
+  white-space: nowrap;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .ds_site-header__user-actions {
+    display: none;
+  }
+  
+  .ds_site-branding__title {
+    font-size: 1rem;
+  }
+}
+
+/* Show user actions in mobile menu */
+.ds_site-navigation--mobile::after {
+  content: '';
+  display: block;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin: 1rem 0 0.5rem 0;
+}
+
+/* Add mobile user actions to the mobile navigation */
+@media (max-width: 768px) {
+  .ds_site-navigation--mobile .ds_site-navigation__list::after {
+    content: '';
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    margin-top: 1rem;
+  }
+}
+
+/* Hide header animation */
+.header-hidden {
+  transform: translateY(-100%);
+  transition: transform 0.3s ease-in-out;
+}
+
+/* Skip links styling */
+.ds_skip-links {
+  position: absolute;
+  left: -9999px;
+  z-index: 999;
+}
+
+.ds_skip-links:focus-within {
+  position: static;
+  left: auto;
+}
+
+.ds_skip-links__link:focus {
+  position: absolute;
+  left: 6px;
+  top: 7px;
+  z-index: 999;
+  background: #0065bd;
+  color: white;
+  padding: 8px 16px;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+/* Ensure proper Scottish Government branding */
+.ds_site-branding__logo-image {
+  height: 40px;
+  width: auto;
+}
+
+.ds_site-branding__title {
+  font-family: 'Roboto', Arial, sans-serif;
+  font-weight: 400;
 }

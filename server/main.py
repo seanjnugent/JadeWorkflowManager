@@ -43,6 +43,7 @@ from routes.users.user_authentication import router as user_authentication
 from routes.users.user_details import router as user_details
 from routes.users.user_list import router as user_list
 from routes.dags.post_new_dag import router as post_new_dag_router
+from routes.dags.get_dag_repo_access import router as dag_repo_access
 
 # Include routers
 app.include_router(health_check_router)
@@ -64,6 +65,7 @@ app.include_router(connections_router)
 app.include_router(update_workflow_router)
 app.include_router(new_workflow_steps_router)
 app.include_router(post_new_dag_router)
+app.include_router(dag_repo_access)
 app.include_router(post_new_run_router)
 
 # Users

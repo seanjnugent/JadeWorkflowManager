@@ -2,53 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ChevronRight,
-  Clock,
-  CheckCircle,
-  XCircle,
-  FileText,
-  Database,
-  Plug,
   ChevronLeft,
   Play,
-  UploadCloud,
-  MoreHorizontal,
-  ChevronDown,
-  ChevronUp,
-  AlertCircle,
-  Edit,
-  Download,
-  RefreshCw
+  FileText,
+  CircleCheckBig,
+  CircleAlert,
+  GitBranch,
+  CircleHelp,
+  Github
 } from 'lucide-react';
-
-// CSS for the spinner
-const spinnerStyles = `
-  .spinner {
-    border: 2px solid #e5e7eb;
-    border-top: 2px solid #4B5563;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    display: inline-block;
-  }
-  .spinner-small {
-    width: 12px;
-    height: 12px;
-  }
-  .spinner-large {
-    width: 40px;
-    height: 40px;
-  }
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-`;
-
-// Inject spinner styles
-const styleSheet = document.createElement('style');
-styleSheet.type = 'text/css';
-styleSheet.innerText = spinnerStyles;
-document.head.appendChild(styleSheet);
 
 // Custom Tooltip Component
 const CustomTooltip = ({ content, children }) => {
@@ -62,37 +24,10 @@ const CustomTooltip = ({ content, children }) => {
         {children}
       </div>
       {isVisible && (
-        <div className="absolute z-10 w-48 p-2 text-sm text-white bg-gray-800 rounded-lg shadow-lg">
+        <div className="absolute z-10 w-64 p-2 text-sm text-white bg-gray-800 rounded-lg shadow-lg">
           {content}
         </div>
       )}
-    </div>
-  );
-};
-
-// Discreet Dagster Status Component
-const DagsterStatus = ({ status }) => {
-  const statusConfig = {
-    not_published: {
-      color: 'bg-gray-200',
-      text: 'Not Published',
-      textColor: 'text-gray-600'
-    },
-    created: {
-      color: 'bg-amber-100',
-      text: 'DAG Created',
-      textColor: 'text-amber-800'
-    },
-    ready: {
-      color: 'bg-green-100',
-      text: 'Ready',
-      textColor: 'text-green-800'
-    }
-  };
-  const config = statusConfig[status] || statusConfig.not_published;
-  return (
-    <div className={`inline-flex items-center rounded-full ${config.color} ${config.textColor} text-xs font-medium px-3 py-1`}>
-      <span className="text-xs">{config.text}</span>
     </div>
   );
 };
@@ -102,37 +37,39 @@ const InputStructureModal = ({ isOpen, onClose, inputStructure }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white glass-effect rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
-        <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="font-medium text-gray-800">Input File Structure</h3>
+      <div className="bg-white rounded-xl border max-w-4xl w-full max-h-[90vh] flex flex-col">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+          <h4 className="font-semibold text-lg">Input File Structure</h4>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-600 hover:text-gray-900"
           >
             ✕
           </button>
         </div>
-        <div className="p-4 overflow-auto flex-grow">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-2">Column Name</th>
-                <th className="text-left py-2">Type</th>
-                <th className="text-left py-2">Required</th>
-                <th className="text-left py-2">Description</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inputStructure.columns.map((col, index) => (
-                <tr key={index} className="border-b border-gray-100">
-                  <td className="py-2">{col.name}</td>
-                  <td className="py-2">{col.type}</td>
-                  <td className="py-2">{col.required ? 'Yes' : 'No'}</td>
-                  <td className="py-2">{col.description}</td>
+        <div className="p-6 overflow-auto flex-grow">
+          <div className="relative w-full overflow-x-auto">
+            <table className="w-full caption-bottom text-sm">
+              <thead className="[&_tr]:border-b bg-gray-50">
+                <tr className="border-b-2 border-gray-200">
+                  <th className="h-10 text-left align-middle font-semibold text-gray-900 py-4 px-6">Column Name</th>
+                  <th className="h-10 text-left align-middle font-semibold text-gray-900 py-4 px-6">Type</th>
+                  <th className="h-10 text-left align-middle font-semibold text-gray-900 py-4 px-6">Required</th>
+                  <th className="h-10 text-left align-middle font-semibold text-gray-900 py-4 px-6">Description</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="[&_tr:last-child]:border-0">
+                {inputStructure.columns.map((col) => (
+                  <tr key={col.name} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                    <td className="py-4 px-6">{col.name}</td>
+                    <td className="py-4 px-6">{col.type}</td>
+                    <td className="py-4 px-6">{col.required ? 'Yes' : 'No'}</td>
+                    <td className="py-4 px-6">{col.description}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -140,92 +77,110 @@ const InputStructureModal = ({ isOpen, onClose, inputStructure }) => {
 };
 
 // GitHub DAG Link Component
-const GitHubDagLink = ({ dagPath, repoOwner, repoName, accessToken }) => {
-  const [isAuthorized, setIsAuthorized] = useState(false);
+const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
+  const [dagInfo, setDagInfo] = useState({ authorized: false });
   const [loading, setLoading] = useState(true);
 
-  // Convert dag_path to GitHub file path
-  const filePath = dagPath.replace(/\./g, '/').replace('server/app/dagster/jobs/', 'server/app/dagster/jobs/') + '.py';
-  const githubUrl = `https://github.com/${repoOwner}/${repoName}/blob/main/${filePath}`;
+  // Construct file path and GitHub URL
+  const filePath = dagPath.split('.').pop(); // e.g., 'workflow_job_2' from 'server.app.dagster.jobs.workflow_job_2'
+  const githubUrl = `https://github.com/${repoOwner}/${repoName}/blob/main/DAGs/${filePath}.py`;
 
   useEffect(() => {
-    // Check if user has access to the repository
-    const checkAccess = async () => {
+    const fetchDagInfo = async () => {
       try {
-        const response = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePath}`, {
-          headers: {
-            Authorization: `token ${accessToken}`,
-            Accept: 'application/vnd.github.v3+json'
-          }
+        const response = await fetch(`http://localhost:8000/api/github-dag-info?dag_path=${filePath}`, {
+          headers: { 'Accept': 'application/json' }
         });
-        if (response.ok) {
-          setIsAuthorized(true);
-        } else {
-          setIsAuthorized(false);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        setDagInfo(data);
+        if (data.authorized) {
+          setVersionControl({
+            version: 'v2.1.0', // Hardcoded; replace with dynamic version if available
+            lastModified: new Date(data.last_updated).toLocaleDateString(),
+            modifiedBy: data.author
+          });
         }
       } catch (error) {
-        console.error('Error checking GitHub access:', error);
-        setIsAuthorized(false);
+        console.error('Error fetching GitHub DAG info:', error);
+        setDagInfo({ authorized: false });
       } finally {
         setLoading(false);
       }
     };
-    checkAccess();
-  }, [repoOwner, repoName, filePath, accessToken]);
+    fetchDagInfo();
+  }, [filePath, repoOwner, repoName, setVersionControl]);
 
   if (loading) {
-    return <span className="spinner spinner-small"></span>;
+    return <span className="inline-block h-8 w-8 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin"></span>;
   }
 
+  // Format tooltip content with metadata
+  const tooltipContent = dagInfo.authorized ? (
+    <div className="space-y-1">
+      <p>View DAG in GitHub</p>
+      <p className="text-xs">Last updated: {new Date(dagInfo.last_updated).toLocaleString()}</p>
+      <p className="text-xs">Author: {dagInfo.author}</p>
+      <p className="text-xs">Commit: {dagInfo.commit_message.split('\n')[0]}</p>
+    </div>
+  ) : (
+    'No access to GitHub repository'
+  );
+
   return (
-    <CustomTooltip content={isAuthorized ? 'View DAG in GitHub' : 'No access to GitHub repository'}>
+    <CustomTooltip content={tooltipContent}>
       <a
-        href={isAuthorized ? githubUrl : '#'}
-        target={isAuthorized ? '_blank' : undefined}
-        rel={isAuthorized ? 'noopener noreferrer' : undefined}
-        className={`inline-flex items-center rounded-full bg-gray-100 text-gray-700 text-xs font-medium px-3 py-1 ${isAuthorized ? 'hover:bg-gray-200' : 'opacity-50 cursor-not-allowed'}`}
+        href={dagInfo.authorized ? githubUrl : '#'}
+        target={dagInfo.authorized ? '_blank' : undefined}
+        rel={dagInfo.authorized ? 'noopener noreferrer' : undefined}
+        className={`w-full inline-flex items-center justify-center bg-white border rounded-md px-3 py-2 text-sm no-underline hover:no-underline ${!dagInfo.authorized ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
-        <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" className="w-4 h-4 mr-1" />
-        <span>View DAG</span>
+        <Github className="h-4 w-4 mr-2" aria-hidden="true" />
+        View on GitHub
       </a>
     </CustomTooltip>
   );
 };
 
-// Function to get the status icon
-const getStatusIcon = (status) => {
-  const normalizedStatus = status?.toLowerCase();
-  switch (normalizedStatus) {
-    case 'completed':
-      return <CheckCircle className="w-4 h-4 text-green-600" />;
-    case 'success':
-      return <CheckCircle className="w-4 h-4 text-green-600" />;
-    case 'failed':
-    case 'failure':
-      return <XCircle className="w-4 h-4 text-red-600" />;
-    case 'running':
-      return <RefreshCw className="w-4 h-4 text-blue-600 animate-spin" />;
-    default:
-      return <Clock className="w-4 h-4 text-gray-600" />;
-  }
-};
-
-// Function to get the status badge
-const getStatusBadge = (status) => {
-  const normalizedStatus = status?.toLowerCase();
-  switch (normalizedStatus) {
-    case 'completed':
-      return 'bg-green-100 text-green-700';
-    case 'success':
-      return 'bg-green-100 text-green-700';
-    case 'failed':
-    case 'failure':
-      return 'bg-red-100 text-red-700';
-    case 'running':
-      return 'bg-blue-100 text-blue-700';
-    default:
-      return 'bg-gray-100 text-gray-700';
-  }
+// Status Badge Component
+const StatusBadge = ({ status }) => {
+  const statusConfig = {
+    completed: {
+      color: 'bg-green-100 text-green-800 border-green-200',
+      icon: <CircleCheckBig className="h-4 w-4 text-green-600" aria-hidden="true" />,
+      text: 'Completed'
+    },
+    success: {
+      color: 'bg-green-100 text-green-800 border-green-200',
+      icon: <CircleCheckBig className="h-4 w-4 text-green-600" aria-hidden="true" />,
+      text: 'Completed'
+    },
+    failed: {
+      color: 'bg-red-100 text-red-800 border-red-200',
+      icon: <CircleAlert className="h-4 w-4 text-red-600" aria-hidden="true" />,
+      text: 'Failed'
+    },
+    running: {
+      color: 'bg-blue-100 text-blue-800 border-blue-200',
+      icon: <svg className="h-4 w-4 text-blue-600 animate-spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>,
+      text: 'Running'
+    }
+  };
+  const config = statusConfig[status?.toLowerCase()] || {
+    color: 'bg-gray-100 text-gray-800 border-gray-200',
+    icon: <svg className="h-4 w-4 text-gray-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>,
+    text: status || 'Unknown'
+  };
+  return (
+    <div className="flex items-center space-x-2">
+      {config.icon}
+      <span className={`inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 border ${config.color}`}>
+        {config.text}
+      </span>
+    </div>
+  );
 };
 
 const Workflow = () => {
@@ -233,12 +188,11 @@ const Workflow = () => {
   const navigate = useNavigate();
   const [workflowDetails, setWorkflowDetails] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [publishing, setPublishing] = useState(false);
   const [running, setRunning] = useState(false);
   const [showInputModal, setShowInputModal] = useState(false);
+  const [versionControl, setVersionControl] = useState(null);
 
-  // GitHub configuration from .env
-  const GITHUB_ACCESS_TOKEN = process.env.REACT_APP_GITHUB_ACCESS_TOKEN || 'REDACTED';
+  // GitHub configuration
   const GITHUB_REPO_OWNER = 'seanjnugent';
   const GITHUB_REPO_NAME = 'DataWorkflowTool-Workflows';
 
@@ -253,49 +207,11 @@ const Workflow = () => {
       .finally(() => setLoading(false));
   }, [workflowId]);
 
-  const handlePublishDag = async () => {
-    if (!publishing && workflowDetails?.workflow?.dag_status !== 'ready') {
-      setPublishing(true);
-      try {
-        await fetch(`http://localhost:8000/dags/dag/new`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'accept': 'application/json'
-          },
-          body: JSON.stringify({
-            workflow_id: parseInt(workflowId),
-            workflow_name: workflowDetails?.workflow?.name || 'Unnamed Workflow'
-          })
-        });
-
-        setTimeout(async () => {
-          try {
-            const response = await fetch(`http://localhost:8000/workflows/workflow/${workflowId}`, {
-              headers: { 'accept': 'application/json' }
-            });
-            const updatedData = await response.json();
-            setWorkflowDetails(updatedData);
-          } catch (error) {
-            console.error('Error refreshing workflow:', error);
-          }
-        }, 3000);
-      } catch (error) {
-        console.error('Error publishing DAG:', error);
-      } finally {
-        setPublishing(false);
-      }
-    }
-  };
-
   const handleStartRun = () => {
-    if (workflowDetails?.workflow?.dag_status === 'ready') {
+    if (workflowDetails?.workflow?.dag_status === 'ready' && !running) {
+      setRunning(true);
       navigate(`/runs/new/${workflowId}`);
     }
-  };
-
-  const handleEdit = () => {
-    navigate(`/workflows/workflow/${workflowId}/edit`);
   };
 
   const handleDownloadTemplate = () => {
@@ -311,290 +227,343 @@ const Workflow = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <span className="spinner spinner-large"></span>
-      </div>
+      <main className="py-8 bg-gray-50 min-h-screen">
+        <div className="container mx-auto flex justify-center items-center">
+          <span className="inline-block h-10 w-10 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin"></span>
+        </div>
+      </main>
     );
   }
 
   if (!workflowDetails) {
-    return <div className="min-h-screen flex justify-center items-center">No workflow details available.</div>;
+    return (
+      <main className="py-8 bg-gray-50 min-h-screen">
+        <div className="container mx-auto flex justify-center items-center">
+          <div className="text-gray-600">No workflow details available.</div>
+        </div>
+      </main>
+    );
   }
 
   const { workflow, destination, recent_runs } = workflowDetails;
   const isDagReady = workflow?.dag_status === 'ready';
 
   return (
-    <motion.div
-      className="min-h-screen bg-gray-50"
+    <motion.main
+      className="py-8 bg-gray-50 min-h-screen"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto">
         {/* Header Section */}
-        <div className="mb-8 bg-white glass-effect rounded-lg shadow-sm p-6 hover-scale">
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-              <button
-                onClick={() => navigate('/workflows')}
-                className="text-gray-600 hover:text-gray-800 text-sm flex items-center mb-4"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" /> Back to Workflows
-              </button>
-              <div className="mb-6">
-                <div className="flex justify-between items-center">
-                  <h1 className="text-3xl font-bold text-gray-900">{workflow?.name}</h1>
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-6">
+            <button
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 hover:text-accent-foreground hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-400 focus-visible:bg-yellow-50 h-9 px-4 py-2"
+              onClick={() => navigate('/workflows')}
+            >
+              <ChevronLeft className="h-4 w-4 mr-2" aria-hidden="true" />
+              Back to Workflows
+            </button>
+          </div>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold">{workflow?.name}</h1>
+              <p className="text-gray-600 mt-2 mb-4 text-sm">{workflow?.description || 'No description provided.'}</p>
+              <div className="flex items-center gap-4">
+                <span className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 border bg-blue-100 text-blue-800 border-blue-200">
+                  {workflow?.destination || 'API'}
+                </span>
+                <div className="flex items-center text-sm text-gray-600">
+                  <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                  {versionControl?.modifiedBy || 'Health Analytics Team'}
                 </div>
-                <p className="text-lg text-gray-700 mt-2">{workflow?.description || 'No description provided.'}</p>
+                <div className="flex items-center text-sm text-gray-600">
+                  <svg className="h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" />
+                  </svg>
+                  Last updated: {new Date(workflow.updated_at).toLocaleDateString()}
+                </div>
               </div>
             </div>
-            <CustomTooltip content={!isDagReady ? "DAG not ready - Publish to Dagster first" : "Execute this workflow now"}>
-              <motion.button
-                whileHover={isDagReady ? { scale: 1.05 } : {}}
-                whileTap={isDagReady ? { scale: 0.95 } : {}}
-                onClick={isDagReady ? handleStartRun : undefined}
-                className={`bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg p-4 shadow-lg shadow-blue-500/20 transition-all flex items-center ${!isDagReady ? 'opacity-50 cursor-not-allowed from-gray-400 to-gray-500 shadow-gray-400/20' : 'hover:from-blue-700 hover:to-cyan-600'}`}
-                disabled={!isDagReady}
-              >
-                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mr-3">
+            <div className="flex flex-col sm:flex-row gap-3 mt-6 lg:mt-0">
+              <CustomTooltip content={!isDagReady ? 'DAG not ready' : 'Execute this workflow now'}>
+                <button
+                  className={`inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 rounded-sm px-6 py-3 bg-blue-600 text-white ${!isDagReady ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={handleStartRun}
+                  disabled={!isDagReady || running}
+                >
                   {running ? (
-                    <Clock className="w-5 h-5 animate-spin" />
+                    <svg className="h-4 w-4 mr-2 animate-spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
                   ) : (
-                    <Play className="w-5 h-5" />
+                    <Play className="h-4 w-4 mr-2" aria-hidden="true" />
                   )}
-                </div>
-                <div className="text-left">
-                  <h3 className="text-lg font-bold">Start Run</h3>
-                  <p className="text-sm text-white/80">
-                    {isDagReady ? 'Execute this workflow now' : 'DAG not ready'}
-                  </p>
-                </div>
-              </motion.button>
-            </CustomTooltip>
-          </div>
-
-          {/* Metadata & Edit Icon */}
-          <div className="mt-6 pt-6 border-t border-gray-100 flex justify-between items-center">
-            <div className="space-x-6 text-sm text-gray-500 flex">
-              <div className="flex items-center space-x-1">
-                <span>Date Created:</span>
-                <span className="text-gray-700 font-medium">{new Date(workflow.created_at).toLocaleDateString()}</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <span>Last Updated:</span>
-                <span className="text-gray-700 font-medium">{new Date(workflow.updated_at).toLocaleDateString()}</span>
-              </div>
-            </div>
-            <CustomTooltip content="Edit Workflow">
-              <button
-                onClick={handleEdit}
-                className="p-1 rounded-full hover:bg-gray-200 transition-colors"
-              >
-                <Edit className="w-5 h-5 text-gray-500 hover:text-gray-700" />
-              </button>
-            </CustomTooltip>
-          </div>
-
-          {/* Status Bar */}
-          <div className="mt-6 pt-6 border-t border-gray-100">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wider">Status</p>
-                <p className="font-medium capitalize">{workflow?.status}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wider">Last Run</p>
-                <p className="font-medium">
-                  {workflow?.last_run_at ? new Date(workflow.last_run_at).toLocaleString() : 'Never'}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wider">Schedule</p>
-                <p className="font-medium">{workflow?.schedule || 'None'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wider">Dagster</p>
-                <div className="flex items-center space-x-2">
-                  <DagsterStatus status={workflow?.dag_status || 'not_published'} />
-                  {workflow?.dag_path && (
-                    <GitHubDagLink
-                      dagPath={workflow.dag_path}
-                      repoOwner={GITHUB_REPO_OWNER}
-                      repoName={GITHUB_REPO_NAME}
-                      accessToken={GITHUB_ACCESS_TOKEN}
-                    />
-                  )}
-                  {!isDagReady && (
-                    <button
-                      onClick={handlePublishDag}
-                      className="text-gray-500 hover:text-gray-700 text-sm flex items-center"
-                      disabled={publishing}
-                    >
-                      {publishing ? (
-                        <span className="mr-1 flex items-center">
-                          <span className="spinner spinner-small"></span>
-                        </span>
-                      ) : (
-                        <UploadCloud className="w-3 h-3 mr-1" />
-                      )}
-                      Publish
-                    </button>
-                  )}
-                </div>
-              </div>
+                  Begin Workflow
+                </button>
+              </CustomTooltip>
             </div>
           </div>
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column (Recent Runs Only) */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Recent Runs */}
-            <div className="bg-white glass-effect rounded-lg shadow-sm p-5 hover-scale">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                <Clock className="w-5 h-5 text-gray-500 mr-2" />
-                Recent Runs
-              </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          {/* Latest Run Status */}
+          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border border-l-4 border-l-green-600">
+            <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 pb-3">
+              <h4 className="leading-none flex items-center">
+                <CircleCheckBig className="h-5 w-5 mr-2 text-green-600" aria-hidden="true" />
+                Latest Run Status
+              </h4>
+            </div>
+            <div className="px-6">
               <div className="space-y-3">
-                {recent_runs?.length > 0 ? (
-                  recent_runs.map((run) => (
-                    <div
-                      key={run.id}
-                      className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors duration-150"
-                      onClick={() => navigate(`/runs/run/${run.id}`)}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-medium text-gray-800">Run #{run.id}</p>
-                          <p className="text-sm text-gray-600">
-                            {new Date(run.started_at).toLocaleString()}
-                          </p>
-                        </div>
-                        <div>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(run.status)}`}>
-                            {getStatusIcon(run.status)}
-                            <span className="ml-1 capitalize">{run.status}</span>
-                          </span>
-                        </div>
-                      </div>
-                      {run.error_message && (
-                        <p className="text-xs text-red-600 mt-2">{run.error_message}</p>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500">No recent runs</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Status:</span>
+                  <StatusBadge status={recent_runs?.[0]?.status || 'Unknown'} />
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Duration:</span>
+                  <span className="text-sm font-medium text-gray-900">{recent_runs?.[0]?.duration || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Records processed:</span>
+                  <span className="text-sm font-medium text-gray-900">{recent_runs?.[0]?.records?.toLocaleString() || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Last run:</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {recent_runs?.[0]?.started_at ? new Date(recent_runs[0].started_at).toLocaleString() : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Version Control */}
+          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border border-l-4 border-l-blue-600">
+            <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 pb-3">
+              <h4 className="leading-none flex items-center">
+                <GitBranch className="h-5 w-5 mr-2 text-blue-600" aria-hidden="true" />
+                Version Control
+              </h4>
+            </div>
+            <div className="px-6">
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Current version:</span>
+                  <span className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 border bg-blue-100 text-blue-800 border-blue-200">
+                    {versionControl?.version || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Last modified:</span>
+                  <span className="text-sm font-medium text-gray-900">{versionControl?.lastModified || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Modified by:</span>
+                  <span className="text-sm font-medium text-gray-900">{versionControl?.modifiedBy || 'N/A'}</span>
+                </div>
+                {workflow?.dag_path && (
+                  <GitHubDagLink
+                    dagPath={workflow.dag_path}
+                    repoOwner={GITHUB_REPO_OWNER}
+                    repoName={GITHUB_REPO_NAME}
+                    setVersionControl={setVersionControl}
+                  />
                 )}
               </div>
             </div>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-4">
-            {/* Input File Structure */}
-            <div className="bg-white glass-effect rounded-lg shadow-sm p-5 hover-scale">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                <FileText className="w-5 h-5 text-gray-500 mr-2" />
-                Input File Structure
-              </h2>
-              <div className="space-y-2">
-                <motion.button
-                  onClick={() => setShowInputModal(true)}
-                  className="w-full bg-blue-100 text-blue-700 rounded-lg px-3 py-2 flex items-center text-sm hover:bg-blue-200"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <FileText className="w-4 h-4 mr-2" /> View Input Structure
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleDownloadTemplate}
-                  className="w-full bg-green-100 text-green-700 rounded-lg px-3 py-2 flex items-center text-sm hover:bg-green-200"
-                >
-                  <Download className="w-4 h-4 mr-2" /> Download Template
-                </motion.button>
-              </div>
-              <InputStructureModal
-                isOpen={showInputModal}
-                onClose={() => setShowInputModal(false)}
-                inputStructure={workflow?.input_structure}
-              />
+          {/* Support & Documentation */}
+          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border border-l-4 border-l-orange-500">
+            <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 pb-3">
+              <h4 className="leading-none flex items-center">
+                <CircleHelp className="h-5 w-5 mr-2 text-orange-500" aria-hidden="true" />
+                Support & Documentation
+              </h4>
             </div>
-
-            {/* Parameters */}
-            <div className="bg-white glass-effect rounded-lg shadow-sm p-5 hover-scale">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                <Plug className="w-5 h-5 text-gray-500 mr-2" />
-                Parameters
-              </h2>
-              {workflow?.parameters?.length > 0 ? (
+            <div className="px-6">
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">Need help with this workflow? Access documentation and support resources.</p>
                 <div className="space-y-2">
-                  {workflow.parameters.map((param, index) => (
-                    <CustomTooltip key={param.name} content={`${param.type} • ${param.mandatory ? 'Required' : 'Optional'}`}>
-                      <div className="px-3 py-2 bg-gray-100 rounded-full text-sm text-gray-800 font-medium cursor-default hover:bg-gray-200 transition-colors">
-                        {param.name}
-                      </div>
-                    </CustomTooltip>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">No parameters defined</p>
-              )}
-            </div>
-
-            {/* Destination */}
-            <div className="bg-white glass-effect rounded-lg shadow-sm p-5 hover-scale">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                <Database className="w-5 h-5 text-gray-500 mr-2" />
-                Destination
-              </h2>
-              {destination ? (
-                <div className="space-y-2">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wider">Type</p>
-                    <p className="font-medium">{destination.destination_type}</p>
-                  </div>
-                  {destination.table_name && (
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wider">Table</p>
-                      <p className="font-medium">{destination.table_name}</p>
-                    </div>
-                  )}
-                  {destination.file_path && (
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wider">Path</p>
-                      <p className="font-medium">{destination.file_path}</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">No destination defined</p>
-              )}
-            </div>
-
-            {/* Schedule */}
-            <div className="bg-white glass-effect rounded-lg shadow-sm p-5 hover-scale">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                <Clock className="w-5 h-5 text-gray-500 mr-2" />
-                Schedule
-              </h2>
-              <div className="space-y-2">
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wider">Next Run</p>
-                  <p className="font-medium">
-                    {workflow?.next_run_at ? new Date(workflow.next_run_at).toLocaleString() : 'Not scheduled'}
-                  </p>
+                  <button
+                    className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 w-full h-8 rounded-md gap-1.5 px-3 bg-white border hover:bg-gray-100"
+                  >
+                    <CircleHelp className="h-4 w-4 mr-2" aria-hidden="true" />
+                    Contact Support
+                  </button>
+                  <button
+                    className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 w-full h-8 rounded-md gap-1.5 px-3 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                  >
+                    View Documentation
+                  </button>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border lg-col-span-3">
+            <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 border-b border-gray-200 pb-4">
+              <h4 className="leading-none">Recent Activity</h4>
+              <p className="text-gray-600 text-sm">Last 5 executions of this workflow</p>
+            </div>
+            <div className="p-0">
+              <div className="relative w-full overflow-x-auto">
+                <table className="w-full caption-bottom text-sm">
+                  <thead className="[&_tr]:border-b bg-gray-50">
+                    <tr className="hover:bg-muted/50 transition-colors border-b-2 border-gray-200">
+                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6">Run ID</th>
+                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6">Date & Time</th>
+                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6">Status</th>
+                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6">Duration</th>
+                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6">User</th>
+                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6">Records</th>
+                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6">Version</th>
+                      <th className="h-10 align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="[&_tr:last-child]:border-0">
+                    {recent_runs?.length > 0 ? (
+                      recent_runs.slice(0, 5).map((run) => (
+                        <tr
+                          key={run.id}
+                          className="border-b border-gray-200 hover:bg-gray-50 transition-colors bg-white"
+                          onClick={() => navigate(`/runs/run/${run.id}`)}
+                        >
+                          <td className="py-4 px-6"><div className="font-medium text-gray-900">{run.id}</div></td>
+                          <td className="py-4 px-6"><div className="text-sm text-gray-900">{new Date(run.started_at).toLocaleString()}</div></td>
+                          <td className="py-4 px-6"><StatusBadge status={run.status} /></td>
+                          <td className="py-4 px-6"><div className="text-sm text-gray-900">{run.duration || 'N/A'}</div></td>
+                          <td className="py-4 px-6"><div className="text-sm text-gray-900">{run.user || 'Unknown'}</div></td>
+                          <td className="py-4 px-6"><div className="text-sm text-gray-900">{run.records?.toLocaleString() || 'N/A'}</div></td>
+                          <td className="py-4 px-6">
+                            <span className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 border bg-gray-100 text-gray-800 border-gray-200">
+                              {run.version || 'N/A'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 text-right">
+                            <button
+                              className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 h-8 rounded-md gap-1.5 px-3 bg-white border hover:bg-gray-100"
+                              onClick={(e) => { e.stopPropagation(); navigate(`/runs/run/${run.id}`); }}
+                            >
+                              <FileText className="h-4 w-4 mr-2" aria-hidden="true" />
+                              View Run Log
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="8" className="py-4 px-6 text-center text-sm text-gray-600">No recent runs</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Input File Structure (Sidebar) */}
+          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border lg-col-span-3">
+            <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 border-b border-gray-200 pb-4">
+              <h4 className="leading-none">Input File Structure</h4>
+              <p className="text-gray-600 text-sm">Required input format for this workflow</p>
+            </div>
+            <div className="px-6 pb-6">
+              <div className="space-y-2">
+                <button
+                  className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 w-full h-8 rounded-md gap-1.5 px-3 bg-white border hover:bg-gray-100"
+                  onClick={() => setShowInputModal(true)}
+                >
+                  <FileText className="h-4 w-4 mr-2" aria-hidden="true" />
+                  View Input Structure
+                </button>
+                <button
+                  className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 w-full h-8 rounded-md gap-1.5 px-3 bg-white border hover:bg-gray-100"
+                  onClick={handleDownloadTemplate}
+                >
+                  <svg className="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Download Template
+                </button>
+              </div>
+              <InputStructureModal
+                isOpen={showInputModal}
+                onClose={() => setShowInputModal(false)}
+                inputStructure={workflow?.input_structure || { columns: [] }}
+              />
+            </div>
+          </div>
+
+          {/* Parameters */}
+          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border lg-col-span-3">
+            <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 border-b border-gray-200 pb-4">
+              <h4 className="leading-none">Parameters</h4>
+              <p className="text-gray-600 text-sm">Configuration parameters for this workflow</p>
+            </div>
+            <div className="px-6 pb-6">
+              {workflow?.parameters?.length > 0 ? (
+                <div className="space-y-2">
+                  {workflow.parameters.map((param) => (
+                    <CustomTooltip key={param.name} content={`${param.type} • ${param.mandatory ? 'Required' : 'Optional'}`}>
+                      <span
+                        className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 border bg-gray-100 text-gray-800 border-gray-200"
+                      >
+                        {param.name}
+                      </span>
+                    </CustomTooltip>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600">No parameters defined</p>
+              )}
+            </div>
+          </div>
+
+          {/* Destination */}
+          <div className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border lg-col-span-3">
+            <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 border-b border-gray-200 pb-4">
+              <h4 className="leading-none">Destination</h4>
+              <p className="text-gray-600 text-sm">Output destination for this workflow</p>
+            </div>
+            <div className="px-6 pb-6">
+              {destination ? (
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-sm text-gray-600">Type:</span>
+                    <span className="text-sm font-medium text-gray-900">{destination.destination_type}</span>
+                  </div>
+                  {destination.table_name && (
+                    <div>
+                      <span className="text-sm text-gray-600">Table:</span>
+                      <span className="text-sm font-medium text-gray-900">{destination.table_name}</span>
+                    </div>
+                  )}
+                  {destination.file_path && (
+                    <div>
+                      <span className="text-sm text-gray-600">Path:</span>
+                      <span className="text-sm font-medium text-gray-900">{destination.file_path}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600">No destination defined</p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-    </motion.div>
+    </motion.main>
   );
 };
 

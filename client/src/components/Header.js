@@ -1,24 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { Search, Bell, User, LogOut, Menu } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Bell, User, LogOut, Menu, X } from 'lucide-react';
 import { useLogout } from '../utils/AuthUtils';
+import Navigation from './Navigation';
+import '../App.css';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
-  const navigationTabs = [
-    { label: 'Workflows', href: '/workflows' },
-    { label: 'Runs', href: '/runs' },
-    { label: 'Connections', href: '/connections' },
-    { label: 'Analytics', href: '/analytics' },
-  ];
-
 const Header = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showHeader, setShowHeader] = useState(true);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
-  const logout = useLogout();
+  const lastScrollY = useRef(0);
   const navigate = useNavigate();
+  const location = useLocation();
+  const menuCheckboxRef = useRef(null);
+  const menuButtonRef = useRef(null);
+  const skipLinkRef = useRef(null);
+  const logout = useLogout();
   const userId = localStorage.getItem('userId');
 
   useEffect(() => {
@@ -65,17 +65,100 @@ const Header = () => {
     fetchUser();
   }, [userId, navigate]);
 
+  // Scroll behavior
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+        setShowHeader(false);
+      } else if (currentScrollY < lastScrollY.current) {
+        setShowHeader(true);
+      }
+      lastScrollY.current = currentScrollY;
+    };
+
+    let throttleTimeout;
+    const throttledHandleScroll = () => {
+      if (!throttleTimeout) {
+        throttleTimeout = setTimeout(() => {
+          handleScroll();
+          throttleTimeout = null;
+        }, 100);
+      }
+    };
+
+    window.addEventListener('scroll', throttledHandleScroll);
+    return () => {
+      window.removeEventListener('scroll', throttledHandleScroll);
+      if (throttleTimeout) clearTimeout(throttleTimeout);
+    };
+  }, []);
+
+  // Set --header-height CSS variable
+  useEffect(() => {
+    const header = document.querySelector('.ds_site-header');
+    if (header) {
+      const height = header.offsetHeight;
+      document.documentElement.style.setProperty('--header-height', `${height}px`);
+    }
+  }, []);
+
+  // Focus the skip link on route change
+  useEffect(() => {
+    if (skipLinkRef.current) {
+      skipLinkRef.current.focus();
+    }
+  }, [location.pathname]);
+
+  // Toggle mobile menu
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+    if (menuCheckboxRef.current) {
+      menuCheckboxRef.current.checked = !isMenuOpen;
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleMenu();
+    }
+  };
+
+  // Update checkbox state when isMenuOpen changes
+  useEffect(() => {
+    if (menuCheckboxRef.current) {
+      menuCheckboxRef.current.checked = isMenuOpen;
+    }
+  }, [isMenuOpen]);
+
+  // Handle outside click to close menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        isMenuOpen &&
+        menuButtonRef.current &&
+        !menuButtonRef.current.contains(event.target)
+      ) {
+        const mobileNav = document.getElementById('mobile-navigation');
+        if (mobileNav && !mobileNav.contains(event.target)) {
+          setIsMenuOpen(false);
+          if (menuCheckboxRef.current) {
+            menuCheckboxRef.current.checked = false;
+          }
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
+
   const getInitials = () => {
     if (!user || !user.first_name || !user.surname) return '--';
     return `${user.first_name.charAt(0).toUpperCase()}${user.surname.charAt(0).toUpperCase()}`;
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/workflows?q=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery('');
-    }
   };
 
   if (!userId) {
@@ -83,112 +166,118 @@ const Header = () => {
   }
 
   return (
-    <div className="w-full bg-gradient-to-r from-[#1e3c72] to-[#2a5298] text-white py-3 fixed top-0 left-0 z-50">
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center mx-auto max-w-2xl">
-          {error}
-        </div>
-      )}
-      <div className="absolute inset-0 bg-white/10 backdrop-blur-lg z-0"></div>
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,0.15)_50%,transparent_100%)] opacity-50 z-0"></div>
-      
-      <div className="container mx-auto px-6 flex items-center relative z-10">
-        <NavLink to="/home" className="flex items-center gap-2 mr-8">
-          <h2 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">Workflow Manager</h2>
-        </NavLink>
-        
-        <nav className="hidden md:flex items-center space-x-1 flex-1">
-          {navigationTabs.map((tab) => (
-            <NavLink
-              key={tab.href}
-              to={tab.href}
-              className={({ isActive }) =>
-                `px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-white/20 backdrop-blur-sm text-white'
-                    : 'text-white/90 hover:bg-white/10 hover:backdrop-blur-sm'
-                }`
-              }
-            >
-              {tab.label}
+    <header className={`ds_site-header ds_site-header--gradient ${!showHeader ? 'header-hidden' : ''}`} role="banner">
+      {/* Skip to main content link */}
+      <div className="ds_skip-links" ref={skipLinkRef}>
+        <ul className="ds_skip-links__list">
+          <li className="ds_skip-links__item">
+            <a className="ds_skip-links__link" href="#main-content">
+              Skip to main content
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <div className="ds_wrapper">
+        <div className="ds_site-header__content">
+          <div className="ds_site-branding">
+            <NavLink to="/home" className="ds_site-branding__logo ds_site-branding__link">
+              <img 
+                className="ds_site-branding__logo-image" 
+                src="/assets/images/logos/scottish-government.svg" 
+                alt="Scottish Government" 
+              />
             </NavLink>
-          ))}
-        </nav>
+            <div className="ds_site-branding__title">Workflow Manager</div>
+          </div>
 
-        <button 
-          className="md:hidden p-1 rounded-md hover:bg-white/10 transition-colors ml-auto"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        >
-          <Menu size={24} />
-        </button>
-
-        <div className="flex items-center gap-4 ml-auto">
-          <form onSubmit={handleSubmit} className="relative hidden md:block">
-            <input
-              type="text"
-              placeholder="Search workflows..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-white/10 border border-white/20 rounded-md pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-white/50 placeholder-white/70 w-64"
-            />
-            <Search className="w-4 h-4 text-white/70 absolute left-3 top-1/2 transform -translate-y-1/2" />
-          </form>
-
-          <button className="p-2 rounded-md text-white/90 hover:text-white hover:bg-white/10 transition-colors">
-            <Bell size={20} />
-          </button>
-
-          <button
-            onClick={() => navigate(`/profile/${userId}`)}
-            className="w-8 h-8 rounded-md bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white font-medium cursor-pointer hover:from-blue-600 hover:to-cyan-500 transition-colors"
-            title={user ? `${user.first_name} ${user.surname}` : 'Profile'}
-          >
-            {user ? getInitials() : '--'}
-          </button>
-
-          <button
-            onClick={logout}
-            className="hidden md:flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium text-white/90 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <LogOut size={16} className="inline" />
-            <span>Logout</span>
-          </button>
-        </div>
-
-        {isMobileMenuOpen && (
-          <div className="absolute top-full left-0 right-0 bg-gradient-to-r from-[#1e3c72] to-[#2a5298] py-3 px-6 shadow-lg md:hidden z-20">
-            {navigationTabs.map((tab) => (
-              <NavLink
-                key={tab.href}
-                to={tab.href}
-                className="block px-4 py-2 rounded-md text-sm font-medium text-white/90 hover:bg-white/10 mb-1"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                {tab.label}
-              </NavLink>
-            ))}
-            <NavLink
-              to={`/profile/${userId}`}
-              className="block px-4 py-2 rounded-md text-sm font-medium text-white/90 hover:bg-white/10 mb-1"
-              onClick={() => setIsMobileMenuOpen(false)}
+          {/* User actions positioned at header level */}
+          <div className="ds_site-header__user-actions">
+            <button 
+              className="ds_site-header__action-button ds_site-header__action-icon"
+              title="Notifications"
             >
-              <User size={16} className="inline mr-2" />
-              Profile
-            </NavLink>
+              <Bell className="ds_icon" size={18} />
+              <span className="visually-hidden">Notifications</span>
+            </button>
+            
             <button
-              onClick={() => {
-                logout();
-                setIsMobileMenuOpen(false);
-              }}
-              className="block w-full text-left px-4 py-2 rounded-md text-sm font-medium text-white/90 hover:bg-white/10 mb-1"
+              onClick={() => navigate(`/profile/${userId}`)}
+              className="ds_site-header__action-button ds_site-header__action-avatar"
+              title={user ? `${user.first_name} ${user.surname}` : 'Profile'}
             >
-              <LogOut size={16} className="inline mr-2" />
-              Logout
+              <span className="ds_site-header__avatar-initials">
+                {user ? getInitials() : '--'}
+              </span>
+            </button>
+            
+            <button
+              onClick={logout}
+              className="ds_site-header__action-button ds_site-header__action-logout"
+              title="Logout"
+            >
+              <LogOut className="ds_icon" size={18} />
+              <span className="ds_site-header__logout-text">Logout</span>
             </button>
           </div>
-        )}
+          
+          <div className="ds_site-header__controls">
+            <button
+              aria-controls="mobile-navigation"
+              className="ds_site-header__control js-toggle-menu"
+              aria-expanded={isMenuOpen}
+              ref={menuButtonRef}
+              onClick={toggleMenu}
+              onKeyDown={handleKeyDown}
+            >
+              <span className="ds_site-header__control-text">Menu</span>
+              {isMenuOpen ? (
+                <X className="ds_icon ds_site-header__control-icon" aria-hidden="true" />
+              ) : (
+                <Menu className="ds_icon ds_site-header__control-icon" aria-hidden="true" />
+              )}
+            </button>
+          </div>
+
+          <input
+            className="ds_site-navigation__toggle"
+            id="menu"
+            type="checkbox"
+            ref={menuCheckboxRef}
+            onChange={(e) => setIsMenuOpen(e.target.checked)}
+            aria-hidden="true"
+          />
+
+          <nav
+            id="mobile-navigation"
+            className={`ds_site-navigation ds_site-navigation--mobile ${isMenuOpen ? 'ds_site-navigation--open' : ''}`}
+            data-module="ds-mobile-navigation-menu"
+            aria-hidden={!isMenuOpen}
+          >
+            <Navigation currentPath={location.pathname} />
+          </nav>
+        </div>
       </div>
-    </div>
+
+      <div className="ds_site-header__navigation">
+        <div className="ds_wrapper">
+          <nav className="ds_site-navigation">
+            <Navigation currentPath={location.pathname} />
+          </nav>
+        </div>
+      </div>
+
+      {error && (
+        <div className="ds_notification ds_notification--error" role="alert">
+          <div className="ds_wrapper">
+            <div className="ds_notification__content">
+              <h2 className="visually-hidden">Error</h2>
+              <p className="ds_notification__text">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </header>
   );
 };
 
