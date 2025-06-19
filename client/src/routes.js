@@ -11,7 +11,11 @@ import Run from './pages/Run';
 import Profile from './pages/Profile';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
+import AdminHub from './pages/SettingsHub';
 import Help from './pages/Help';
+import HealthCheck from './pages/HealthCheck';
+import ManageUsers from './pages/ManageUsers';
+import ManagePermissions from './pages/ManagePermissions';
 
 const routes = [
   { path: '/', element: <Home />, protected: true },
@@ -28,7 +32,11 @@ const routes = [
   { path: '/profile/:userId', element: <Profile />, protected: true },
   { path: '/analytics', element: <Analytics />, protected: true },
   { path: '/help', element: <Help />, protected: true },
+  { path: '/health-check', element: <HealthCheck />, protected: true },
   { path: '/settings', element: <Settings />, protected: true },
+  { path: '/settings-hub', element: <AdminHub />, protected: true },
+  { path: '/manage-users', element: <ManageUsers />, protected: true },
+  { path: '/manage-permissions', element: <ManagePermissions />, protected: true },
 ];
 
 export default routes;
