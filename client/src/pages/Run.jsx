@@ -50,11 +50,11 @@ const StatusBadge = ({ status }) => {
 
 const DurationDisplay = ({ start, end }) => {
   if (!start) return <span className="text-gray-500">Not started</span>;
-  
+
   const startDate = new Date(start);
   const endDate = end ? new Date(end) : new Date();
   const durationMs = endDate - startDate;
-  
+
   const formatTime = (ms) => {
     if (ms < 1000) return `${ms}ms`;
     if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`;
@@ -71,21 +71,26 @@ const DurationDisplay = ({ start, end }) => {
 
 const CollapsibleSection = ({ title, icon, children, defaultOpen = true }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  
+
   return (
-    <details className="ds-details" open={defaultOpen}>
-      <summary className="ds-details__summary">
-        <span className="ds-details__summary-text">
-          <span className="flex items-center gap-2">
-            {icon}
-            {title}
-          </span>
-        </span>
-      </summary>
-      <div className="ds-details__text">
-        {children}
-      </div>
-    </details>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex justify-between items-center p-6 hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className="text-xl font-semibold text-gray-900">{title}</span>
+        </div>
+        {isOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+      </button>
+
+      {isOpen && (
+        <div className="p-6 pt-0">
+          {children}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -119,7 +124,7 @@ const FileDownloadComponent = ({ filePath, fileName, fileType, onDownload, isLoa
         </div>
       </div>
       <div className="ds_file-download__content">
-        <button 
+        <button
           onClick={() => onDownload(filePath, fileType)}
           disabled={isLoading}
           className="ds_file-download__title ds-link text-left hover:underline disabled:opacity-50"
@@ -218,17 +223,17 @@ const Run = () => {
       });
       if (!response.ok) throw new Error(`Failed to get download URL for ${type} file`);
       const { url } = await response.json();
-      
+
       // Force download instead of opening in browser
       const link = document.createElement('a');
       link.href = url;
       link.download = getFileNameFromPath(filePath);
       link.target = '_blank'; // Fallback
       link.rel = 'noopener noreferrer';
-      
+
       // Force download attribute
       link.setAttribute('download', getFileNameFromPath(filePath));
-      
+
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -248,7 +253,7 @@ const Run = () => {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh' }} className="flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading run details...</p>
@@ -259,7 +264,7 @@ const Run = () => {
 
   if (error || !runData) {
     return (
-      <div style={{ minHeight: '100vh' }} className="flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-md">
           <div className="ds_notification ds_notification--negative" role="alert">
             <div className="ds_notification__content">
@@ -280,9 +285,13 @@ const Run = () => {
 
   const { run, logs = [], step_statuses: stepStatuses = [] } = runData;
 
-  return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f8f8f8' }}>
+  // Extract first name from email
+  const getFirstNameFromEmail = (email) => {
+    return email ? email.split('@')[0].split('.')[0].charAt(0).toUpperCase() + email.split('@')[0].split('.')[0].slice(1) : 'Unknown';
+  };
 
+  return (
+    <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-6">
@@ -293,7 +302,7 @@ const Run = () => {
             <ChevronLeft className="w-4 h-4 mr-1" />
             Back to all runs
           </button>
-          
+
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -305,25 +314,27 @@ const Run = () => {
             </div>
             <div className="flex items-center gap-4">
               <StatusBadge status={run.status} />
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={handleSync}
                 disabled={syncLoading}
-                className="ds_button ds_button--primary"
+                className="bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white rounded-lg py-2 px-4 flex items-center shadow-lg shadow-blue-500/20"
               >
                 {syncLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className="w-4 h-4 mr-2" />
                 )}
                 Sync Status
-              </button>
+              </motion.button>
             </div>
           </div>
         </div>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Run Details */}
+          {/* Left Column - Run Details and Files */}
           <div className="lg:col-span-1 space-y-6">
             {/* Run Summary Card */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -331,19 +342,19 @@ const Run = () => {
                 <FileText className="w-5 h-5 text-blue-600" />
                 Run Summary
               </h2>
-              
+
               <div className="space-y-4">
                 <div>
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Triggered By</h3>
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-gray-500" />
                     <div>
-                      <p className="font-medium">{run.triggered_by_email || 'Unknown user'}</p>
-                      <p className="text-sm text-gray-500">({run.triggered_by_username || 'N/A'})</p>
+                      <p className="font-medium text-lg">{run.triggered_by_username}</p>
+                      <p className="text-sm text-gray-500">{run.triggered_by_email || 'Unknown user'}</p>
                     </div>
                   </div>
                 </div>
-                
+
                 <div>
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Execution Timeline</h3>
                   <div className="space-y-3">
@@ -356,7 +367,7 @@ const Run = () => {
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Finished:</span>
                       <span className="text-sm font-medium">
-                        {run.finished_at ? new Date(run.finished_at).toLocaleString() : 
+                        {run.finished_at ? new Date(run.finished_at).toLocaleString() :
                          run.status === 'running' ? 'In progress' : 'Not finished'}
                       </span>
                     </div>
@@ -366,7 +377,7 @@ const Run = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 {run.error_message && (
                   <div className="ds_notification ds_notification--negative">
                     <div className="ds_notification__content">
@@ -384,7 +395,7 @@ const Run = () => {
                 <HardDriveDownload className="w-5 h-5 text-blue-600" />
                 Data Files
               </h2>
-              
+
               <div className="space-y-4">
                 <div>
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">Input File</h3>
@@ -400,7 +411,7 @@ const Run = () => {
                     <p className="text-gray-500 italic">No input file available</p>
                   )}
                 </div>
-                
+
                 <div>
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">Output File</h3>
                   {run.output_file_path ? (
@@ -417,40 +428,13 @@ const Run = () => {
                 </div>
               </div>
             </div>
-
-            {/* Configuration */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Code className="w-5 h-5 text-blue-600" />
-                Configuration
-              </h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Workflow ID</h3>
-                  <p className="text-sm font-mono bg-gray-50 px-2 py-1 rounded">{run.workflow_id || 'N/A'}</p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Dagster Run ID</h3>
-                  <p className="text-sm font-mono bg-gray-50 px-2 py-1 rounded">{run.dagster_run_id || 'N/A'}</p>
-                </div>
-                {run.config_used && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Operations Config</h3>
-                    <pre className="text-xs bg-gray-50 p-3 rounded-md overflow-auto border">
-                      {JSON.stringify(run.config_used.ops, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
 
           {/* Right Column - Execution Details */}
           <div className="lg:col-span-2 space-y-6">
             {/* Step Execution Timeline */}
-            <CollapsibleSection 
-              title="Step Execution Timeline" 
+            <CollapsibleSection
+              title="Step Execution Timeline"
               icon={<Zap className="w-5 h-5 text-blue-600" />}
             >
               {stepStatuses.length > 0 ? (
@@ -460,7 +444,7 @@ const Run = () => {
                       {index < stepStatuses.length - 1 && (
                         <div className="absolute left-6 top-12 w-0.5 h-12 bg-gray-200"></div>
                       )}
-                      
+
                       <div className="flex gap-4">
                         <div className="flex-shrink-0 w-12 h-12 rounded-full bg-white border-2 border-blue-500 flex items-center justify-center">
                           <div className={`w-3 h-3 rounded-full ${
@@ -471,7 +455,7 @@ const Run = () => {
                             step.status === 'skipped' ? 'bg-yellow-500' : 'bg-gray-400'
                           }`} />
                         </div>
-                        
+
                         <div className="flex-1 bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                           <div className="flex justify-between items-start mb-3">
                             <div>
@@ -482,7 +466,7 @@ const Run = () => {
                             </div>
                             <StatusBadge status={step.status} />
                           </div>
-                          
+
                           <div className="grid grid-cols-2 gap-4 text-sm">
                             <div className="flex items-center gap-2 text-gray-600">
                               <Calendar className="w-4 h-4" />
@@ -495,7 +479,7 @@ const Run = () => {
                               <DurationDisplay start={step.started_at} end={step.finished_at} />
                             </div>
                           </div>
-                          
+
                           {step.error_message && (
                             <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
                               <strong>Error:</strong> {step.error_message}
@@ -515,8 +499,8 @@ const Run = () => {
             </CollapsibleSection>
 
             {/* Execution Logs */}
-            <CollapsibleSection 
-              title="Execution Logs" 
+            <CollapsibleSection
+              title="Execution Logs"
               icon={<Code className="w-5 h-5 text-blue-600" />}
             >
               {logs.length > 0 ? (
@@ -529,12 +513,12 @@ const Run = () => {
                       >
                         <div className="flex items-center gap-3">
                           <span className={`w-3 h-3 rounded-full ${
-                            log.log_level === 'error' ? 'bg-red-500' : 
+                            log.log_level === 'error' ? 'bg-red-500' :
                             log.log_level === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
                           }`} />
                           <span className="font-medium">{log.step_label || 'System'}</span>
                           <span className={`text-xs px-2 py-1 rounded font-medium ${
-                            log.log_level === 'error' ? 'bg-red-100 text-red-800' : 
+                            log.log_level === 'error' ? 'bg-red-100 text-red-800' :
                             log.log_level === 'warning' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'
                           }`}>
                             {log.log_level?.toUpperCase() || 'INFO'}
@@ -547,7 +531,7 @@ const Run = () => {
                           {expandedLogs[log.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </div>
                       </button>
-                      
+
                       <AnimatePresence>
                         {expandedLogs[log.id] && (
                           <motion.div
@@ -575,6 +559,37 @@ const Run = () => {
                 </div>
               )}
             </CollapsibleSection>
+          </div>
+        </div>
+
+        {/* Configuration Section - Full Width at Bottom */}
+        <div className="mt-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Code className="w-5 h-5 text-blue-600" />
+              Configuration
+            </h2>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Workflow ID</h3>
+                  <p className="text-sm font-mono bg-gray-50 px-2 py-1 rounded">{run.workflow_id || 'N/A'}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Dagster Run ID</h3>
+                  <p className="text-sm font-mono bg-gray-50 px-2 py-1 rounded">{run.dagster_run_id || 'N/A'}</p>
+                </div>
+              </div>
+              {run.config_used && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Operations Config</h3>
+                  <pre className="text-xs bg-gray-50 p-3 rounded-md overflow-auto border">
+                    {JSON.stringify(run.config_used.ops, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

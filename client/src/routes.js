@@ -11,6 +11,7 @@ import Run from './pages/Run';
 import Profile from './pages/Profile';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
+import Help from './pages/Help';
 
 const routes = [
   { path: '/', element: <Home />, protected: true },
@@ -26,6 +27,7 @@ const routes = [
   { path: '/workflows', element: <Workflows />, protected: true },
   { path: '/profile/:userId', element: <Profile />, protected: true },
   { path: '/analytics', element: <Analytics />, protected: true },
+  { path: '/help', element: <Help />, protected: true },
   { path: '/settings', element: <Settings />, protected: true },
 ];
 

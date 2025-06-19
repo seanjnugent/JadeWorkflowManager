@@ -30,7 +30,7 @@ async def get_run(
                     w.name AS workflow_name,  
                     w.description AS workflow_description,
                     u.email AS triggered_by_email,
-                    u.first_name AS triggered_by_username
+                    concat(u.first_name, ' ', u.surname) AS triggered_by_username
                 FROM workflow.run r
                 LEFT JOIN workflow.workflow w ON r.workflow_id = w.id
                 LEFT JOIN workflow.user u ON r.triggered_by = u.id

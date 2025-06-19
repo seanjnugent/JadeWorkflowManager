@@ -7,7 +7,6 @@ const Workflows = () => {
   const navigate = useNavigate();
   const [workflows, setWorkflows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
@@ -20,7 +19,6 @@ const Workflows = () => {
     .then(response => response.json())
     .then(data => {
       setWorkflows(data.workflows);
-      setTotalPages(data.pagination.pages);
     })
     .catch(error => console.error('Error fetching workflows:', error));
   }, [currentPage]);
@@ -63,13 +61,14 @@ const Workflows = () => {
     );
   }, [workflows, filter]);
 
-  return (
-   <div className="ds_page__middle">
-      <div className="ds_wrapper">
-        <header className="ds_page-header">
-          <h2 className="text-2xl font-bold text-gray-800">Workflows</h2>
-          </header>
+  const totalPages = Math.ceil(filteredWorkflows.length / 10);
+  const paginatedWorkflows = filteredWorkflows.slice((currentPage - 1) * 10, currentPage * 10);
 
+  return (
+    <div className="min-h-screen bg-white text-gray-900">
+      <div className="container mx-auto px-6 py-10">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">Workflows</h2>
           <div className="flex items-center gap-4">
             <div className="relative">
               <input
@@ -94,62 +93,64 @@ const Workflows = () => {
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-6">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Created</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredWorkflows.length > 0 ? (
-                filteredWorkflows.map((workflow) => {
-                  const { icon, color } = getDestinationIconAndColor(workflow.destination);
-                  return (
-                    <tr
-                      key={workflow.id}
-                      className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
-                      onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className={`${color} rounded-lg p-2 mr-3`}>
-                            {icon}
-                          </div>
-                          <span className="text-sm font-medium text-gray-900">{workflow.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className="truncate max-w-xs">{workflow.description}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.created_by || 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.tags || 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(workflow.created_at).toLocaleString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadge(workflow.status)}`}>
-                          {workflow.status}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <td colSpan="7" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                    No workflows available.
-                  </td>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Created</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {paginatedWorkflows.length > 0 ? (
+                  paginatedWorkflows.map((workflow) => {
+                    const { icon, color } = getDestinationIconAndColor(workflow.destination);
+                    return (
+                      <tr
+                        key={workflow.id}
+                        className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
+                        onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.id}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className={`${color} rounded-lg p-2 mr-3`}>
+                              {icon}
+                            </div>
+                            <span className="text-sm font-medium text-gray-900">{workflow.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <div className="truncate max-w-xs">{workflow.description}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.created_by || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.tags || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(workflow.created_at).toLocaleString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadge(workflow.status)}`}>
+                            {workflow.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="7" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                      No workflows available.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
 
-          <div className="flex justify-between items-center mt-6">
+          <div className="flex flex-col sm:flex-row justify-between items-center mt-6 space-y-4 sm:space-y-0">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -176,6 +177,7 @@ const Workflows = () => {
           </div>
         </div>
       </div>
+    </div>
   );
 };
 

@@ -61,7 +61,7 @@ const NewRun = () => {
           });
         }
         setParameters(initialParams);
-       
+
         if (data.workflow?.name) {
           setRunName(`${data.workflow.name} Run - ${new Date().toLocaleDateString()}`);
         }
@@ -116,21 +116,21 @@ const NewRun = () => {
 
   const handleStartRun = async () => {
     if (!validateCurrentStep()) return;
-   
+
     setIsSubmitting(true);
     try {
       const formData = new FormData();
       formData.append('workflow_id', workflowId);
       formData.append('triggered_by', userId);
-     
+
       if (file) {
         formData.append('file', file);
       }
-     
+
       if (Object.keys(parameters).length) {
         formData.append('parameters', JSON.stringify(parameters));
       }
-     
+
       if (scheduleType !== 'none') {
         formData.append('schedule', scheduleType);
       }
@@ -156,7 +156,7 @@ const NewRun = () => {
 
   const handleNextStep = () => {
     if (!validateCurrentStep()) return;
-   
+
     if (currentStep === steps.length) {
       handleStartRun();
     } else {
@@ -191,10 +191,10 @@ const NewRun = () => {
         )}
       </AnimatePresence>
 
-      <div className="sg-container max-w-6xl py-8">
+      <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-6">
-            <button 
+            <button
               onClick={() => navigate(`/workflows/workflow/${workflowId}`)}
               className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:text-accent-foreground dark:hover:bg-accent/50 h-9 px-4 py-2 has-[>svg]:px-3 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-400 focus-visible:bg-yellow-50"
             >
@@ -202,8 +202,8 @@ const NewRun = () => {
               Back to Workflow
             </button>
           </div>
-          
-          <div className="mb-6">
+
+          <div className="mb-6 text-center">
             <h1 className="text-2xl font-bold text-gray-900">{steps[currentStep - 1].title}</h1>
             <p className="text-gray-600 mt-2">
               {currentStep === 1 && "Configure the basic settings for this workflow run"}
@@ -212,8 +212,8 @@ const NewRun = () => {
               {currentStep === 4 && "Configure when this workflow should run"}
             </p>
           </div>
-          
-          <div className="bg-white border border-gray-200 rounded-sm p-4 mb-8">
+
+          <div className="bg-white border border-gray-200 rounded-sm p-4 mb-8 mx-auto max-w-2xl">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-gray-700">
                 Step {currentStep} of {steps.length}: {steps[currentStep - 1].title}
@@ -222,19 +222,19 @@ const NewRun = () => {
                 {Math.round((currentStep / steps.length) * 100)}%
               </span>
             </div>
-            <div 
-              role="progressbar" 
+            <div
+              role="progressbar"
               className="relative w-full overflow-hidden rounded-full h-2 bg-gray-200"
             >
-              <div 
-                className="bg-blue-600 h-full w-full flex-1 transition-all" 
+              <div
+                className="bg-blue-600 h-full w-full flex-1 transition-all"
                 style={{ transform: `translateX(-${100 - (currentStep / steps.length) * 100}%)` }}
               ></div>
             </div>
             <div className="flex justify-between text-xs text-gray-500 mt-2">
               {steps.map((step, index) => (
-                <span 
-                  key={step.id} 
+                <span
+                  key={step.id}
                   className={currentStep > index ? "font-medium text-blue-600" : ""}
                 >
                   {step.title}
@@ -244,32 +244,34 @@ const NewRun = () => {
           </div>
         </div>
 
-        <div className="flex gap-8">
+        <div className="flex flex-col lg:flex-row gap-8 max-w-6xl mx-auto">
           <motion.aside
             initial={{ x: -20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className="w-80 p-6 rounded-xl bg-white border border-gray-200 shadow-sm sticky top-8 h-fit"
+            className="w-full lg:w-80 p-6 rounded-xl bg-white border border-gray-200 shadow-sm sticky top-8 h-fit mx-auto"
           >
-            <h2 className="text-xl font-bold text-gray-800 mb-6">Run Configuration</h2>
-            {steps.map((step, index) => (
-              <StepCard
-                key={step.id}
-                id={step.id}
-                title={step.title}
-                icon={step.icon}
-                index={index + 1}
-                isActive={currentStep === step.id}
-                completed={currentStep > step.id}
-                onClick={setCurrentStep}
-              />
-            ))}
+            <h2 className="text-xl font-bold text-gray-800 mb-6 text-center">Run Configuration</h2>
+            <div className="space-y-4">
+              {steps.map((step, index) => (
+                <StepCard
+                  key={step.id}
+                  id={step.id}
+                  title={step.title}
+                  icon={step.icon}
+                  index={index + 1}
+                  isActive={currentStep === step.id}
+                  completed={currentStep > step.id}
+                  onClick={setCurrentStep}
+                />
+              ))}
+            </div>
           </motion.aside>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex-1"
+            className="flex-1 mx-auto max-w-2xl"
           >
             <div data-slot="card" className="bg-white text-gray-900 flex flex-col gap-6 rounded-xl border border-gray-200 shadow-sm">
               <div data-slot="card-content" className="px-6 [&:last-child]:pb-6 pt-6">
@@ -299,7 +301,7 @@ const NewRun = () => {
                             className="w-full p-2.5 bg-white border border-gray-300 rounded-md text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                           />
                         </div>
-                      
+
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Workflow Details
@@ -334,7 +336,7 @@ const NewRun = () => {
                               </p>
                             </div>
                           )}
-                          <div className="flex gap-3 mt-4">
+                          <div className="flex gap-3 mt-4 justify-center">
                             <button
                               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition border border-gray-200 text-sm font-medium"
                               onClick={() => console.log('View template clicked')}
@@ -358,7 +360,7 @@ const NewRun = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-4">
                             Parameters
                           </label>
-                        
+
                           {Object.keys(parameters).length === 0 ? (
                             <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
                               <p className="text-gray-600">No parameters available for this workflow.</p>
@@ -369,14 +371,14 @@ const NewRun = () => {
                                 const paramDetails = Array.isArray(workflowDetails?.workflow?.parameters)
                                   ? workflowDetails?.workflow?.parameters.find(p => p.name === name)
                                   : null;
-                              
+
                                 return (
                                   <div key={name} className="bg-gray-50 p-4 rounded-md border border-gray-200">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                       {paramDetails?.label || name}
                                       {paramDetails?.required && <span className="text-red-500 ml-1">*</span>}
                                     </label>
-                                  
+
                                     {paramDetails?.type === 'select' && Array.isArray(paramDetails?.options) ? (
                                       <select
                                         value={value}
@@ -398,7 +400,7 @@ const NewRun = () => {
                                         className="w-full p-2.5 bg-white border border-gray-300 rounded-md text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm"
                                       />
                                     )}
-                                  
+
                                     {paramDetails?.description && (
                                       <p className="text-gray-500 text-xs mt-1">{paramDetails.description}</p>
                                     )}
@@ -422,13 +424,13 @@ const NewRun = () => {
                               <div
                                 key={option}
                                 onClick={() => setScheduleType(option)}
-                                className={`p-4 border rounded-md cursor-pointer transition-all ${
+                                className={`p-4 border rounded-md cursor-pointer transition-all text-center ${
                                   scheduleType === option
                                     ? 'border-blue-500 bg-blue-50'
                                     : 'border-gray-200 hover:bg-gray-50'
                                 }`}
                               >
-                                <div className="flex items-center">
+                                <div className="flex items-center justify-center">
                                   <div className={`w-4 h-4 rounded-full mr-2 ${
                                     scheduleType === option ? 'bg-blue-500' : 'bg-gray-200'
                                   }`}></div>
