@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Users, UserPlus, ListChecks, Menu, Activity } from 'lucide-react';
+import { Users, UserPlus, ListChecks, Menu, Activity, Unplug  } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const AdminHub = () => {
@@ -66,6 +66,16 @@ const AdminHub = () => {
             <Link to="/settings/dropdowns" className="flex flex-col items-center justify-center w-full h-full !text-white">
               <Activity  className="w-12 h-12 mb-2" />
               System Health
+            </Link>
+          </motion.div>
+                              <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex flex-col items-center justify-center w-[200px] h-[200px] rounded-[20px] bg-[#00bcd4] text-white text-lg font-bold transition-transform"
+          >
+            <Link to="/connections" className="flex flex-col items-center justify-center w-full h-full !text-white">
+              <Unplug   className="w-12 h-12 mb-2" />
+              Database Connections
             </Link>
           </motion.div>
         </div>
