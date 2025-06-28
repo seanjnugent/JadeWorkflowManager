@@ -1,60 +1,49 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import Dict, Any
 from sqlalchemy import text
-import logging
 from ..get_health_check import get_db
+import logging
 
 logger = logging.getLogger(__name__)
+router = APIRouter()
 
-router = APIRouter(prefix="/runs", tags=["runs"])
-
-@router.get("/run/{run_id}/status")
-async def get_run_status(
-    run_id: int,
-    db: Session = Depends(get_db)
-):
-    """Get detailed status of a workflow run including logs"""
+@router.get("/status/{run_id}")
+async def get_run_status(run_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Get the current status of a workflow run"""
     try:
-        run = db.execute(
+        result = db.execute(
             text("""
-                SELECT r.*, w.name as workflow_name 
+                SELECT r.id, r.dagster_run_id, r.workflow_id, r.status, r.started_at,
+                       r.finished_at, r.input_file_path, r.output_file_path,
+                       r.error_message, r.duration_ms, w.name as workflow_name
                 FROM workflow.run r
-                JOIN workflow.workflow w ON r.workflow_id = w.id
+                LEFT JOIN workflow.workflow w ON r.workflow_id = w.id
                 WHERE r.id = :run_id
             """),
             {"run_id": run_id}
-        ).fetchone()
-        
-        if not run:
-            raise HTTPException(404, f"Run with ID {run_id} not found")
-            
-        logs = db.execute(
-            text("""
-                SELECT * FROM workflow.run_log
-                WHERE run_id = :run_id OR dagster_run_id = :dagster_run_id
-                ORDER BY timestamp ASC
-            """),
-            {"run_id": run_id, "dagster_run_id": run.dagster_run_id}
-        ).fetchall()
-        
-        steps = db.execute(
-            text("""
-                SELECT rs.*, ws.label as step_name
-                FROM workflow.run_step_status rs
-                JOIN workflow.workflow_step ws ON rs.step_code = ws.step_code
-                WHERE rs.run_id = :run_id
-                ORDER BY ws.step_order
-            """),
-            {"run_id": run_id}
-        ).fetchall()
-        
+        )
+
+        run_record = result.fetchone()
+        if not run_record:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+
         return {
-            "run": dict(run._mapping),
-            "steps": [dict(step._mapping) for step in steps],
-            "logs": [dict(log._mapping) for log in logs],
+            "run_id": run_record.id,
+            "dagster_run_id": run_record.dagster_run_id,
+            "workflow_id": run_record.workflow_id,
+            "workflow_name": run_record.workflow_name,
+            "status": run_record.status,
+            "started_at": run_record.started_at.isoformat() if run_record.started_at else None,
+            "finished_at": run_record.finished_at.isoformat() if run_record.finished_at else None,
+            "input_file_path": run_record.input_file_path,
+            "output_file_path": run_record.output_file_path,
+            "error_message": run_record.error_message,
+            "duration_ms": run_record.duration_ms
         }
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting run status: {str(e)}")
-        raise HTTPException(500, f"Failed to get run status: {str(e)}")
+        logger.error(f"Failed to get run status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get run status: {str(e)}")

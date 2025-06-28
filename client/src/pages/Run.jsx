@@ -1,600 +1,709 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  ChevronLeft,
-  Clock,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-  FileText,
-  Code,
-  User,
-  Calendar,
-  Play,
-  Pause,
-  SkipForward,
-  Zap,
-  Loader2,
-  ChevronDown,
-  ChevronUp,
-  Gauge,
-  Timer,
-  HardDriveDownload,
-  RefreshCw,
-  Download,
-  FileJson,
-  File
-} from 'lucide-react';
 
-// Custom Components
-const StatusBadge = ({ status }) => {
-  const statusMap = {
-    pending: { color: 'ds-tag ds-tag--grey', icon: <Clock className="w-4 h-4" />, label: 'Pending' },
-    running: { color: 'ds-tag ds-tag--blue', icon: <Loader2 className="w-4 h-4 animate-spin" />, label: 'Running' },
-    success: { color: 'ds-tag ds-tag--green', icon: <CheckCircle className="w-4 h-4" />, label: 'Success' },
-    failed: { color: 'ds-tag ds-tag--red', icon: <XCircle className="w-4 h-4" />, label: 'Failed' },
-    failure: { color: 'ds-tag ds-tag--red', icon: <XCircle className="w-4 h-4" />, label: 'Failed' },
-    skipped: { color: 'ds-tag ds-tag--orange', icon: <SkipForward className="w-4 h-4" />, label: 'Skipped' }
-  };
+        import React, { useState, useEffect } from 'react';
+        import { useParams, useNavigate } from 'react-router-dom';
+        import { motion, AnimatePresence } from 'framer-motion';
+        import {
+            ChevronLeft,
+            Clock,
+            AlertCircle,
+            CheckCircle,
+            XCircle,
+            FileText,
+            Code,
+            User,
+            Calendar,
+            SkipForward,
+            Zap,
+            Loader2,
+            ChevronDown,
+            ChevronUp,
+            Gauge,
+            Timer,
+            HardDriveDownload,
+            RefreshCw,
+            FileJson,
+            File
+        } from 'lucide-react';
 
-  const current = statusMap[status?.toLowerCase()] || statusMap.pending;
+        const StatusBadge = ({ status }) => {
+            const statusMap = {
+                queued: { color: 'ds-tag bg-gray-100 text-gray-800', icon: <Clock className="w-4 h-4" />, label: 'Queued' },
+                pending: { color: 'ds-tag bg-gray-100 text-gray-800', icon: <Clock className="w-4 h-4" />, label: 'Pending' },
+                running: { color: 'ds-tag bg-blue-100 text-blue-800', icon: <Loader2 className="w-4 h-4 animate-spin" />, label: 'Running' },
+                success: { color: 'ds-tag bg-green-100 text-green-800', icon: <CheckCircle className="w-4 h-4" />, label: 'Success' },
+                failed: { color: 'ds-tag bg-red-100 text-red-800', icon: <XCircle className="w-4 h-4" />, label: 'Failed' },
+                failure: { color: 'ds-tag bg-red-100 text-red-800', icon: <XCircle className="w-4 h-4" />, label: 'Failed' },
+                skipped: { color: 'ds-tag bg-orange-100 text-orange-800', icon: <SkipForward className="w-4 h-4" />, label: 'Skipped' }
+            };
 
-  return (
-    <span className={`inline-flex items-center gap-1.5 ${current.color}`}>
-      {current.icon}
-      {current.label}
-    </span>
-  );
-};
+            const current = statusMap[status?.toLowerCase()] || statusMap.pending;
 
-const DurationDisplay = ({ start, end }) => {
-  if (!start) return <span className="text-gray-500">Not started</span>;
+            return (
+                <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-sm font-medium ${current.color}`}>
+                    {current.icon}
+                    {current.label}
+                </span>
+            );
+        };
 
-  const startDate = new Date(start);
-  const endDate = end ? new Date(end) : new Date();
-  const durationMs = endDate - startDate;
+        const DurationDisplay = ({ start, end }) => {
+            if (!start) return <span className="text-gray-500">Not started</span>;
 
-  const formatTime = (ms) => {
-    if (ms < 1000) return `${ms}ms`;
-    if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`;
-    return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
-  };
+            const startDate = new Date(start);
+            const endDate = end ? new Date(end) : new Date();
+            const durationMs = endDate - startDate;
 
-  return (
-    <div className="flex items-center gap-1 text-sm">
-      <Timer className="w-4 h-4 text-gray-500" />
-      <span>{formatTime(durationMs)}</span>
-    </div>
-  );
-};
+            const formatTime = (ms) => {
+                if (ms < 1000) return `${ms}ms`;
+                if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`;
+                return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+            };
 
-const CollapsibleSection = ({ title, icon, children, defaultOpen = true }) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex justify-between items-center p-6 hover:bg-gray-50 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          {icon}
-          <span className="text-xl font-semibold text-gray-900">{title}</span>
-        </div>
-        {isOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-      </button>
-
-      {isOpen && (
-        <div className="p-6 pt-0">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const FileDownloadComponent = ({ filePath, fileName, fileType, onDownload, isLoading }) => {
-  const getFileIcon = (type) => {
-    if (type === 'json') return <FileJson className="w-8 h-8 text-blue-600" />;
-    return <File className="w-8 h-8 text-gray-600" />;
-  };
-
-  const getFileSize = (path) => {
-    // This would normally come from the API
-    return "Unknown size";
-  };
-
-  const getFileTypeDisplay = (type) => {
-    switch(type) {
-      case 'json': return 'JSON file';
-      case 'csv': return 'CSV file';
-      case 'txt': return 'Text file';
-      default: return 'File';
-    }
-  };
-
-  if (!filePath) return null;
-
-  return (
-    <div className="ds_file-download">
-      <div className="ds_file-download__thumbnail">
-        <div className="ds_file-download__thumbnail-link flex items-center justify-center bg-gray-50 w-16 h-16 rounded">
-          {getFileIcon(fileType)}
-        </div>
-      </div>
-      <div className="ds_file-download__content">
-        <button
-          onClick={() => onDownload(filePath, fileType)}
-          disabled={isLoading}
-          className="ds_file-download__title ds-link text-left hover:underline disabled:opacity-50"
-        >
-          {fileName}
-        </button>
-        <div className="ds_file-download__details">
-          <dl className="ds_metadata ds_metadata--inline">
-            <div className="ds_metadata__item">
-              <dt className="ds_metadata__key visually-hidden">File type</dt>
-              <dd className="ds_metadata__value">
-                {getFileTypeDisplay(fileType)}
-                <span className="visually-hidden">,</span>
-              </dd>
-            </div>
-            <div className="ds_metadata__item">
-              <dt className="ds_metadata__key visually-hidden">File size</dt>
-              <dd className="ds_metadata__value">{getFileSize(filePath)}</dd>
-            </div>
-          </dl>
-        </div>
-      </div>
-      {isLoading && (
-        <div className="ml-auto">
-          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-        </div>
-      )}
-    </div>
-  );
-};
-
-const Run = () => {
-  const { runId } = useParams();
-  const navigate = useNavigate();
-  const [runData, setRunData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [syncLoading, setSyncLoading] = useState(false);
-  const [downloadLoading, setDownloadLoading] = useState({ input: false, output: false });
-  const [error, setError] = useState(null);
-  const [expandedLogs, setExpandedLogs] = useState({});
-
-  const fetchRunData = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`http://localhost:8000/runs/run/${runId}`);
-      if (!response.ok) throw new Error('Failed to fetch run data');
-      const data = await response.json();
-      setRunData(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchRunData();
-  }, [runId]);
-
-  const handleSync = async () => {
-    if (!runData?.run?.dagster_run_id) return;
-    try {
-      setSyncLoading(true);
-      const response = await fetch(`http://localhost:8000/runs/sync/${runData.run.dagster_run_id}`, {
-        method: 'POST'
-      });
-      if (!response.ok) throw new Error('Failed to sync run status');
-      await fetchRunData();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSyncLoading(false);
-    }
-  };
-
-  const getFileNameFromPath = (path) => {
-    if (!path) return null;
-    const parts = path.split('/');
-    return parts[parts.length - 1] || 'Unknown file';
-  };
-
-  const getFileType = (path) => {
-    if (!path) return 'unknown';
-    const extension = path.split('.').pop()?.toLowerCase();
-    return extension || 'unknown';
-  };
-
-  const handleDownload = async (filePath, type) => {
-    if (!filePath) return;
-    try {
-      setDownloadLoading(prev => ({ ...prev, [type]: true }));
-      const response = await fetch(`http://localhost:8000/files/download-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_path: filePath })
-      });
-      if (!response.ok) throw new Error(`Failed to get download URL for ${type} file`);
-      const { url } = await response.json();
-
-      // Force download instead of opening in browser
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = getFileNameFromPath(filePath);
-      link.target = '_blank'; // Fallback
-      link.rel = 'noopener noreferrer';
-
-      // Force download attribute
-      link.setAttribute('download', getFileNameFromPath(filePath));
-
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      setError(`Failed to download ${type} file: ${err.message}`);
-    } finally {
-      setDownloadLoading(prev => ({ ...prev, [type]: false }));
-    }
-  };
-
-  const toggleLogExpansion = (logId) => {
-    setExpandedLogs(prev => ({
-      ...prev,
-      [logId]: !prev[logId]
-    }));
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading run details...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !runData) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md">
-          <div className="ds_notification ds_notification--negative" role="alert">
-            <div className="ds_notification__content">
-              <h2 className="ds_notification__title">Error Loading Run</h2>
-              <p>{error || 'Run data not available'}</p>
-              <button
-                onClick={() => navigate('/runs')}
-                className="ds_button ds_button--secondary ds_button--small mt-4"
-              >
-                Back to Runs
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const { run, logs = [], step_statuses: stepStatuses = [] } = runData;
-
-  // Extract first name from email
-  const getFirstNameFromEmail = (email) => {
-    return email ? email.split('@')[0].split('.')[0].charAt(0).toUpperCase() + email.split('@')[0].split('.')[0].slice(1) : 'Unknown';
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-6">
-          <button
-            onClick={() => navigate('/runs')}
-            className="flex items-center text-sm text-blue-600 hover:text-blue-800 mb-4 bg-none border-none cursor-pointer"
-          >
-            <ChevronLeft className="w-4 h-4 mr-1" />
-            Back to all runs
-          </button>
-
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Run #{run.id}: {run.workflow_name || 'Untitled Workflow'}
-              </h1>
-              <p className="text-gray-600 text-lg">
-                {run.workflow_description || 'No description available'}
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <StatusBadge status={run.status} />
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleSync}
-                disabled={syncLoading}
-                className="bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white rounded-lg py-2 px-4 flex items-center shadow-lg shadow-blue-500/20"
-              >
-                {syncLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                )}
-                Sync Status
-              </motion.button>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Run Details and Files */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Run Summary Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-600" />
-                Run Summary
-              </h2>
-
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Triggered By</h3>
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-gray-500" />
-                    <div>
-                      <p className="font-medium text-lg">{run.triggered_by_username}</p>
-                      <p className="text-sm text-gray-500">{run.triggered_by_email || 'Unknown user'}</p>
-                    </div>
-                  </div>
+            return (
+                <div className="flex items-center gap-1 text-sm">
+                    <Timer className="w-4 h-4 text-gray-500" />
+                    <span>{formatTime(durationMs)}</span>
                 </div>
+            );
+        };
 
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Execution Timeline</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Started:</span>
-                      <span className="text-sm font-medium">
-                        {run.started_at ? new Date(run.started_at).toLocaleString() : 'Not started'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Finished:</span>
-                      <span className="text-sm font-medium">
-                        {run.finished_at ? new Date(run.finished_at).toLocaleString() :
-                         run.status === 'running' ? 'In progress' : 'Not finished'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Duration:</span>
-                      <DurationDisplay start={run.started_at} end={run.finished_at} />
-                    </div>
-                  </div>
+        const CollapsibleSection = ({ title, icon, children, defaultOpen = true }) => {
+            const [isOpen, setIsOpen] = useState(defaultOpen);
+
+            return (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <button
+                        onClick={() => setIsOpen(!isOpen)}
+                        className="w-full flex justify-between items-center p-6 hover:bg-gray-50 transition-colors"
+                    >
+                        <div className="flex items-center gap-2">
+                            {icon}
+                            <span className="text-xl font-semibold text-gray-900">{title}</span>
+                        </div>
+                        {isOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                    </button>
+                    {isOpen && (
+                        <div className="p-6 pt-0">
+                            {children}
+                        </div>
+                    )}
                 </div>
+            );
+        };
 
-                {run.error_message && (
-                  <div className="ds_notification ds_notification--negative">
-                    <div className="ds_notification__content">
-                      <h4 className="ds_notification__title">Error Message</h4>
-                      <p className="text-sm">{run.error_message}</p>
+        const FileDownloadComponent = ({ filePath, fileName, fileType, onDownload, isLoading }) => {
+            const getFileIcon = (type) => {
+                if (type === 'json') return <FileJson className="w-8 h-8 text-blue-600" />;
+                return <File className="w-8 h-8 text-gray-600" />;
+            };
+
+            const getFileTypeDisplay = (type) => {
+                switch(type) {
+                    case 'json': return 'JSON file';
+                    case 'csv': return 'CSV file';
+                    case 'txt': return 'Text file';
+                    default: return 'File';
+                }
+            };
+
+            if (!filePath) return null;
+
+            return (
+                <div className="ds_file-download flex items-center gap-4">
+                    <div className="ds_file-download__thumbnail">
+                        <div className="ds_file-download__thumbnail-link flex items-center justify-center bg-gray-50 w-16 h-16 rounded">
+                            {getFileIcon(fileType)}
+                        </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Files Section */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <HardDriveDownload className="w-5 h-5 text-blue-600" />
-                Data Files
-              </h2>
-
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Input File</h3>
-                  {run.input_file_path ? (
-                    <FileDownloadComponent
-                      filePath={run.input_file_path}
-                      fileName={getFileNameFromPath(run.input_file_path)}
-                      fileType={getFileType(run.input_file_path)}
-                      onDownload={handleDownload}
-                      isLoading={downloadLoading.input}
-                    />
-                  ) : (
-                    <p className="text-gray-500 italic">No input file available</p>
-                  )}
+                    <div className="ds_file-download__content flex-1">
+                        <button
+                            onClick={() => onDownload(filePath, fileType)}
+                            disabled={isLoading}
+                            className="ds_file-download__title ds-link text-left hover:underline disabled:opacity-50 text-sm font-medium"
+                        >
+                            {fileName}
+                        </button>
+                        <div className="ds_file-download__details">
+                            <dl className="ds_metadata ds_metadata--inline flex gap-4 text-xs text-gray-600">
+                                <div className="ds_metadata__item">
+                                    <dt className="ds_metadata__key visually-hidden">File type</dt>
+                                    <dd className="ds_metadata__value">{getFileTypeDisplay(fileType)}</dd>
+                                </div>
+                            </dl>
+                        </div>
+                    </div>
+                    {isLoading && (
+                        <div className="ml-auto">
+                            <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                        </div>
+                    )}
                 </div>
+            );
+        };
 
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Output File</h3>
-                  {run.output_file_path ? (
-                    <FileDownloadComponent
-                      filePath={run.output_file_path}
-                      fileName={getFileNameFromPath(run.output_file_path)}
-                      fileType={getFileType(run.output_file_path)}
-                      onDownload={handleDownload}
-                      isLoading={downloadLoading.output}
-                    />
-                  ) : (
-                    <p className="text-gray-500 italic">No output file generated</p>
-                  )}
+        const LogEventDetails = ({ event }) => {
+            if (!event.__typename || !event.event_data) return null;
+
+            const renderEventData = () => {
+                switch (event.__typename) {
+                    case 'ExecutionStepInputEvent':
+                    case 'ExecutionStepOutputEvent':
+                        return (
+                            <div className="space-y-2">
+                                <p className="text-sm">
+                                    <strong>{event.__typename === 'ExecutionStepInputEvent' ? 'Input' : 'Output'} Name:</strong>{' '}
+                                    {event.event_data.inputName || event.event_data.outputName || 'N/A'}
+                                </p>
+                                {event.event_data.typeCheck && (
+                                    <div>
+                                        <strong className="text-sm">Type Check:</strong>
+                                        <ul className="list-disc pl-5 text-sm">
+                                            <li>Label: {event.event_data.typeCheck.label || 'N/A'}</li>
+                                            <li>Description: {event.event_data.typeCheck.description || 'None'}</li>
+                                            <li>Success: <StatusBadge status={event.event_data.typeCheck.success ? 'success' : 'failed'} /></li>
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    case 'ExecutionStepFailureEvent':
+                        return (
+                            <div className="space-y-2">
+                                <p className="text-sm">
+                                    <strong>Error Message:</strong> {event.event_data.error?.message || 'No error message'}
+                                </p>
+                                {event.event_data.error?.stack && (
+                                    <div>
+                                        <strong className="text-sm">Error Stack:</strong>
+                                        <pre className="text-xs bg-red-50 p-3 rounded-md overflow-auto border border-red-200">
+                                            {event.event_data.error.stack}
+                                        </pre>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    default:
+                        return (
+                            <div className="text-sm">
+                                <p><strong>Event Type:</strong> {event.__typename}</p>
+                                {Object.keys(event.event_data).length > 0 && (
+                                    <pre className="text-xs bg-gray-100 p-3 rounded-md overflow-auto border">
+                                        {JSON.stringify(event.event_data, null, 2)}
+                                    </pre>
+                                )}
+                            </div>
+                        );
+                }
+            };
+
+            return (
+                <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700">
+                    {renderEventData()}
                 </div>
-              </div>
-            </div>
-          </div>
+            );
+        };
 
-          {/* Right Column - Execution Details */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Step Execution Timeline */}
-            <CollapsibleSection
-              title="Step Execution Timeline"
-              icon={<Zap className="w-5 h-5 text-blue-600" />}
-            >
-              {stepStatuses.length > 0 ? (
-                <div className="space-y-4">
-                  {stepStatuses.map((step, index) => (
-                    <div key={step.id} className="relative">
-                      {index < stepStatuses.length - 1 && (
-                        <div className="absolute left-6 top-12 w-0.5 h-12 bg-gray-200"></div>
-                      )}
+        const Run = () => {
+            const { runId } = useParams();
+            const navigate = useNavigate();
+            const [runData, setRunData] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [syncLoading, setSyncLoading] = useState(false);
+            const [downloadLoading, setDownloadLoading] = useState({ input: false, output: false });
+            const [error, setError] = useState(null);
+            const [expandedLogs, setExpandedLogs] = useState({});
 
-                      <div className="flex gap-4">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-white border-2 border-blue-500 flex items-center justify-center">
-                          <div className={`w-3 h-3 rounded-full ${
-                            step.status === 'pending' ? 'bg-gray-400' :
-                            step.status === 'running' ? 'bg-blue-500 animate-pulse' :
-                            step.status === 'success' ? 'bg-green-500' :
-                            step.status === 'failed' ? 'bg-red-500' :
-                            step.status === 'skipped' ? 'bg-yellow-500' : 'bg-gray-400'
-                          }`} />
+            const fetchRunData = async () => {
+                try {
+                    setLoading(true);
+                    const response = await fetch(`http://localhost:8000/runs/run/${runId}`);
+                    if (!response.ok) throw new Error(`Failed to fetch run data: ${response.statusText}`);
+                    const data = await response.json();
+
+                    if (!data.run) {
+                        throw new Error('Run data not found in response');
+                    }
+
+                    const transformedData = {
+                        pipelineRunOrError: {
+                            __typename: 'Run',
+                            dagsterRunId: data.run.dagster_run_id,
+                            status: data.run.status,
+                            pipeline: {
+                                name: data.run.workflow_name,
+                                description: data.run.workflow_description
+                            },
+                            executionPlan: {
+                                steps: (data.step_statuses || []).map(step => ({
+                                    key: step.step_code,
+                                    step_label: step.label,
+                                    step_description: step.description,
+                                    status: step.status,
+                                    started_at: step.started_at,
+                                    finished_at: step.finished_at,
+                                    error_message: step.error_message
+                                }))
+                            },
+                            eventConnection: {
+                                events: (data.logs || []).map(log => ({
+                                    id: log.id,
+                                    __typename: log.event_type || 'UnknownEvent',
+                                    message: log.message || 'No message',
+                                    timestamp: log.timestamp ? String(new Date(log.timestamp).getTime()) : null,
+                                    level: log.log_level || 'INFO',
+                                    stepKey: log.step_code,
+                                    dagster_run_id: log.dagster_run_id,
+                                    event_data: log.event_data || {}
+                                }))
+                            },
+                            workflow_id: data.run.workflow_id,
+                            triggered_by_email: data.run.triggered_by_email,
+                            triggered_by_username: data.run.triggered_by_username,
+                            started_at: data.run.started_at,
+                            finished_at: data.run.finished_at,
+                            error_message: data.run.error_message,
+                            input_file_path: data.run.input_file_path,
+                            output_file_path: data.run.output_file_path,
+                            config_used: data.run.config_used
+                        }
+                    };
+
+                    setRunData(transformedData.pipelineRunOrError);
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            useEffect(() => {
+                fetchRunData();
+            }, [runId]);
+
+            const handleSync = async () => {
+                if (!runData?.dagsterRunId) return;
+                try {
+                    setSyncLoading(true);
+                    const response = await fetch(`http://localhost:8000/runs/sync/${runData.dagsterRunId}`, {
+                        method: 'POST'
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        if (errorData.detail && errorData.detail.includes("could not be found")) {
+                            console.log("Run not found, doing nothing.");
+                            return;
+                        }
+                        throw new Error(errorData.detail || 'Failed to sync run status');
+                    }
+
+                    await fetchRunData();
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setSyncLoading(false);
+                }
+            };
+
+            const getFileNameFromPath = (path) => {
+                if (!path) return null;
+                const parts = path.split('/');
+                return parts[parts.length - 1] || 'Unknown file';
+            };
+
+            const getFileType = (path) => {
+                if (!path) return 'unknown';
+                const extension = path.split('.').pop()?.toLowerCase();
+                return extension || 'unknown';
+            };
+
+            const handleDownload = async (filePath, type) => {
+                if (!filePath) return;
+                try {
+                    setDownloadLoading(prev => ({ ...prev, [type]: true }));
+                    const response = await fetch(`http://localhost:8000/files/download-url`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ file_path: filePath })
+                    });
+                    if (!response.ok) throw new Error(`Failed to get download URL for ${type} file`);
+                    const { url } = await response.json();
+
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = getFileNameFromPath(filePath);
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.setAttribute('download', getFileNameFromPath(filePath));
+
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } catch (err) {
+                    setError(`Failed to download ${type} file: ${err.message}`);
+                } finally {
+                    setDownloadLoading(prev => ({ ...prev, [type]: false }));
+                }
+            };
+
+            const toggleLogExpansion = (logId) => {
+                setExpandedLogs(prev => ({
+                    ...prev,
+                    [logId]: !prev[logId]
+                }));
+            };
+
+            const getFirstNameFromEmail = (email) => {
+                if (!email) return 'Unknown';
+                const [localPart] = email.split('@');
+                const [firstName] = localPart.split('.');
+                return firstName.charAt(0).toUpperCase() + firstName.slice(1);
+            };
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                        <div className="text-center">
+                            <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+                            <p className="text-gray-600">Loading run details...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (error && !runData) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                        <div className="max-w-md">
+                            <div className="ds_notification ds_notification--negative" role="alert">
+                                <div className="ds_notification__content">
+                                    <h2 className="ds_notification__title">Error Loading Run</h2>
+                                    <p>{error || 'Run data not available'}</p>
+                                    <button
+                                        onClick={() => navigate('/runs')}
+                                        className="ds_button ds_button--secondary ds_button--small mt-4"
+                                    >
+                                        Back to Runs
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            const { dagsterRunId, status, pipeline, executionPlan, eventConnection } = runData;
+            const steps = executionPlan?.steps || [];
+            const events = eventConnection?.events || [];
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        {/* Header */}
+                        <div className="mb-6">
+                            <button
+                                onClick={() => navigate('/runs')}
+                                className="flex items-center text-sm text-blue-600 hover:text-blue-800 mb-4 bg-none border-none cursor-pointer"
+                            >
+                                <ChevronLeft className="w-4 h-4 mr-1" />
+                                Back to all runs
+                            </button>
+
+                            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+                                <div>
+                                    <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                                        Run #{runId}: {pipeline?.name || 'Untitled Workflow'}
+                                    </h1>
+                                    <p className="text-gray-600 text-lg">
+                                        {pipeline?.description || 'No description available'}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <StatusBadge status={status} />
+                                    <motion.button
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={handleSync}
+                                        disabled={syncLoading}
+                                        className="bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white rounded-lg py-2 px-4 flex items-center shadow-lg shadow-blue-500/20"
+                                    >
+                                        {syncLoading ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <RefreshCw className="w-4 h-4 mr-2" />
+                                        )}
+                                        Sync Status
+                                    </motion.button>
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="flex-1 bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <h4 className="font-semibold text-gray-900">{step.step_label || 'Unnamed Step'}</h4>
-                              {step.step_description && (
-                                <p className="text-sm text-gray-600 mt-1">{step.step_description}</p>
-                              )}
-                            </div>
-                            <StatusBadge status={step.status} />
-                          </div>
+                        {/* Main Content Grid */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Left Column - Run Details and Files */}
+                            <div className="lg:col-span-1 space-y-6">
+                                {/* Run Summary Card */}
+                                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                    <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                                        <FileText className="w-5 h-5 text-blue-600" />
+                                        Run Summary
+                                    </h2>
 
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div className="flex items-center gap-2 text-gray-600">
-                              <Calendar className="w-4 h-4" />
-                              <span>
-                                {step.started_at ? new Date(step.started_at).toLocaleTimeString() : 'Not started'}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 text-gray-600">
-                              <Gauge className="w-4 h-4" />
-                              <DurationDisplay start={step.started_at} end={step.finished_at} />
-                            </div>
-                          </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Triggered By</h3>
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                                                    <User className="w-4 h-4 text-gray-500" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <p className="font-medium text-base">{runData.triggered_by_username || getFirstNameFromEmail(runData.triggered_by_email)}</p>
+                                                    <p className="text-sm text-gray-500">{runData.triggered_by_email || 'Unknown user'}</p>
+                                                </div>
+                                            </div>
+                                        </div>
 
-                          {step.error_message && (
-                            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-                              <strong>Error:</strong> {step.error_message}
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Execution Timeline</h3>
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between">
+                                                    <span className="text-sm text-gray-600">Started:</span>
+                                                    <span className="text-sm font-medium">
+                                                        {runData.started_at ? new Date(runData.started_at).toLocaleString() : 'Not started'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-sm text-gray-600">Finished:</span>
+                                                    <span className="text-sm font-medium">
+                                                        {runData.finished_at ? new Date(runData.finished_at).toLocaleString() :
+                                                        status === 'RUNNING' ? <StatusBadge status="running" /> : 'Not finished'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-sm text-gray-600">Duration:</span>
+                                                    <DurationDisplay start={runData.started_at} end={runData.finished_at} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {runData.error_message && (
+                                        <div className="ds_notification ds_notification--negative mt-4">
+                                            <div className="ds_notification__content">
+                                                <h4 className="ds_notification__title">Error Message</h4>
+                                                <p className="text-sm">{runData.error_message}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Files Section */}
+                                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                    <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                                        <HardDriveDownload className="w-5 h-5 text-blue-600" />
+                                        Data Files
+                                    </h2>
+
+                                    <div className="space-y-4">
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-700 mb-3">Input File</h3>
+                                            {runData.input_file_path ? (
+                                                <FileDownloadComponent
+                                                    filePath={runData.input_file_path}
+                                                    fileName={getFileNameFromPath(runData.input_file_path)}
+                                                    fileType={getFileType(runData.input_file_path)}
+                                                    onDownload={handleDownload}
+                                                    isLoading={downloadLoading.input}
+                                                />
+                                            ) : (
+                                                <p className="text-gray-500 italic">No input file available</p>
+                                            )}
+                                        </div>
+
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-700 mb-3">Output File</h3>
+                                            {runData.output_file_path ? (
+                                                <FileDownloadComponent
+                                                    filePath={runData.output_file_path}
+                                                    fileName={getFileNameFromPath(runData.output_file_path)}
+                                                    fileType={getFileType(runData.output_file_path)}
+                                                    onDownload={handleDownload}
+                                                    isLoading={downloadLoading.output}
+                                                />
+                                            ) : (
+                                                <p className="text-gray-500 italic">No output file generated</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                          )}
+
+                            {/* Right Column - Execution Details */}
+                            <div className="lg:col-span-2 space-y-6">
+                                {/* Step Execution Timeline */}
+                                <CollapsibleSection
+                                    title="Step Execution Timeline"
+                                    icon={<Zap className="w-5 h-5 text-blue-600" />}
+                                >
+                                    {steps.length > 0 ? (
+                                        <div className="space-y-4">
+                                            {steps.map((step, index) => {
+                                                const stepStatus = steps.find(s => s.key === step.key) || {};
+                                                return (
+                                                    <div key={step.key} className="relative pl-8">
+                                                        {index < steps.length - 1 && (
+                                                            <div className="absolute left-3 top-4 w-1 h-full bg-gray-200 rounded-full"></div>
+                                                        )}
+                                                        <div className="absolute left-1.5 top-4 w-4 h-4 rounded-full border-2 border-gray-300 flex items-center justify-center">
+                                                            <div className={`w-2 h-2 rounded-full ${
+                                                                stepStatus.status?.toLowerCase() === 'queued' ? 'bg-gray-400' :
+                                                                stepStatus.status?.toLowerCase() === 'pending' ? 'bg-gray-400' :
+                                                                stepStatus.status?.toLowerCase() === 'running' ? 'bg-blue-500 animate-pulse' :
+                                                                stepStatus.status?.toLowerCase() === 'success' ? 'bg-green-500' :
+                                                                stepStatus.status?.toLowerCase() === 'failed' ? 'bg-red-500' :
+                                                                stepStatus.status?.toLowerCase() === 'skipped' ? 'bg-yellow-500' : 'bg-gray-400'
+                                                            }`} />
+                                                        </div>
+                                                        <div className="flex-1 bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                                                            <div className="flex justify-between items-start mb-3">
+                                                                <div>
+                                                                    <h4 className="font-semibold text-gray-900">{stepStatus.step_label || step.key || 'Unnamed Step'}</h4>
+                                                                    {stepStatus.step_description && (
+                                                                        <p className="text-sm text-gray-600 mt-1">{stepStatus.step_description}</p>
+                                                                    )}
+                                                                </div>
+                                                                <StatusBadge status={stepStatus.status} />
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                                                <div className="flex items-center gap-2 text-gray-600">
+                                                                    <Calendar className="w-4 h-4" />
+                                                                    <span>
+                                                                        {stepStatus.started_at ? new Date(stepStatus.started_at).toLocaleTimeString() : 'Not started'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-gray-600">
+                                                                    <Gauge className="w-4 h-4" />
+                                                                    <DurationDisplay start={stepStatus.started_at} end={stepStatus.finished_at} />
+                                                                </div>
+                                                            </div>
+                                                            {stepStatus.error_message && (
+                                                                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                                                                    <strong>Error:</strong> {stepStatus.error_message}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-8">
+                                            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                            <p className="text-gray-500">No step execution data available</p>
+                                        </div>
+                                    )}
+                                </CollapsibleSection>
+
+                                {/* Execution Logs */}
+                                <CollapsibleSection
+                                    title="Execution Logs"
+                                    icon={<Code className="w-5 h-5 text-blue-600" />}
+                                >
+                                    {events.length > 0 ? (
+                                        <div className="space-y-3">
+                                            {events.map((event) => (
+                                                <div key={event.id} className="bg-white rounded border border-gray-200 overflow-hidden">
+                                                    <button
+                                                        onClick={() => toggleLogExpansion(event.id)}
+                                                        className="w-full flex justify-between items-center p-4 hover:bg-gray-50 transition-colors"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <span className={`w-3 h-3 rounded-full ${
+                                                                event.level?.toUpperCase() === 'ERROR' ? 'bg-red-500' :
+                                                                event.level?.toUpperCase() === 'WARNING' ? 'bg-yellow-500' :
+                                                                event.level?.toUpperCase() === 'DEBUG' ? 'bg-blue-500' : 'bg-green-500'
+                                                            }`} />
+                                                            <span className="font-medium">{event.stepKey || 'System'}</span>
+                                                            <span className={`text-xs px-2 py-1 rounded font-medium ${
+                                                                event.level?.toUpperCase() === 'ERROR' ? 'bg-red-100 text-red-800' :
+                                                                event.level?.toUpperCase() === 'WARNING' ? 'bg-yellow-100 text-yellow-800' :
+                                                                event.level?.toUpperCase() === 'DEBUG' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                                                            }`}>
+                                                                {event.__typename || event.level?.toUpperCase() || 'INFO'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-xs text-gray-500">
+                                                                {event.timestamp ? new Date(parseInt(event.timestamp)).toLocaleTimeString() : 'Unknown time'}
+                                                            </span>
+                                                            {expandedLogs[event.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                        </div>
+                                                    </button>
+                                                    <AnimatePresence>
+                                                        {expandedLogs[event.id] && (
+                                                            <motion.div
+                                                                initial={{ opacity: 0, height: 0 }}
+                                                                animate={{ opacity: 1, height: 'auto' }}
+                                                                exit={{ opacity: 0, height: 0 }}
+                                                                transition={{ duration: 0.2 }}
+                                                            >
+                                                                <div className="p-4 bg-gray-50 border-t border-gray-200">
+                                                                    <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
+                                                                        {event.message || 'No message'}
+                                                                    </pre>
+                                                                    <LogEventDetails event={event} />
+                                                                    {event.dagster_run_id && (
+                                                                        <p className="text-xs text-gray-500 mt-2 font-mono">Run ID: {event.dagster_run_id}</p>
+                                                                    )}
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-8">
+                                            <Code className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                            <p className="text-gray-500">No execution logs available for this run</p>
+                                        </div>
+                                    )}
+                                </CollapsibleSection>
+                            </div>
                         </div>
-                      </div>
+
+                        {/* Configuration Section */}
+                        <div className="mt-6">
+                            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                                    <Code className="w-5 h-5 text-blue-600" />
+                                    Configuration
+                                </h2>
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Workflow ID</h3>
+                                            <p className="text-sm font-mono bg-gray-50 px-2 py-1 rounded">{runData.workflow_id || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Dagster Run ID</h3>
+                                            <p className="text-sm font-mono bg-gray-50 px-2 py-1 rounded">{dagsterRunId || 'N/A'}</p>
+                                        </div>
+                                    </div>
+                                    {runData.config_used && (
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Operations Config</h3>
+                                            <pre className="text-xs bg-gray-50 p-3 rounded-md overflow-auto border">
+                                                {JSON.stringify(runData.config_used?.ops, null, 2)}
+                                            </pre>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                  ))}
                 </div>
-              ) : (
-                <div className="text-center py-8">
-                  <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No step execution data available</p>
-                </div>
-              )}
-            </CollapsibleSection>
+            );
+        };
 
-            {/* Execution Logs */}
-            <CollapsibleSection
-              title="Execution Logs"
-              icon={<Code className="w-5 h-5 text-blue-600" />}
-            >
-              {logs.length > 0 ? (
-                <div className="space-y-3">
-                  {logs.map((log) => (
-                    <div key={log.id} className="bg-white rounded border border-gray-200 overflow-hidden">
-                      <button
-                        onClick={() => toggleLogExpansion(log.id)}
-                        className="w-full flex justify-between items-center p-4 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className={`w-3 h-3 rounded-full ${
-                            log.log_level === 'error' ? 'bg-red-500' :
-                            log.log_level === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-                          }`} />
-                          <span className="font-medium">{log.step_label || 'System'}</span>
-                          <span className={`text-xs px-2 py-1 rounded font-medium ${
-                            log.log_level === 'error' ? 'bg-red-100 text-red-800' :
-                            log.log_level === 'warning' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            {log.log_level?.toUpperCase() || 'INFO'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-gray-500">
-                            {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : ''}
-                          </span>
-                          {expandedLogs[log.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </div>
-                      </button>
-
-                      <AnimatePresence>
-                        {expandedLogs[log.id] && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <div className="p-4 bg-gray-50 border-t border-gray-200">
-                              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">{log.message}</pre>
-                              {log.dagster_run_id && (
-                                <p className="text-xs text-gray-500 mt-2 font-mono">Run ID: {log.dagster_run_id}</p>
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Code className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No execution logs available for this run</p>
-                </div>
-              )}
-            </CollapsibleSection>
-          </div>
-        </div>
-
-        {/* Configuration Section - Full Width at Bottom */}
-        <div className="mt-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Code className="w-5 h-5 text-blue-600" />
-              Configuration
-            </h2>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Workflow ID</h3>
-                  <p className="text-sm font-mono bg-gray-50 px-2 py-1 rounded">{run.workflow_id || 'N/A'}</p>
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Dagster Run ID</h3>
-                  <p className="text-sm font-mono bg-gray-50 px-2 py-1 rounded">{run.dagster_run_id || 'N/A'}</p>
-                </div>
-              </div>
-              {run.config_used && (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Operations Config</h3>
-                  <pre className="text-xs bg-gray-50 p-3 rounded-md overflow-auto border">
-                    {JSON.stringify(run.config_used.ops, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default Run;
+        export default Run;

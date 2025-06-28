@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, ChevronRight, ChevronLeft, Search, FileText, Database, Waypoints } from 'lucide-react';
+import { Plus, ChevronRight, ChevronLeft, Search, FileText, Database, Waypoints, Filter } from 'lucide-react';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 const Workflows = () => {
   const navigate = useNavigate();
@@ -10,46 +12,54 @@ const Workflows = () => {
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
-    // Fetch workflows data from the API
-    fetch(`http://localhost:8000/workflows/?page=${currentPage}&limit=10`, {
+    const userId = localStorage.getItem('userId');
+    const accessToken = localStorage.getItem('access_token');
+
+    if (!userId || !accessToken) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    fetch(`${API_BASE_URL}/workflows/?page=${currentPage}&limit=10&user_id=${userId}`, {
       headers: {
-        'accept': 'application/json'
-      }
+        'accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
     })
-    .then(response => response.json())
-    .then(data => {
-      setWorkflows(data.workflows);
-    })
-    .catch(error => console.error('Error fetching workflows:', error));
-  }, [currentPage]);
+      .then(response => response.json())
+      .then(data => {
+        setWorkflows(data.workflows);
+      })
+      .catch(error => console.error('Error fetching workflows:', error));
+  }, [navigate, currentPage]);
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
   };
 
   const getStatusBadge = (status) => {
-    switch (status) {
-      case 'Active':
-        return "bg-green-100 text-green-700 border-green-200";
-      case 'Failed':
-        return "bg-red-100 text-red-700 border-red-200";
-      case 'Scheduled':
-        return "bg-blue-100 text-blue-700 border-blue-200";
+    switch (status?.toLowerCase()) {
+      case 'active':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'failed':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'scheduled':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       default:
-        return "bg-gray-100 text-gray-700 border-gray-200";
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
   const getDestinationIconAndColor = (destination) => {
     switch (destination?.toLowerCase()) {
       case 'api':
-        return { icon: <Waypoints className="w-5 h-5 text-blue-600" />, color: 'bg-blue-100 border-blue-200' };
+        return { icon: <Waypoints className="w-6 h-6 text-blue-600" /> };
       case 'csv':
-        return { icon: <FileText className="w-5 h-5 text-teal-600" />, color: 'bg-teal-100 border-teal-200' };
+        return { icon: <FileText className="w-6 h-6 text-teal-600" /> };
       case 'database':
-        return { icon: <Database className="w-5 h-5 text-red-600" />, color: 'bg-red-100 border-red-200' };
+        return { icon: <Database className="w-6 h-6 text-red-600" /> };
       default:
-        return { icon: <FileText className="w-5 h-5 text-gray-600" />, color: 'bg-gray-100 border-gray-200' };
+        return { icon: <FileText className="w-6 h-6 text-gray-600" /> };
     }
   };
 
@@ -65,103 +75,141 @@ const Workflows = () => {
   const paginatedWorkflows = filteredWorkflows.slice((currentPage - 1) * 10, currentPage * 10);
 
   return (
-    <div className="min-h-screen bg-white text-gray-900">
-      <div className="container mx-auto px-6 py-10">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">Workflows</h2>
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Filter workflows..."
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="border border-gray-300 rounded-lg py-2 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <Search className="absolute right-3 top-3 w-5 h-5 text-gray-400" />
+    <div className="ds_page__middle">
+      <div className="ds_wrapper">
+        <header className="ds_page-header">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4">
+              <div>
+                <h4 className="leading-none text-[20px] font-semibold">Your Workflows</h4>
+                <p className="text-gray-600 mt-1">Monitor and manage your dataset processing workflows</p>
+              </div>
+              <div className="flex gap-3 mt-4 lg:mt-0">
+                <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-all h-9 px-4 py-2 border bg-white hover:bg-gray-50 border-gray-200">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filter
+                </button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => navigate('/workflows/new/')}
+                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-all h-9 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white shadow-lg shadow-blue-500/20"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Workflow
+                </motion.button>
+              </div>
+            </div>       </header>
+
+        <div className="bg-white flex flex-col gap-6 rounded-xl border shadow-sm">
+          <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 border-b border-gray-200 pb-6">
+ 
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
+                  <input
+                    type="text"
+                    placeholder="Search dataset pipelines..."
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    className="flex h-9 w-full min-w-0 px-3 py-1 text-sm pl-10 bg-white border-2 border-gray-200 focus:border-blue-600 rounded-sm"
+                  />
+                </div>
+              </div>
             </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/workflows/new/')}
-              className="bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white rounded-lg py-2 px-4 flex items-center shadow-lg shadow-blue-500/20"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              New Workflow
-            </motion.button>
           </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-6">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Created</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {paginatedWorkflows.length > 0 ? (
-                  paginatedWorkflows.map((workflow) => {
-                    const { icon, color } = getDestinationIconAndColor(workflow.destination);
-                    return (
-                      <tr
-                        key={workflow.id}
-                        className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
-                        onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className={`${color} rounded-lg p-2 mr-3`}>
-                              {icon}
-                            </div>
-                            <span className="text-sm font-medium text-gray-900">{workflow.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div className="truncate max-w-xs">{workflow.description}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.created_by || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{workflow.tags || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(workflow.created_at).toLocaleString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadge(workflow.status)}`}>
-                            {workflow.status}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan="7" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                      No workflows available.
-                    </td>
+          <div className="p-0">
+            <div className="relative w-full overflow-x-auto">
+              <table className="w-full caption-bottom text-sm">
+                <thead className="bg-gray-50">
+                  <tr className="border-b-2 border-gray-200">
+                    <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[100px]">ID</th>
+                    <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[280px]">Pipeline Name</th>
+                    <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[250px]">Description</th>
+                    <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[120px]">Owner</th>
+                    <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[120px]">Tags</th>
+                    <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[110px]">Date Created</th>
+                    <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[100px]">Status</th>
+                    <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[120px]">Actions</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paginatedWorkflows.length > 0 ? (
+                    paginatedWorkflows.map((workflow) => {
+                      const { icon } = getDestinationIconAndColor(workflow.destination);
+                      return (
+                        <tr
+                          key={workflow.id}
+                          className="border-b border-gray-200 hover:bg-gray-50 transition-colors bg-white"
+                          onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[100px]">
+                            <div className="text-sm text-gray-900">{workflow.id}</div>
+                          </td>
+                          <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[280px]">
+                            <div className="flex items-center max-w-[260px]">
+                              <div className="mr-3">{icon}</div>
+                              <div>
+                                <div className="font-semibold text-gray-900 break-words leading-tight">{workflow.name}</div>
+                                <div className="text-sm text-gray-600 mt-1">{`WF${String(workflow.id).padStart(4, '0')}`}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-2 align-middle py-4 px-6 w-[250px]">
+                            <div className="text-sm text-gray-600 break-words leading-tight max-w-[230px]">{workflow.description || 'N/A'}</div>
+                          </td>
+                          <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[120px]">
+                            <div className="text-sm text-gray-900">{workflow.created_by || 'N/A'}</div>
+                          </td>
+                          <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[120px]">
+                            <div className="text-sm text-gray-600">{workflow.tags || 'N/A'}</div>
+                          </td>
+                          <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[110px]">
+                            <div className="text-sm text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
+                              {new Date(workflow.created_at).toLocaleString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: false,
+                              })}
+                            </div>
+                          </td>
+                          <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[100px]">
+                            <span className={`inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium border whitespace-nowrap ${getStatusBadge(workflow.status)}`}>
+                              {workflow.status}
+                            </span>
+                          </td>
+                          <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[120px]">
+                            <button className="inline-flex items-center justify-center text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 h-8 gap-1.5 px-3 rounded-sm whitespace-nowrap">
+                              Explore
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="8" className="text-center py-4 text-gray-500">No workflows available.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-
-          <div className="flex flex-col sm:flex-row justify-between items-center mt-6 space-y-4 sm:space-y-0">
+          <div className="flex flex-col sm:flex-row justify-between items-center px-6 pb-6 space-y-4 sm:space-y-0">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-4 rounded-lg border border-gray-200 disabled:opacity-50 flex items-center"
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-all h-9 px-4 py-2 border bg-white hover:bg-gray-50 border-gray-200 disabled:opacity-50"
             >
-              <ChevronLeft className="w-5 h-5 mr-1" />
+              <ChevronLeft className="w-4 h-4 mr-1" />
               Previous
             </motion.button>
-            <span className="text-gray-700">
+            <span className="text-sm text-gray-600">
               Page {currentPage} of {totalPages}
             </span>
             <motion.button
@@ -169,10 +217,10 @@ const Workflows = () => {
               whileTap={{ scale: 0.95 }}
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-4 rounded-lg border border-gray-200 disabled:opacity-50 flex items-center"
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-all h-9 px-4 py-2 border bg-white hover:bg-gray-50 border-gray-200 disabled:opacity-50"
             >
               Next
-              <ChevronRight className="w-5 h-5 ml-1" />
+              <ChevronRight className="w-4 h-4 ml-1" />
             </motion.button>
           </div>
         </div>

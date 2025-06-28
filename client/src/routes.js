@@ -3,6 +3,7 @@ import Login from './pages/Login';
 import Connections from './pages/Connections';
 import NewWorkflow from './pages/NewWorkflow';
 import NewRun from './pages/NewRun';
+import NewUser from './pages/NewUser';
 import Workflow from './pages/Workflow';
 import Workflows from './pages/Workflows';
 import EditWorkflow from './pages/EditWorkflow';
@@ -11,7 +12,6 @@ import Run from './pages/Run';
 import Profile from './pages/Profile';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
-import AdminHub from './pages/SettingsHub';
 import Help from './pages/Help';
 import HealthCheck from './pages/HealthCheck';
 import ManageUsers from './pages/ManageUsers';
@@ -34,8 +34,8 @@ const routes = [
   { path: '/help', element: <Help />, protected: true },
   { path: '/health-check', element: <HealthCheck />, protected: true },
   { path: '/settings', element: <Settings />, protected: true },
-  { path: '/settings-hub', element: <AdminHub />, protected: true },
   { path: '/manage-users', element: <ManageUsers />, protected: true },
+  { path: '/users/new', element: <NewUser />, protected: true },
   { path: '/manage-permissions', element: <ManagePermissions />, protected: true },
 ];
 

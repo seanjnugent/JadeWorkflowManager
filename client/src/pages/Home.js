@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Plus, Workflow, Plug, Settings, Code,
+  Plus, Workflow, Plug, Settings, Code, Filter,
   ChevronRight, Search, FileText, Database, Waypoints,
-  Clock, CircleCheckBig, Play, Filter
+  CircleCheckBig
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -12,56 +12,41 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:800
 const Home = () => {
   const navigate = useNavigate();
   const [workflows, setWorkflows] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
   const [user, setUser] = useState(null);
 
- useEffect(() => {
-  // Get user ID from localStorage
-  const userId = localStorage.getItem('userId');
-  
-  // Build the API URL with optional user_id parameter
-  const apiUrl = userId 
-    ? `${API_BASE_URL}/workflows/?page=1&limit=10&user_id=${userId}`
-    : `${API_BASE_URL}/workflows/?page=1&limit=10`;
+  // Fetch workflows
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    const accessToken = localStorage.getItem('access_token');
 
-  // Fetch workflows data from the API
-  fetch(apiUrl, {
-    headers: {
-      'accept': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-    }
-  })
-  .then(response => response.json())
-  .then(data => {
-    // Map over the workflows to add icons and other necessary fields
-    const mappedWorkflows = data.workflows.slice(0, 3).map((workflow) => {
-      const { icon, color } = getDestinationIconAndColor(workflow.destination);
-      return {
-        ...workflow,
-        icon: icon,
-        lastRun: workflow.last_run ? formatLastRunDate(workflow.last_run) : "Never run"
-      };
-    });
-    setWorkflows(mappedWorkflows);
-  })
-  .catch(error => console.error('Error fetching workflows:', error));
-}, []);
+    if (!userId || !accessToken) return;
 
-// Helper function to format last run date
-const formatLastRunDate = (dateString) => {
-  return new Date(dateString).toLocaleString('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-};
+    const apiUrl = `${API_BASE_URL}/workflows/?page=1&limit=10&user_id=${userId}`;
 
+    fetch(apiUrl, {
+      headers: {
+        'accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+      .then(response => response.json())
+      .then(data => {
+        const mappedWorkflows = data.workflows.slice(0, 3).map((workflow) => ({
+          ...workflow,
+          icon: getDestinationIconAndColor(workflow.destination).icon,
+          lastRun: workflow.last_run ? formatLastRunDate(workflow.last_run) : "Never run"
+        }));
+        setWorkflows(mappedWorkflows);
+      })
+      .catch(error => console.error('Error fetching workflows:', error));
+  }, []);
+
+  // Fetch user info
   useEffect(() => {
     const fetchUser = async () => {
       const userId = localStorage.getItem('userId');
       const accessToken = localStorage.getItem('access_token');
-
       if (!userId || !accessToken) {
         navigate('/login', { replace: true });
         return;
@@ -87,10 +72,7 @@ const formatLastRunDate = (dateString) => {
         }
 
         const data = await response.json();
-        if (!data.user) {
-          throw new Error('User not found');
-        }
-
+        if (!data.user) throw new Error('User not found');
         setUser(data.user);
       } catch (err) {
         console.error('Failed to fetch user:', err);
@@ -100,16 +82,58 @@ const formatLastRunDate = (dateString) => {
     fetchUser();
   }, [navigate]);
 
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    const accessToken = localStorage.getItem('access_token');
+
+    if (!userId || !accessToken) return;
+
+    fetch(`${API_BASE_URL}/users/recent-activity?user_id=${userId}&limit=3`, {
+      headers: {
+        'accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+      .then(response => {
+        if (!response.ok) throw new Error("Failed to fetch recent activity");
+        return response.json();
+      })
+      .then(data => {
+        const formattedData = data.map(activity => ({
+          ...activity,
+          status: activity.status === "SUCCESS" ? "Completed" : activity.status,
+          lastRun: activity.last_updated
+            ? formatLastRunDate(activity.last_updated)
+            : "Never run",
+          workflow_id: `WF${String(activity.workflow_id).padStart(4, '0')}`,
+        }));
+        setRecentActivity(formattedData);
+      })
+      .catch(error => console.error('Error fetching recent activity:', error));
+  }, []);
+
+  // Helper: Format date like "17 Jun, 14:30"
+  const formatLastRunDate = (dateString) => {
+    return new Date(dateString).toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  };
+
+  // Helper: Get icons and colors based on destination
   const getDestinationIconAndColor = (destination) => {
     switch (destination?.toLowerCase()) {
       case 'api':
-        return { icon: <Waypoints className="w-6 h-6 text-blue-600" />, color: 'bg-blue-100 border-blue-200' };
+        return { icon: <Waypoints className="w-6 h-6 text-blue-600" /> };
       case 'csv':
-        return { icon: <FileText className="w-6 h-6 text-teal-600" />, color: 'bg-teal-100 border-teal-200' };
+        return { icon: <FileText className="w-6 h-6 text-teal-600" /> };
       case 'database':
-        return { icon: <Database className="w-6 h-6 text-red-600" />, color: 'bg-red-100 border-red-200' };
+        return { icon: <Database className="w-6 h-6 text-red-600" /> };
       default:
-        return { icon: <FileText className="w-6 h-6 text-gray-600" />, color: 'bg-gray-100 border-gray-200' };
+        return { icon: <FileText className="w-6 h-6 text-gray-600" /> };
     }
   };
 
@@ -124,79 +148,66 @@ const formatLastRunDate = (dateString) => {
           </p>
         </header>
 
-        {/* Rest of your component remains the same */}
         {/* Recent Activity Card */}
         <div className="mb-8">
           <div className="bg-white flex flex-col gap-6 rounded-xl border shadow-sm">
             <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 border-b border-gray-200 pb-4">
-              <h4 className="flex items-center text-[20px] font-normal">
-                <Clock className="h-5 w-5 mr-2 text-blue-600" aria-hidden="true" />
-                Recent Activity
-              </h4>
+              <h4 className="flex items-center text-[20px] font-semibold">Recent Activity</h4>
             </div>
             <div className="p-0">
               <div className="relative w-full overflow-x-auto">
                 <table className="w-full caption-bottom text-sm">
                   <thead className="bg-gray-50">
                     <tr className="border-b-2 border-gray-200">
-                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[50px]">Status</th>
-                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6">Workflow</th>
+                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[100px]">Status</th>
+                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[280px]">Workflow</th>
                       <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[120px]">User</th>
-                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[100px]">Time</th>
+                      <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[110px]">Time</th>
                       <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6">Activity</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr className="border-b border-gray-200 hover:bg-gray-50 transition-colors bg-white">
-                      <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[50px]">
-                        <div className="flex items-center space-x-2">
-                          <Clock className="h-4 w-4 text-blue-600" />
-                          <span className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs w-fit font-medium border whitespace-nowrap bg-blue-100 text-blue-800 border-blue-200">
-                            Running
-                          </span>
-                        </div>
-                      </td>
-                      <td className="p-2 align-middle whitespace-nowrap py-4 px-6">
-                        <div>
-                          <div className="font-semibold text-gray-900">Health Dataset Upload Pipeline</div>
-                          <div className="text-sm text-gray-600 mt-1">WF001</div>
-                        </div>
-                      </td>
-                      <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[120px]">
-                        <div className="text-sm text-gray-900">Alex Campbell</div>
-                      </td>
-                      <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[100px]">
-                        <div className="text-sm text-gray-900">17 Jun, 14:30</div>
-                      </td>
-                      <td className="p-2 align-middle whitespace-nowrap py-4 px-6">
-                        <div className="text-sm text-gray-600">Processing health statistics data</div>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-200 hover:bg-gray-50 transition-colors bg-gray-25">
-                      <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[50px]">
-                        <div className="flex items-center space-x-2">
-                          <CircleCheckBig className="h-4 w-4 text-green-600" />
-                          <span className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs w-fit font-medium border whitespace-nowrap bg-green-100 text-green-800 border-green-200">
-                            Completed
-                          </span>
-                        </div>
-                      </td>
-                      <td className="p-2 align-middle whitespace-nowrap py-4 px-6">
-                        <div>
-                          <div className="font-semibold text-gray-900">Education Performance Data Ingestion</div>
-                          <div className="text-sm text-gray-600 mt-1">WF002</div>
-                        </div>
-                      </td>
-                      <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[120px]">
-                        <div className="text-sm text-gray-900">Sarah Wilson</div>
-                      </td>
-                      <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[100px]">
-                        <div className="text-sm text-gray-900">17 Jun, 13:45</div>
-                      </td>
-                      <td className="p-2 align-middle whitespace-nowrap py-4 px-6">
-                        <div className="text-sm text-gray-600">12,456 records processed successfully</div>
-                      </td>
-                    </tr>
+                    {recentActivity.length > 0 ? (
+                      recentActivity.map((activity, index) => (
+                        <tr
+                          key={index}
+                          className="border-b border-gray-200 hover:bg-gray-50 transition-colors bg-white"
+                          onClick={() => navigate(`/runs/run/${activity.run_id}`)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[100px]">
+                            <span className={`inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium border whitespace-nowrap ${
+                              activity.status === "Completed"
+                                ? "bg-green-100 text-green-800 border-green-200"
+                                : activity.status === "STARTED" || activity.status === "RUNNING"
+                                  ? "bg-blue-100 text-blue-800 border-blue-200"
+                                  : "bg-gray-100 text-gray-800 border-gray-200"
+                            }`}>
+                              {activity.status}
+                            </span>
+                          </td>
+                          <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[280px]">
+                            <div className="max-w-[260px]">
+                              <div className="font-semibold text-gray-900 break-words leading-tight">{activity.workflow_name}</div>
+                              <div className="text-sm text-gray-600 mt-1">{activity.workflow_id}</div>
+                            </div>
+                          </td>
+                          <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[120px]">
+                            <div className="text-sm text-gray-900">{activity.triggered_by_username}</div>
+                          </td>
+                          <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[110px]">
+                            <div className="text-sm text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">{activity.lastRun}</div>
+                          </td>
+                          <td className="p-2 align-middle whitespace-nowrap py-4 px-6">
+                            <div className="text-sm text-gray-600 break-words leading-tight">{activity.latest_activity}</div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="text-center py-4 text-gray-500">No recent activity found</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -209,7 +220,7 @@ const formatLastRunDate = (dateString) => {
           <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 border-b border-gray-200 pb-6">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4">
               <div>
-                <h4 className="leading-none text-xl font-semibold">Your Workflows</h4>
+                <h4 className="leading-none text-[20px] font-semibold">Your Workflows</h4>
                 <p className="text-gray-600 mt-1">Monitor and manage your dataset processing workflows</p>
               </div>
               <div className="flex gap-3 mt-4 lg:mt-0">
@@ -252,13 +263,13 @@ const formatLastRunDate = (dateString) => {
                         key={workflow.id}
                         className="border-b border-gray-200 hover:bg-gray-50 transition-colors bg-white"
                         onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
+                        style={{ cursor: 'pointer' }}
                       >
                         <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[280px]">
                           <div className="max-w-[260px]">
                             <div className="font-semibold text-gray-900 break-words leading-tight">{workflow.name}</div>
-<div className="text-sm text-gray-600 mt-1">
-  WF{String(workflow.id).padStart(4, '0')}
-</div>                          </div>
+                            <div className="text-sm text-gray-600 mt-1">{`WF${String(workflow.id).padStart(4, '0')}`}</div>
+                          </div>
                         </td>
                         <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[120px]">
                           <span className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium w-fit bg-gray-100 text-gray-800 border border-gray-200 whitespace-nowrap">
@@ -266,7 +277,7 @@ const formatLastRunDate = (dateString) => {
                           </span>
                         </td>
                         <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[100px]">
-                          <span className={`inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs w-fit font-medium border whitespace-nowrap ${
+                          <span className={`inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium w-fit border whitespace-nowrap ${
                             workflow.status === 'Active' ? 'bg-green-100 text-green-800 border-green-200' :
                             workflow.status === 'Scheduled' ? 'bg-blue-100 text-blue-800 border-blue-200' :
                             'bg-gray-100 text-gray-800 border-gray-200'
@@ -275,18 +286,8 @@ const formatLastRunDate = (dateString) => {
                           </span>
                         </td>
                         <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[110px]">
-                          <div className="max-w-[90px]">
-                            <div className="text-gray-900 whitespace-nowrap">
-{workflow.last_run 
-  ? new Date(workflow.last_run).toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-  : 'Never Run'}                           </div>
-
+                          <div className="text-sm text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
+                            {workflow.lastRun || 'Never Run'}
                           </div>
                         </td>
                         <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[250px]">
@@ -362,9 +363,8 @@ const formatLastRunDate = (dateString) => {
             </motion.button>
           </div>
         </div>
-          </div>
-          </div>
-
+      </div>
+    </div>
   );
 };
 

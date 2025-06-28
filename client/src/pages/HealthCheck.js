@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity } from 'lucide-react';
+import { Activity, Github } from 'lucide-react';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '[invalid url, do not cite]';
 
@@ -34,13 +34,14 @@ const HealthCheck = () => {
             navigate('/login');
             return;
           }
-          throw new Error('Failed to fetch health status');
+         
+
+ throw new Error('Failed to fetch health status');
         }
         const data = await response.json();
         setHealthStatus(data);
       } catch (error) {
         console.error('Error fetching health status:', error);
-        setError('Failed to load health status. Please try again.');
         setTimeout(() => setError(''), 5000);
       }
     };
@@ -113,6 +114,24 @@ const HealthCheck = () => {
                   </q>
                 </span>
               </li>
+              <li className="ds_summary-list__item">
+                <span className="ds_summary-list__key" id="item-github-key">GitHub</span>
+                <span className="ds_summary-list__value">
+                  <q className="ds_summary-list__answer">
+                    <span className={healthStatus.github === 'Connected' ? 'ds_tag ds_tag--success' : 'ds_tag ds_tag--error'}>
+                      {healthStatus.github === 'Connected' ? 'Connected' : capitalizeFirstLetter(healthStatus.github)}
+                    </span>
+                  </q>
+                </span>
+              </li>
+              {healthStatus.github !== 'Connected' && (
+                <li className="ds_summary-list__item">
+                  <span className="ds_summary-list__key" id="item-github-error-key">GitHub Error</span>
+                  <span className="ds_summary-list__value">
+                    <q className="ds_summary-list__answer">{healthStatus.github}</q>
+                  </span>
+                </li>
+              )}
               {healthStatus.dagster !== 'Connected' && (
                 <li className="ds_summary-list__item">
                   <span className="ds_summary-list__key" id="item-dagster-error-key">Dagster Error</span>

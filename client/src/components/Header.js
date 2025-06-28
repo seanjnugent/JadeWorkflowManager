@@ -157,7 +157,7 @@ const Header = () => {
                 alt="Scottish Government"
               />
             </NavLink>
-            <div className="ds_site-branding__title">Cinnabar</div>
+            <div className="ds_site-branding__title">Pierre Workflow Manager</div>
           </div>
 
           {/* User actions positioned at header level */}
@@ -223,7 +223,7 @@ const Header = () => {
             data-module="ds-mobile-navigation-menu"
             aria-hidden={!isMenuOpen}
           >
-            <Navigation currentPath={location.pathname} />
+            <Navigation currentPath={location.pathname} user={user} />
           </nav>
         </div>
       </div>
@@ -231,7 +231,7 @@ const Header = () => {
       <div className="ds_site-header__navigation">
         <div className="ds_wrapper">
           <nav className="ds_site-navigation">
-            <Navigation currentPath={location.pathname} />
+            <Navigation currentPath={location.pathname} user={user} />
           </nav>
         </div>
       </div>

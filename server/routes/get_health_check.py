@@ -2,11 +2,11 @@ from fastapi import APIRouter
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from supabase import create_client, Client
+from github import Github, GithubException
 import os
 from dotenv import load_dotenv
 import logging
 import requests
-import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -54,6 +54,14 @@ except Exception as e:
     logger.error(f"Failed to create database engine: {str(e)}")
     raise RuntimeError(f"Failed to create database engine: {str(e)}")
 
+# GitHub configuration
+GITHUB_ACCESS_TOKEN = os.getenv("GITHUB_ACCESS_TOKEN")
+GITHUB_REPO_OWNER = os.getenv("GITHUB_REPO_OWNER", "seanjnugent")
+GITHUB_REPO_NAME = os.getenv("GITHUB_REPO_NAME", "DataWorkflowTool-Workflows")
+if not GITHUB_ACCESS_TOKEN:
+    logger.error("GITHUB_ACCESS_TOKEN environment variable not set")
+    raise RuntimeError("GITHUB_ACCESS_TOKEN environment variable is required")
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
@@ -72,8 +80,6 @@ def check_dagster_health():
         return "not_configured"
     
     try:
-        # Try a simple GET request to Dagster's root URL
-        # Adjust the URL if Dagster has a specific health endpoint
         dagster_health_url = DAGSTER_API_URL.replace('/graphql', '')
         response = requests.get(dagster_health_url, timeout=5)
         
@@ -86,19 +92,48 @@ def check_dagster_health():
         logger.error(f"Dagster connection failed: {str(e)}")
         return f"connection_error ({str(e)})"
 
+def check_github_health():
+    """Check GitHub repository access"""
+    try:
+        g = Github(GITHUB_ACCESS_TOKEN)
+        repo = g.get_repo(f"{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}")
+        repo.get_contents("", ref="main")  # Check access to repository root
+        logger.info(f"Successfully accessed GitHub repo {GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}")
+        return "Connected"
+    except GithubException as e:
+        logger.error(f"GitHub connection failed: {str(e)}")
+        if e.status in [401, 403]:
+            return "unauthorized"
+        elif e.status == 404:
+            return "repo_not_found"
+        return f"error ({str(e)})"
+    except Exception as e:
+        logger.error(f"Unexpected GitHub connection error: {str(e)}")
+        return f"error ({str(e)})"
+
 @router.get("/health_check")
 def health_check():
     """Comprehensive health check endpoint"""
     dagster_status = check_dagster_health()
+    github_status = check_github_health()
+    
+    overall_status = "healthy" if all([
+        supabase is not None,
+        engine is not None,
+        dagster_status == "Connected",
+        github_status == "Connected"
+    ]) else "unhealthy"
     
     return {
-        "status": "healthy",
+        "status": overall_status,
         "supabase": "Connected" if supabase else "Disconnected",
         "database": "Connected" if engine else "Disconnected",
         "dagster": dagster_status,
+        "github": github_status,
         "details": {
             "dagster_api_url": os.getenv("DAGSTER_API_URL"),
             "supabase_initialized": bool(supabase),
-            "database_connected": bool(engine)
+            "database_connected": bool(engine),
+            "github_access": github_status
         }
     }

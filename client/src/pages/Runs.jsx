@@ -6,10 +6,12 @@ import {
   ChevronLeft,
   CheckCircle,
   XCircle,
-  Clock,
+  RefreshCw,
   Search,
-  RefreshCw
+  Filter
 } from 'lucide-react';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 const Runs = () => {
   const navigate = useNavigate();
@@ -17,21 +19,30 @@ const Runs = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
-  const limit = 20;
+  const limit = 10;
 
-  // Fetch runs from API
   useEffect(() => {
     setLoading(true);
-    fetch('http://localhost:8000/runs', {
+    const userId = localStorage.getItem('userId');
+    const accessToken = localStorage.getItem('access_token');
+
+    if (!userId || !accessToken) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    fetch(`${API_BASE_URL}/runs?user_id=${userId}&page=${currentPage}&limit=${limit}`, {
       headers: {
-        accept: 'application/json',
+        'accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
       },
     })
       .then((res) => res.json())
       .then((data) => {
         if (data.runs && Array.isArray(data.runs)) {
-          setAllRuns(data.runs); // Access the 'runs' property
+          setAllRuns(data.runs);
         } else {
           setAllRuns([]);
         }
@@ -43,7 +54,7 @@ const Runs = () => {
       .finally(() => {
         setLoading(false);
       });
-  }, []);
+  }, [navigate, currentPage]);
 
   const totalPages = Math.ceil(allRuns.length / limit);
 
@@ -54,34 +65,32 @@ const Runs = () => {
   };
 
   const getStatusIcon = (status) => {
-    const normalizedStatus = status?.toLowerCase(); // Make case-insensitive
+    const normalizedStatus = status?.toLowerCase();
     switch (normalizedStatus) {
       case 'completed':
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
       case 'success':
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
+        return <CheckCircle className="w-4 h-4 text-green-600" />;
       case 'failure':
-        return <XCircle className="w-5 h-5 text-red-600" />;
+        return <XCircle className="w-4 h-4 text-red-600" />;
       case 'running':
-        return <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />;
+        return <RefreshCw className="w-4 h-4 text-blue-600 animate-spin" />;
       default:
-        return <Clock className="w-5 h-5 text-gray-600" />;
+        return null;
     }
   };
 
   const getStatusBadge = (status) => {
-    const normalizedStatus = status?.toLowerCase(); // Make case-insensitive
+    const normalizedStatus = status?.toLowerCase();
     switch (normalizedStatus) {
       case 'completed':
-        return 'bg-green-100 text-green-700 border-green-200';
       case 'success':
-        return 'bg-green-100 text-green-700 border-green-200';
+        return 'bg-green-100 text-green-800 border-green-200';
       case 'failure':
-        return 'bg-red-100 text-red-700 border-red-200';
+        return 'bg-red-100 text-red-800 border-red-200';
       case 'running':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -92,8 +101,6 @@ const Runs = () => {
     }
     setSortConfig({ key, direction });
   };
-
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
   const sortedRuns = React.useMemo(() => {
     let sortableRuns = [...allRuns];
@@ -112,132 +119,169 @@ const Runs = () => {
 
     return sortableRuns.filter(
       (run) =>
-        run.id.toString().includes(filter.toLowerCase()) ||
-        run.workflow_id.toString().includes(filter.toLowerCase()) ||
-        run.status.toLowerCase().includes(filter.toLowerCase()) // Make case-insensitive
+        run.id.toString().toLowerCase().includes(filter.toLowerCase()) ||
+        run.workflow_id.toString().toLowerCase().includes(filter.toLowerCase()) ||
+        run.status.toLowerCase().includes(filter.toLowerCase())
     );
   }, [allRuns, sortConfig, filter]);
 
   const paginatedRuns = sortedRuns.slice((currentPage - 1) * limit, currentPage * limit);
 
   return (
-    <div className="min-h-screen bg-white text-gray-900">
-      <div className="container mx-auto px-6 py-10">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">Runs</h2>
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Filter runs..."
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg py-2 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <Search className="absolute right-3 top-3 w-5 h-5 text-gray-400" />
+    <div className="ds_page__middle">
+      <div className="ds_wrapper">
+        <header className="ds_page-header">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4">
+            <div>
+              <h4 className="leading-none text-[20px] font-semibold">All Runs</h4>
+              <p className="text-gray-600 mt-1">Monitor and manage your workflow executions</p>
+            </div>
+            <div className="flex gap-3 mt-4 lg:mt-0">
+              <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-all h-9 px-4 py-2 border bg-white hover:bg-gray-50 border-gray-200">
+                <Filter className="h-4 w-4 mr-2" />
+                Filter
+              </button>
+            </div>
           </div>
-        </div>
+        </header>
 
-        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-6">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => requestSort('id')}
-                  >
-                    ID {sortConfig.key === 'id' ? (sortConfig.direction === 'ascending' ? '↑' : '↓') : ''}
-                  </th>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => requestSort('workflow_id')}
-                  >
-                    Workflow ID {sortConfig.key === 'workflow_id' ? (sortConfig.direction === 'ascending' ? '↑' : '↓') : ''}
-                  </th>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => requestSort('status')}
-                  >
-                    Status {sortConfig.key === 'status' ? (sortConfig.direction === 'ascending' ? '↑' : '↓') : ''}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Started At</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Finished At</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Error Message</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {loading ? (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                      Loading...
-                    </td>
-                  </tr>
-                ) : paginatedRuns.length > 0 ? (
-                  paginatedRuns.map((run) => (
-                    <tr
-                      key={run.id}
-                      className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
-                      onClick={() => navigate(`/runs/run/${run.id}`)}
+        <div className="bg-white flex flex-col gap-6 rounded-xl border shadow-sm">
+          <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 pt-6 border-b border-gray-200 pb-6">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
+                  <input
+                    type="text"
+                    placeholder="Filter runs..."
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    className="flex h-9 w-full min-w-0 px-3 py-1 text-sm pl-10 bg-white border-2 border-gray-200 focus:border-blue-600 rounded-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="p-0">
+            <div className="relative w-full overflow-x-auto">
+              <table className="w-full caption-bottom text-sm">
+                <thead className="bg-gray-50">
+                  <tr className="border-b-2 border-gray-200">
+                    <th
+                      className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[100px] cursor-pointer"
+                      onClick={() => requestSort('id')}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{run.id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{run.workflow_id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadge(
-                            run.status
-                          )}`}
-                        >
-                          {getStatusIcon(run.status)}
-                          <span className="ml-2">{run.status}</span>
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(run.started_at).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {run.finished_at ? new Date(run.finished_at).toLocaleString() : 'Still running'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        <div className="truncate max-w-xs">{run.error_message || 'N/A'}</div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                      No runs available.
-                    </td>
+                      ID {sortConfig.key === 'id' ? (sortConfig.direction === 'ascending' ? '↑' : '↓') : ''}
+                    </th>
+                    <th
+                      className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[280px] cursor-pointer"
+                      onClick={() => requestSort('workflow_id')}
+                    >
+                      Workflow ID
+                    </th>
+                    <th
+                      className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[100px] cursor-pointer"
+                      onClick={() => requestSort('status')}
+                    >
+                      Status
+                    </th>
+                    <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[110px]">
+                      Started At
+                    </th>
+                    <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[110px]">
+                      Finished At
+                    </th>
+                    <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[250px]">
+                      Error Message
+                    </th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan="6" className="text-center py-4 text-gray-500">Loading...</td>
+                    </tr>
+                  ) : paginatedRuns.length > 0 ? (
+                    paginatedRuns.map((run) => (
+                      <tr
+                        key={run.id}
+                        className="border-b border-gray-200 hover:bg-gray-50 transition-colors bg-white"
+                        onClick={() => navigate(`/runs/run/${run.id}`)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[100px]">
+                          <div className="text-sm text-gray-900">{run.id}</div>
+                        </td>
+                        <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[280px]">
+                          <div className="max-w-[260px]">
+                            <div className="font-semibold text-gray-900 break-words leading-tight">{run.workflow_id}</div>
+                          </div>
+                        </td>
+                        <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[100px]">
+                          <span className={`inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium border whitespace-nowrap ${getStatusBadge(run.status)}`}>
+                            {getStatusIcon(run.status)}
+                            <span className="ml-1">{run.status}</span>
+                          </span>
+                        </td>
+                        <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[110px]">
+                          <div className="text-sm text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
+                            {new Date(run.started_at).toLocaleString('en-GB', {
+                              day: '2-digit',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: false,
+                            })}
+                          </div>
+                        </td>
+                        <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[110px]">
+                          <div className="text-sm text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
+                            {run.finished_at ? new Date(run.finished_at).toLocaleString('en-GB', {
+                              day: '2-digit',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: false,
+                            }) : 'Still running'}
+                          </div>
+                        </td>
+                        <td className="p-2 align-middle py-4 px-6 w-[250px]">
+                          <div className="text-sm text-gray-600 break-words leading-tight max-w-[230px]">{run.error_message || 'N/A'}</div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="6" className="text-center py-4 text-gray-500">No runs available.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-
-          <div className="flex flex-col sm:flex-row justify-between items-center mt-6 space-y-4 sm:space-y-0">
+          <div className="flex flex-col sm:flex-row justify-between items-center px-6 pb-6 space-y-4 sm:space-y-0">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-4 rounded-lg border border-gray-200 disabled:opacity-50 flex items-center"
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-all h-9 px-4 py-2 border bg-white hover:bg-gray-50 border-gray-200 disabled:opacity-50"
             >
-              <ChevronLeft className="w-5 h-5 mr-1" />
+              <ChevronLeft className="w-4 h-4 mr-1" />
               Previous
             </motion.button>
-
-            <span className="text-gray-700">
+            <span className="text-sm text-gray-600">
               Page {currentPage} of {totalPages}
             </span>
-
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-4 rounded-lg border border-gray-200 disabled:opacity-50 flex items-center"
+              className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-all h-9 px-4 py-2 border bg-white hover:bg-gray-50 border-gray-200 disabled:opacity-50"
             >
               Next
-              <ChevronRight className="w-5 h-5 ml-1" />
+              <ChevronRight className="w-4 h-4 ml-1" />
             </motion.button>
           </div>
         </div>

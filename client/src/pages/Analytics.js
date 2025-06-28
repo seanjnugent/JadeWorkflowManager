@@ -1,18 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'chart.js/auto';
-import { FiTrendingUp, FiAlertCircle, FiClock, FiLayers } from 'react-icons/fi';
+import { FiTrendingUp, FiAlertCircle, FiLayers } from 'react-icons/fi';
+import { Clock } from 'lucide-react';
 
-// Card Component
 const Card = ({ children, title }) => (
-  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-    {title && <h2 className="text-lg font-semibold text-gray-900 mb-4">{title}</h2>}
-    {children}
+  <div className="bg-white flex flex-col gap-6 rounded-xl border shadow-sm">
+    {title && (
+      <div className="px-6 pt-6">
+        <h4 className="text-[20px] font-semibold">{title}</h4>
+      </div>
+    )}
+    <div className="p-0">{children}</div>
   </div>
 );
 
 const fetchData = async (endpoint) => {
   try {
-    const response = await fetch(`http://localhost:8000/analytics/${endpoint}`);
+    const response = await fetch(`http://localhost:8000/analytics/${endpoint}`, {
+      headers: {
+        'accept': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+      },
+    });
+    if (!response.ok) throw new Error(`Failed to fetch ${endpoint}`);
     return await response.json();
   } catch (error) {
     console.error(`Error fetching ${endpoint}:`, error);
@@ -20,7 +30,6 @@ const fetchData = async (endpoint) => {
   }
 };
 
-// Fake data for step performance
 const fakeStepPerformance = {
   step_stats: [
     { step_name: 'data_ingestion', avg_duration_seconds: 12.5, success_rate: 98.2, runs: 150 },
@@ -97,8 +106,10 @@ const RunStatsChart = ({ data }) => {
   }, [data]);
 
   return (
-    <div className="h-64">
-      <canvas id="runStatsChart" className="w-full h-full"></canvas>
+    <div className="px-6 pb-6">
+      <div className="h-64">
+        <canvas id="runStatsChart" className="w-full h-full"></canvas>
+      </div>
       <div className="flex justify-center gap-4 mt-3">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
@@ -150,16 +161,18 @@ const StatusPieChart = ({ data }) => {
   }, [data]);
 
   return (
-    <div className="h-64 flex flex-col items-center">
-      <canvas id="statusPieChart" className="w-full h-full max-w-xs"></canvas>
-      <div className="flex justify-center gap-4 mt-3">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
-          <span className="text-xs text-gray-600">Successful</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-          <span className="text-xs text-gray-600">Failed</span>
+    <div className="px-6 pb-6">
+      <div className="h-64 flex flex-col items-center">
+        <canvas id="statusPieChart" className="w-full h-full max-w-xs"></canvas>
+        <div className="flex justify-center gap-4 mt-3">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+            <span className="text-xs text-gray-600">Successful</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+            <span className="text-xs text-gray-600">Failed</span>
+          </div>
         </div>
       </div>
     </div>
@@ -227,7 +240,13 @@ const ErrorMessagesChart = ({ data }) => {
     return () => chart.destroy();
   }, [data]);
 
-  return <div className="h-64"><canvas id="errorMessagesChart" className="w-full h-full"></canvas></div>;
+  return (
+    <div className="px-6 pb-6">
+      <div className="h-64">
+        <canvas id="errorMessagesChart" className="w-full h-full"></canvas>
+      </div>
+    </div>
+  );
 };
 
 const identifyPattern = (message) => {
@@ -244,32 +263,52 @@ const identifyPattern = (message) => {
 
 const FailureTable = ({ data }) => {
   if (!data.failures || data.failures.length === 0) return (
-    <div className="text-center py-12">
+    <div className="text-center py-12 px-6">
       <FiAlertCircle className="mx-auto text-emerald-500 text-4xl" />
-      <h3 className="mt-4 text-lg font-medium text-gray-900">No Failures Detected</h3>
-      <p className="mt-1 text-gray-500">All workflows are running smoothly</p>
+      <h3 className="mt-4 text-[20px] font-semibold text-gray-900">No Failures Detected</h3>
+      <p className="mt-1 text-gray-600">All workflows are running smoothly</p>
     </div>
   );
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-100">
-      <table className="min-w-full divide-y divide-gray-100">
+    <div className="relative w-full overflow-x-auto">
+      <table className="w-full caption-bottom text-sm">
         <thead className="bg-gray-50">
-          <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Run ID</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Workflow</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Started At</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Error Message</th>
+          <tr className="border-b-2 border-gray-200">
+            <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[100px]">Run ID</th>
+            <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[280px]">Workflow</th>
+            <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[110px]">Started At</th>
+            <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[250px]">Error Message</th>
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-100">
+        <tbody>
           {data.failures.map((failure) => (
-            <tr key={failure.run_id} className="hover:bg-gray-50">
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{failure.run_id}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{failure.workflow_name}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{failure.started_at}</td>
-              <td className="px-6 py-4 text-sm text-gray-500">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">
+            <tr
+              key={failure.run_id}
+              className="border-b border-gray-200 hover:bg-gray-50 transition-colors bg-white"
+              style={{ cursor: 'pointer' }}
+            >
+              <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[100px]">
+                <div className="text-sm text-gray-900">{failure.run_id}</div>
+              </td>
+              <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[280px]">
+                <div className="max-w-[260px]">
+                  <div className="font-semibold text-gray-900 break-wrds leading-tight">{failure.workflow_name}</div>
+                </div>
+              </td>
+              <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[110px]">
+                <div className="text-sm text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
+                  {new Date(failure.started_at).toLocaleString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                  })}
+                </div>
+              </td>
+              <td className="p-2 align-middle py-noreap px-6 w-[250px]">
+                <span className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800 border-red-200 whitespace-nowrap">
                   {failure.error_message}
                 </span>
               </td>
@@ -282,23 +321,37 @@ const FailureTable = ({ data }) => {
 };
 
 const StepPerformanceTable = ({ data }) => (
-  <div className="overflow-x-auto rounded-xl border border-gray-100">
-    <table className="min-w-full divide-y divide-gray-100">
+  <div className="relative w-full overflow-x-auto">
+    <table className="w-full caption-bottom text-sm">
       <thead className="bg-gray-50">
-        <tr>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Step Name</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Duration (s)</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Success Rate (%)</th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Runs</th>
+        <tr className="border-b-2 border-gray-200">
+          <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[280px]">Step Name</th>
+          <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[120px]">Avg Duration (s)</th>
+          <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[120px]">Success Rate (%)</th>
+          <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[100px]">Total Runs</th>
         </tr>
       </thead>
-      <tbody className="bg-white divide-y divide-gray-100">
+      <tbody>
         {data.step_stats.map((step) => (
-          <tr key={step.step_name} className="hover:bg-gray-50">
-            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{step.step_name}</td>
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{step.avg_duration_seconds.toFixed(1)}</td>
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{step.success_rate.toFixed(1)}</td>
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{step.runs}</td>
+          <tr
+            key={step.step_name}
+            className="border-b border-gray-200 hover:bg-gray-50 transition-colors bg-white"
+            style={{ cursor: 'pointer' }}
+          >
+            <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[280px]">
+              <div className="max-w-[260px]">
+                <div className="font-semibold text-gray-900 break-words leading-tight">{step.step_name}</div>
+              </div>
+            </td>
+            <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[120px]">
+              <div className="text-sm text-gray-900">{step.avg_duration_seconds.toFixed(1)}</div>
+            </td>
+            <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[120px]">
+              <div className="text-sm text-gray-900">{step.success_rate.toFixed(1)}</div>
+            </td>
+            <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[100px]">
+              <div className="text-sm text-gray-900">{step.runs}</div>
+            </td>
           </tr>
         ))}
       </tbody>
@@ -313,6 +366,14 @@ const Analytics = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    const accessToken = localStorage.getItem('access_token');
+
+    if (!userId || !accessToken) {
+      window.location.href = '/login';
+      return;
+    }
+
     const loadData = async () => {
       setIsLoading(true);
       try {
@@ -343,54 +404,52 @@ const Analytics = () => {
   const totalSteps = stepPerformance.step_stats.length;
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 font-['Inter',sans-serif] py-8">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-gray-900">Dagster Workflow Analytics</h1>
-          <p className="text-sm text-gray-500 mt-1">Real-time insights into your pipeline performance</p>
+    <div className="ds_page__middle">
+      <div className="ds_wrapper">
+        <header className="ds_page-header">
+          <h1 className="ds_page-header__title text-[20px] font-semibold">Analytics</h1>
+          <p className="ds_page-header__subtitle text-gray-600">Real-time insights into your pipeline performance</p>
+        </header>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center gap-4">
+            <div className="p-2 bg-emerald-50 rounded-lg">
+              <FiTrendingUp className="w-6 h-6 text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Total Runs</p>
+              <span className="text-lg font-semibold text-gray-900">{totalRuns}</span>
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center gap-4">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <FiLayers className="w-6 h-6 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Success Rate</p>
+              <span className="text-lg font-semibold text-gray-900">{successRate}%</span>
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center gap-4">
+            <div className="p-2 bg-amber-50 rounded-lg">
+              <Clock className="w-6 h-6 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Avg Duration</p>
+              <span className="text-lg font-semibold text-gray-900">{avgDuration}s</span>
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center gap-4">
+            <div className="p-2 bg-purple-50 rounded-lg">
+              <FiLayers className="w-6 h-6 text-purple-500" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Total Steps</p>
+              <span className="text-lg font-semibold text-gray-900">{totalSteps}</span>
+            </div>
+          </div>
         </div>
 
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3">
-            <div className="p-2 bg-emerald-50 rounded-full">
-              <FiTrendingUp className="text-emerald-500 text-lg" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase">Total Runs</p>
-              <span className="text-xl font-semibold text-gray-900">{totalRuns}</span>
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-full">
-              <FiLayers className="text-blue-500 text-lg" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase">Success Rate</p>
-              <span className="text-xl font-semibold text-gray-900">{successRate}%</span>
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3">
-            <div className="p-2 bg-amber-50 rounded-full">
-              <FiClock className="text-amber-500 text-lg" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase">Avg Duration</p>
-              <span className="text-xl font-semibold text-gray-900">{avgDuration}s</span>
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3">
-            <div className="p-2 bg-purple-50 rounded-full">
-              <FiLayers className="text-purple-500 text-lg" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase">Total Steps</p>
-              <span className="text-xl font-semibold text-gray-900">{totalSteps}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-2">
             <Card title="Workflow Runs Over Time">
@@ -406,7 +465,6 @@ const Analytics = () => {
           <ErrorMessagesChart data={failureAnalysis} />
         </Card>
 
-        {/* Tables */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
           <Card title="Recent Failures">
             <FailureTable data={failureAnalysis} />
