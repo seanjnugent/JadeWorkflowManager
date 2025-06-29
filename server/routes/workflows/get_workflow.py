@@ -54,8 +54,9 @@ async def get_workflow(
         # Get recent runs
         runs = db.execute(
             text("""
-                SELECT id, status, started_at, finished_at
-                FROM workflow.run
+                SELECT a.id, status, started_at, finished_at, concat(first_name, ' ', surname) as triggered_by_name, duration_ms
+                FROM workflow.run a
+                inner join workflow.user b on a.triggered_by = b.id
                 WHERE workflow_id = :workflow_id
                 ORDER BY started_at DESC
                 LIMIT 5

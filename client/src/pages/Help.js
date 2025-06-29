@@ -1,149 +1,111 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { X, ChevronDown } from 'lucide-react';
 
 const Help = () => {
   useEffect(() => {
-    // Dynamically set the page title
     document.title = "Cobalt | Help";
   }, []);
 
+  const [expandedId, setExpandedId] = useState(null);
+
+  const toggleExpand = (id) => {
+    setExpandedId(expandedId === id ? null : id);
+  };
+
   return (
-    <div className="ds_page">
-      <div className="ds_wrapper">
-        <main id="main-content">
-          <header className="ds_page-header">
-            <h1 className="ds_page-header__title">Help & Support</h1>
-            <p className="ds_page-header__subtitle">
-              Find answers to common questions and get support for the Cobalt Open Data Portal.
+    <main className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto py-8 px-4">
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-6">
+            <button
+              onClick={() => window.history.back()}
+              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2"
+            >
+              <X className="h-4 w-4" />
+              Back to Home
+            </button>
+          </div>
+          <div className="text-center">
+            <h1 className="text-xl font-semibold text-gray-900">Help & Support</h1>
+            <p className="text-gray-600 text-sm mt-1">
+              Find answers to common questions and get support for managing your Dagster workflows in Cobalt
             </p>
-          </header>
+          </div>
+        </div>
 
-          <section className="ds_layout">
-            <div className="ds_layout__content">
-              <h2 className="ds_h2">Frequently Asked Questions</h2>
-              <div className="ds_accordion">
-                <div className="ds_accordion-item">
-                  <input type="checkbox" className="visually-hidden ds_accordion-item__control" id="faq-1" />
-                  <div className="ds_accordion-item__header">
-                    <h3 className="ds_accordion-item__title">How do I find data?</h3>
-                    <label className="ds_accordion-item__label" htmlFor="faq-1">
-                      <span className="visually-hidden">Show this section</span>
-                    </label>
-                  </div>
-                  <div className="ds_accordion-item__body">
-                    <p>
-                      There are many ways to find and discover data. You can search for data in the search boxes on the home page or in the page header by using relevant key words, such as ‘population’ or ‘National Records’. You can go to the Datasets page to browse, filter and sort all datasets. You can also go to the Organisations page to browse all organisations who provide data to the site.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="ds_accordion-item">
-                  <input type="checkbox" className="visually-hidden ds_accordion-item__control" id="faq-2" />
-                  <div className="ds_accordion-item__header">
-                    <h3 className="ds_accordion-item__title">How do I download the data I’m interested in?</h3>
-                    <label className="ds_accordion-item__label" htmlFor="faq-2">
-                      <span className="visually-hidden">Show this section</span>
-                    </label>
-                  </div>
-                  <div className="ds_accordion-item__body">
-                    <p>
-                      Once you have located your dataset, e.g., Police Officer Quarterly Strength, you can download the data in CSV format by clicking on the download button beneath the Resources header.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="ds_accordion-item">
-                  <input type="checkbox" className="visually-hidden ds_accordion-item__control" id="faq-3" />
-                  <div className="ds_accordion-item__header">
-                    <h3 className="ds_accordion-item__title">How do I know if the data is reliable and of good quality?</h3>
-                    <label className="ds_accordion-item__label" htmlFor="faq-3">
-                      <span className="visually-hidden">Show this section</span>
-                    </label>
-                  </div>
-                  <div className="ds_accordion-item__body">
-                    <p>
-                      We work with Data Producers to provide high quality metadata to describe the data. This information is available on the data’s dataset page. A data dictionary accompanies each resource. If you need more information, you can contact the data producer directly from their contact details on the respective dataset page.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="ds_accordion-item">
-                  <input type="checkbox" className="visually-hidden ds_accordion-item__control" id="faq-4" />
-                  <div className="ds_accordion-item__header">
-                    <h3 className="ds_accordion-item__title">How do I use the API to access data?</h3>
-                    <label className="ds_accordion-item__label" htmlFor="faq-4">
-                      <span className="visually-hidden">Show this section</span>
-                    </label>
-                  </div>
-                  <div className="ds_accordion-item__body">
-                    <p>
-                      Each resource which has an API end-point shows an API button.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="ds_accordion-item">
-                  <input type="checkbox" className="visually-hidden ds_accordion-item__control" id="faq-5" />
-                  <div className="ds_accordion-item__header">
-                    <h3 className="ds_accordion-item__title">How up to date is the data on this site?</h3>
-                    <label className="ds_accordion-item__label" htmlFor="faq-5">
-                      <span className="visually-hidden">Show this section</span>
-                    </label>
-                  </div>
-                  <div className="ds_accordion-item__body">
-                    <p>
-                      We work with Data Producers to keep the data and metadata on this site up to date. On each dataset’s page you can find when the dataset was last modified and the frequency the data is updated. Unless specified otherwise, we aim to update each dataset regularly and the data should be considered the latest version.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="ds_accordion-item">
-                  <input type="checkbox" className="visually-hidden ds_accordion-item__control" id="faq-6" />
-                  <div className="ds_accordion-item__header">
-                    <h3 className="ds_accordion-item__title">If I can’t find data on your site, where else might it be?</h3>
-                    <label className="ds_accordion-item__label" htmlFor="faq-6">
-                      <span className="visually-hidden">Show this section</span>
-                    </label>
-                  </div>
-                  <div className="ds_accordion-item__body">
-                    <p>
-                      Statistics.gov.scot is just one data publishing platform and there are many others, e.g., Public Health Scotland’s Scottish Health and Social Care Open Data platform, and the Scottish Government’s Spatial Data platform. Depending on your search, you might want to consider other platforms. Searching directly into your favourite search engine with relevant keywords may yield results as many platforms have their data well tagged and marked-up to support search.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="ds_accordion-item">
-                  <input type="checkbox" className="visually-hidden ds_accordion-item__control" id="faq-7" />
-                  <div className="ds_accordion-item__header">
-                    <h3 className="ds_accordion-item__title">I have feedback on the site, how do I share this?</h3>
-                    <label className="ds_accordion-item__label" htmlFor="faq-7">
-                      <span className="visually-hidden">Show this section</span>
-                    </label>
-                  </div>
-                  <div className="ds_accordion-item__body">
-                    <p>
-                      We’re always keen to hear from you. Please get in touch with any feedback or let us know how we can help you.
-                    </p>
-                  </div>
+        <div className="bg-white border border-gray-300 p-6">
+          <h2 className="text-sm font-medium text-gray-900 mb-4">Frequently Asked Questions</h2>
+          <div className="space-y-4">
+            {[
+              {
+                id: 'faq-1',
+                title: 'How do I create a new workflow?',
+                content: 'To create a new workflow, navigate to the Workflows page and click "New Workflow." Define your pipeline by specifying the data source, transformations, and destination (e.g., API, CSV, or database). Ensure you have the necessary permissions (Admin or Editor role) to create workflows. Save your configuration to make the workflow available for execution.'
+              },
+              {
+                id: 'faq-2',
+                title: 'How can I monitor my workflow runs?',
+                content: 'Go to the Runs page to view all workflow executions. You can filter runs by ID, Workflow ID, or status (e.g., Completed, Running, Failure). Click on a run to see detailed logs, including start time, error messages, and execution status. The Recent Activity section on the Home page also shows your latest runs.'
+              },
+              {
+                id: 'faq-3',
+                title: 'What should I do if a workflow run fails?',
+                content: 'On the Runs page, locate the failed run (marked with a red "Failure" badge). Click the run to view the error message in the details. Common issues include misconfigured data sources, invalid transformations, or permission errors. Update the workflow configuration on the Workflows page or contact your admin if the issue persists.'
+              },
+              {
+                id: 'faq-4',
+                title: 'How do I manage my user permissions?',
+                content: 'Visit the Profile page to view your workflow permissions under the "Workflow Permissions" section. Admins can modify roles (e.g., Admin, Viewer) for specific workflows. If you need elevated permissions, contact your team’s administrator through the Contact Support link.'
+              },
+              {
+                id: 'faq-5',
+                title: 'How can I update my profile information?',
+                content: 'On the Profile page, click "Change" next to Name, Email, or Role to edit your details. Enter the new information and click "Save." Note that only Admins can change roles. For security, you can also update your password or view your API token on the Profile page.'
+              },
+              {
+                id: 'faq-6',
+                title: 'How do I use the API to trigger workflows?',
+                content: 'Your API token is available on the Profile page under "Security." Use this token in the Authorization header (Bearer token) to authenticate API requests. To trigger a workflow, send a POST request to the /workflows/run endpoint with the workflow ID. Check the API documentation for detailed parameters and examples.'
+              },
+              {
+                id: 'faq-7',
+                title: 'How do I configure notifications for workflow events?',
+                content: 'On the Profile page, view your notification preferences under "Preferences." Currently, email notifications are enabled by default for critical events (e.g., run failures). Contact your administrator to enable Slack notifications or modify settings, as this feature is admin-controlled.'
+              }
+            ].map((faq) => (
+              <div key={faq.id} className="border border-gray-200 bg-white">
+                <button
+                  onClick={() => toggleExpand(faq.id)}
+                  className="flex items-center justify-between w-full p-4 cursor-pointer bg-gray-50 hover:bg-gray-100"
+                >
+                  <h3 className="text-sm font-medium text-gray-900">{faq.title}</h3>
+                  <ChevronDown
+                    className={`h-4 w-4 text-gray-700 transform transition-transform duration-300 ${
+                      expandedId === faq.id ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                <div className={`p-4 ${expandedId === faq.id ? 'block' : 'hidden'}`}>
+                  <p className="text-sm text-gray-600">{faq.content}</p>
                 </div>
               </div>
-            </div>
-          </section>
+            ))}
+          </div>
 
-          <section className="ds_layout">
-            <div className="ds_layout__content">
-              <h2 className="ds_h2">Contact Support</h2>
-              <p>
-                If you can't find the answer to your question, please contact our support team. We're here to help!
-              </p>
-              <Link to="/contact" className="ds_button">
-                Contact us
-              </Link>
-            </div>
-          </section>
-        </main>
+          <h2 className="text-sm font-medium text-gray-900 mt-8 mb-4">Contact Support</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            If you can’t find the answer to your question or need assistance with your Dagster workflows, please contact our support team. We’re here to help!
+          </p>
+          <Link
+            to="/contact"
+            className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 px-4 py-2"
+          >
+            Contact us
+          </Link>
+        </div>
       </div>
-    </div>
+    </main>
   );
 };
 

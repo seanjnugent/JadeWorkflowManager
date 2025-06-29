@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Database, Activity, Plug, Edit2, Check, X } from 'lucide-react';
+import { Database, Plug, Edit2, Check, X } from 'lucide-react';
 
 // Dummy data for database connections
 const dummyConnections = [
@@ -70,79 +69,91 @@ const Connections = () => {
   };
 
   return (
-    <div className="ds_wrapper">
-      {error && (
-        <div className="ds_notification ds_notification--error">
-          <p>{error}</p>
+    <main className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto py-8 px-4">
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-6">
+            <button
+              onClick={() => window.history.back()}
+              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2"
+            >
+              <X className="h-4 w-4" />
+              Back
+            </button>
+          </div>
+          <div className="text-center">
+            <h1 className="text-xl font-semibold text-gray-900">Database Connections</h1>
+            <p className="text-gray-600 text-sm mt-1">Manage and view database connections</p>
+          </div>
         </div>
-      )}
-      <main id="main-content" className="ds_layout ds_layout--question">
-        <div className="ds_layout__header">
-          <header className="ds_page-header">
-            <h1 className="ds_page-header__title">
-              <Plug className="mr-2 inline-block" size={24} /> Database Connections
-            </h1>
-          </header>
-        </div>
-        <div className="ds_layout__content">
-          <h2>User-Managed Connections</h2>
+
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 flex justify-between items-center">
+            <span className="text-red-700 text-sm">{error}</span>
+            <button onClick={() => setError('')} className="text-red-700 hover:text-red-900">
+              ✕
+            </button>
+          </div>
+        )}
+
+        <div className="bg-white border border-gray-300 p-6">
+          <h2 className="text-sm font-medium text-gray-900 mb-4">User-Managed Connections</h2>
           {connections.map((conn) => (
             <div key={conn.id} className="mb-6">
               <div className="flex justify-between items-center mb-2">
-                <h3 className="ds_summary-list__key">{conn.name}</h3>
+                <h3 className="text-sm font-medium text-gray-900">{conn.name}</h3>
                 {editingId === conn.id ? (
-                  <div className="ds_button-group">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="ds_button"
+                  <div className="flex gap-2">
+                    <button
                       onClick={handleSave}
+                      className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 px-4 py-2"
                     >
-                      <Check size={16} className="mr-1" /> Save
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="ds_button ds_button--secondary"
+                      <Check className="h-4 w-4" />
+                      Save
+                    </button>
+                    <button
                       onClick={handleCancel}
+                      className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2"
                     >
-                      <X size={16} className="mr-1" /> Cancel
-                    </motion.button>
+                      <X className="h-4 w-4" />
+                      Cancel
+                    </button>
                   </div>
                 ) : (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="ds_button"
+                  <button
                     onClick={() => handleEdit(conn)}
+                    className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2"
                   >
-                    <Edit2 size={16} className="mr-1" /> Edit
-                  </motion.button>
+                    <Edit2 className="h-4 w-4" />
+                    Edit
+                  </button>
                 )}
               </div>
-              <ul className="ds_summary-list">
-                <li className="ds_summary-list__item">
-                  <span className="ds_summary-list__key" id={`item-name-${conn.id}-key`}>Name</span>
-                  <span className="ds_summary-list__value">
-                    {editingId === conn.id ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <span className="block text-sm font-medium text-gray-700">Name</span>
+                  {editingId === conn.id ? (
+                    <div className="relative">
+                      <Database className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                       <input
-                        className="ds_input"
+                        className="w-full p-2 pl-8 border border-gray-300 text-gray-700 bg-white text-sm"
                         value={editableConnection.name || ''}
                         onChange={(e) =>
                           setEditableConnection({ ...editableConnection, name: e.target.value })
                         }
                       />
-                    ) : (
-                      <q className="ds_summary-list__answer">{conn.name}</q>
-                    )}
-                  </span>
-                </li>
-                <li className="ds_summary-list__item">
-                  <span className="ds_summary-list__key" id={`item-type-${conn.id}-key`}>Type</span>
-                  <span className="ds_summary-list__value">
-                    {editingId === conn.id ? (
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-600">{conn.name}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="block text-sm font-medium text-gray-700">Type</span>
+                  {editingId === conn.id ? (
+                    <div className="relative">
+                      <Database className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                       <select
-                        className="ds_select"
+                        className="w-full p-2 pl-8 border border-gray-300 text-gray-700 bg-white text-sm"
                         value={editableConnection.type || ''}
                         onChange={(e) =>
                           setEditableConnection({ ...editableConnection, type: e.target.value })
@@ -152,131 +163,124 @@ const Connections = () => {
                         <option value="Snowflake">Snowflake</option>
                         <option value="MySQL">MySQL</option>
                       </select>
-                    ) : (
-                      <q className="ds_summary-list__answer">{conn.type}</q>
-                    )}
-                  </span>
-                </li>
-                <li className="ds_summary-list__item">
-                  <span className="ds_summary-list__key" id={`item-host-${conn.id}-key`}>Host</span>
-                  <span className="ds_summary-list__value">
-                    {editingId === conn.id ? (
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-600">{conn.type}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="block text-sm font-medium text-gray-700">Host</span>
+                  {editingId === conn.id ? (
+                    <div className="relative">
+                      <Database className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                       <input
-                        className="ds_input"
+                        className="w-full p-2 pl-8 border border-gray-300 text-gray-700 bg-white text-sm"
                         value={editableConnection.host || ''}
                         onChange={(e) =>
                           setEditableConnection({ ...editableConnection, host: e.target.value })
                         }
                       />
-                    ) : (
-                      <q className="ds_summary-list__answer">{conn.host}</q>
-                    )}
-                  </span>
-                </li>
-                <li className="ds_summary-list__item">
-                  <span className="ds_summary-list__key" id={`item-port-${conn.id}-key`}>Port</span>
-                  <span className="ds_summary-list__value">
-                    {editingId === conn.id ? (
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-600">{conn.host}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="block text-sm font-medium text-gray-700">Port</span>
+                  {editingId === conn.id ? (
+                    <div className="relative">
+                      <Database className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                       <input
-                        className="ds_input"
+                        className="w-full p-2 pl-8 border border-gray-300 text-gray-700 bg-white text-sm"
                         type="number"
                         value={editableConnection.port || ''}
                         onChange={(e) =>
                           setEditableConnection({ ...editableConnection, port: e.target.value })
                         }
                       />
-                    ) : (
-                      <q className="ds_summary-list__answer">{conn.port}</q>
-                    )}
-                  </span>
-                </li>
-                <li className="ds_summary-list__item">
-                  <span className="ds_summary-list__key" id={`item-database-${conn.id}-key`}>Database</span>
-                  <span className="ds_summary-list__value">
-                    {editingId === conn.id ? (
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-600">{conn.port}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="block text-sm font-medium text-gray-700">Database</span>
+                  {editingId === conn.id ? (
+                    <div className="relative">
+                      <Database className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                       <input
-                        className="ds_input"
+                        className="w-full p-2 pl-8 border border-gray-300 text-gray-700 bg-white text-sm"
                         value={editableConnection.database || ''}
                         onChange={(e) =>
                           setEditableConnection({ ...editableConnection, database: e.target.value })
                         }
                       />
-                    ) : (
-                      <q className="ds_summary-list__answer">{conn.database}</q>
-                    )}
-                  </span>
-                </li>
-                <li className="ds_summary-list__item">
-                  <span className="ds_summary-list__key" id={`item-username-${conn.id}-key`}>Username</span>
-                  <span className="ds_summary-list__value">
-                    {editingId === conn.id ? (
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-600">{conn.database}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="block text-sm font-medium text-gray-700">Username</span>
+                  {editingId === conn.id ? (
+                    <div className="relative">
+                      <Database className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                       <input
-                        className="ds_input"
+                        className="w-full p-2 pl-8 border border-gray-300 text-gray-700 bg-white text-sm"
                         value={editableConnection.username || ''}
                         onChange={(e) =>
                           setEditableConnection({ ...editableConnection, username: e.target.value })
                         }
                       />
-                    ) : (
-                      <q className="ds_summary-list__answer">{conn.username}</q>
-                    )}
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-600">{conn.username}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="block text-sm font-medium text-gray-700">Status</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border ${
+                    conn.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                  }`}>
+                    {conn.is_active ? 'Active' : 'Inactive'}
                   </span>
-                </li>
-                <li className="ds_summary-list__item">
-                  <span className="ds_summary-list__key" id={`item-status-${conn.id}-key`}>Status</span>
-                  <span className="ds_summary-list__value">
-                    <q className="ds_summary-list__answer">
-                      <span className={conn.is_active ? 'ds_tag ds_tag--success' : 'ds_tag ds_tag--error'}>
-                        {conn.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </q>
-                  </span>
-                </li>
-              </ul>
+                </div>
+              </div>
             </div>
           ))}
-          <div className="ds_button-group mt-6">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="ds_button"
+          <div className="mt-6">
+            <button
               onClick={() => alert('Add new connection functionality coming soon!')}
+              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 px-4 py-2"
             >
-              <Plug size={16} className="mr-1" /> Add Connection
-            </motion.button>
+              <Plug className="h-4 w-4" />
+              Add Connection
+            </button>
           </div>
 
-          <h2 className="mt-8">System Database</h2>
-          <p className="mb-4">This database stores configuration data, users, and system settings. It is read-only.</p>
-          <ul className="ds_summary-list">
-            <li className="ds_summary-list__item">
-              <span className="ds_summary-list__key" id="item-system-host-key">Host</span>
-              <span className="ds_summary-list__value">
-                <q className="ds_summary-list__answer">{systemDb.host}</q>
-              </span>
-            </li>
-            <li className="ds_summary-list__item">
-              <span className="ds_summary-list__key" id="item-system-port-key">Port</span>
-              <span className="ds_summary-list__value">
-                <q className="ds_summary-list__answer">{systemDb.port}</q>
-              </span>
-            </li>
-            <li className="ds_summary-list__item">
-              <span className="ds_summary-list__key" id="item-system-database-key">Database</span>
-              <span className="ds_summary-list__value">
-                <q className="ds_summary-list__answer">{systemDb.database}</q>
-              </span>
-            </li>
-            <li className="ds_summary-list__item">
-              <span className="ds_summary-list__key" id="item-system-type-key">Type</span>
-              <span className="ds_summary-list__value">
-                <q className="ds_summary-list__answer">PostgreSQL</q>
-              </span>
-            </li>
-          </ul>
+          <h2 className="text-sm font-medium text-gray-900 mt-8 mb-4">System Database</h2>
+          <p className="text-sm text-gray-600 mb-4">This database stores configuration data, users, and system settings. It is read-only.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <span className="block text-sm font-medium text-gray-700">Host</span>
+              <span className="text-sm text-gray-600">{systemDb.host}</span>
+            </div>
+            <div>
+              <span className="block text-sm font-medium text-gray-700">Port</span>
+              <span className="text-sm text-gray-600">{systemDb.port}</span>
+            </div>
+            <div>
+              <span className="block text-sm font-medium text-gray-700">Database</span>
+              <span className="text-sm text-gray-600">{systemDb.database}</span>
+            </div>
+            <div>
+              <span className="block text-sm font-medium text-gray-700">Type</span>
+              <span className="text-sm text-gray-600">PostgreSQL</span>
+            </div>
+          </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 };
 

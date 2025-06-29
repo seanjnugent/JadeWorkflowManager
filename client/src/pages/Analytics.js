@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'chart.js/auto';
-import { FiTrendingUp, FiAlertCircle, FiLayers } from 'react-icons/fi';
-import { Clock } from 'lucide-react';
+import { TrendingUp, AlertCircle, Layers, Clock, X } from 'lucide-react';
 
 const Card = ({ children, title }) => (
-  <div className="bg-white flex flex-col gap-6 rounded-xl border shadow-sm">
+  <div className="bg-white border border-gray-300 p-6">
     {title && (
-      <div className="px-6 pt-6">
-        <h4 className="text-[20px] font-semibold">{title}</h4>
-      </div>
+      <h4 className="text-sm font-medium text-gray-900 mb-4">{title}</h4>
     )}
-    <div className="p-0">{children}</div>
+    {children}
   </div>
 );
 
@@ -106,21 +103,21 @@ const RunStatsChart = ({ data }) => {
   }, [data]);
 
   return (
-    <div className="px-6 pb-6">
+    <div>
       <div className="h-64">
         <canvas id="runStatsChart" className="w-full h-full"></canvas>
       </div>
       <div className="flex justify-center gap-4 mt-3">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+          <div className="w-3 h-3 bg-gray-500"></div>
           <span className="text-xs text-gray-600">Total Runs</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+          <div className="w-3 h-3 bg-green-500"></div>
           <span className="text-xs text-gray-600">Successful Runs</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+          <div className="w-3 h-3 bg-red-500"></div>
           <span className="text-xs text-gray-600">Failed Runs</span>
         </div>
       </div>
@@ -161,16 +158,16 @@ const StatusPieChart = ({ data }) => {
   }, [data]);
 
   return (
-    <div className="px-6 pb-6">
+    <div>
       <div className="h-64 flex flex-col items-center">
         <canvas id="statusPieChart" className="w-full h-full max-w-xs"></canvas>
         <div className="flex justify-center gap-4 mt-3">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+            <div className="w-3 h-3 bg-green-500"></div>
             <span className="text-xs text-gray-600">Successful</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+            <div className="w-3 h-3 bg-red-500"></div>
             <span className="text-xs text-gray-600">Failed</span>
           </div>
         </div>
@@ -211,9 +208,8 @@ const ErrorMessagesChart = ({ data }) => {
         datasets: [{
           label: 'Frequency',
           data: groupedErrorCounts,
-          backgroundColor: '#3B82F6',
+          backgroundColor: '#1e3a8a',
           borderWidth: 0,
-          borderRadius: 4,
         }],
       },
       options: {
@@ -241,7 +237,7 @@ const ErrorMessagesChart = ({ data }) => {
   }, [data]);
 
   return (
-    <div className="px-6 pb-6">
+    <div>
       <div className="h-64">
         <canvas id="errorMessagesChart" className="w-full h-full"></canvas>
       </div>
@@ -263,40 +259,40 @@ const identifyPattern = (message) => {
 
 const FailureTable = ({ data }) => {
   if (!data.failures || data.failures.length === 0) return (
-    <div className="text-center py-12 px-6">
-      <FiAlertCircle className="mx-auto text-emerald-500 text-4xl" />
-      <h3 className="mt-4 text-[20px] font-semibold text-gray-900">No Failures Detected</h3>
-      <p className="mt-1 text-gray-600">All workflows are running smoothly</p>
+    <div className="text-center py-12">
+      <AlertCircle className="mx-auto text-green-500 h-8 w-8" />
+      <h3 className="mt-4 text-sm font-medium text-gray-900">No Failures Detected</h3>
+      <p className="mt-1 text-sm text-gray-600">All workflows are running smoothly</p>
     </div>
   );
 
   return (
     <div className="relative w-full overflow-x-auto">
-      <table className="w-full caption-bottom text-sm">
+      <table className="w-full text-sm">
         <thead className="bg-gray-50">
           <tr className="border-b-2 border-gray-200">
-            <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[100px]">Run ID</th>
-            <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[280px]">Workflow</th>
-            <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[110px]">Started At</th>
-            <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[250px]">Error Message</th>
+            <th className="text-left font-medium text-gray-900 py-4 px-6 w-[100px]">Run ID</th>
+            <th className="text-left font-medium text-gray-900 py-4 px-6 w-[280px]">Workflow</th>
+            <th className="text-left font-medium text-gray-900 py-4 px-6 w-[110px]">Started At</th>
+            <th className="text-left font-medium text-gray-900 py-4 px-6 w-[250px]">Error Message</th>
           </tr>
         </thead>
         <tbody>
           {data.failures.map((failure) => (
             <tr
               key={failure.run_id}
-              className="border-b border-gray-200 hover:bg-gray-50 transition-colors bg-white"
+              className="border-b border-gray-200 hover:bg-gray-50 bg-white"
               style={{ cursor: 'pointer' }}
             >
-              <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[100px]">
+              <td className="py-4 px-6 w-[100px]">
                 <div className="text-sm text-gray-900">{failure.run_id}</div>
               </td>
-              <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[280px]">
+              <td className="py-4 px-6 w-[280px]">
                 <div className="max-w-[260px]">
-                  <div className="font-semibold text-gray-900 break-wrds leading-tight">{failure.workflow_name}</div>
+                  <div className="font-medium text-gray-900 break-words leading-tight">{failure.workflow_name}</div>
                 </div>
               </td>
-              <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[110px]">
+              <td className="py-4 px-6 w-[110px]">
                 <div className="text-sm text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
                   {new Date(failure.started_at).toLocaleString('en-GB', {
                     day: '2-digit',
@@ -307,8 +303,8 @@ const FailureTable = ({ data }) => {
                   })}
                 </div>
               </td>
-              <td className="p-2 align-middle py-noreap px-6 w-[250px]">
-                <span className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800 border-red-200 whitespace-nowrap">
+              <td className="py-4 px-6 w-[250px]">
+                <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-red-50 text-red-700 border border-red-200 whitespace-nowrap">
                   {failure.error_message}
                 </span>
               </td>
@@ -322,34 +318,34 @@ const FailureTable = ({ data }) => {
 
 const StepPerformanceTable = ({ data }) => (
   <div className="relative w-full overflow-x-auto">
-    <table className="w-full caption-bottom text-sm">
+    <table className="w-full text-sm">
       <thead className="bg-gray-50">
         <tr className="border-b-2 border-gray-200">
-          <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[280px]">Step Name</th>
-          <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[120px]">Avg Duration (s)</th>
-          <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[120px]">Success Rate (%)</th>
-          <th className="h-10 text-left align-middle whitespace-nowrap font-semibold text-gray-900 py-4 px-6 w-[100px]">Total Runs</th>
+          <th className="text-left font-medium text-gray-900 py-4 px-6 w-[280px]">Step Name</th>
+          <th className="text-left font-medium text-gray-900 py-4 px-6 w-[120px]">Avg Duration (s)</th>
+          <th className="text-left font-medium text-gray-900 py-4 px-6 w-[120px]">Success Rate (%)</th>
+          <th className="text-left font-medium text-gray-900 py-4 px-6 w-[100px]">Total Runs</th>
         </tr>
       </thead>
       <tbody>
         {data.step_stats.map((step) => (
           <tr
             key={step.step_name}
-            className="border-b border-gray-200 hover:bg-gray-50 transition-colors bg-white"
+            className="border-b border-gray-200 hover:bg-gray-50 bg-white"
             style={{ cursor: 'pointer' }}
           >
-            <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[280px]">
+            <td className="py-4 px-6 w-[280px]">
               <div className="max-w-[260px]">
-                <div className="font-semibold text-gray-900 break-words leading-tight">{step.step_name}</div>
+                <div className="font-medium text-gray-900 break-words leading-tight">{step.step_name}</div>
               </div>
             </td>
-            <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[120px]">
+            <td className="py-4 px-6 w-[120px]">
               <div className="text-sm text-gray-900">{step.avg_duration_seconds.toFixed(1)}</div>
             </td>
-            <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[120px]">
+            <td className="py-4 px-6 w-[120px]">
               <div className="text-sm text-gray-900">{step.success_rate.toFixed(1)}</div>
             </td>
-            <td className="p-2 align-middle whitespace-nowrap py-4 px-6 w-[100px]">
+            <td className="py-4 px-6 w-[100px]">
               <div className="text-sm text-gray-900">{step.runs}</div>
             </td>
           </tr>
@@ -404,77 +400,96 @@ const Analytics = () => {
   const totalSteps = stepPerformance.step_stats.length;
 
   return (
-    <div className="ds_page__middle">
-      <div className="ds_wrapper">
-        <header className="ds_page-header">
-          <h1 className="ds_page-header__title text-[20px] font-semibold">Analytics</h1>
-          <p className="ds_page-header__subtitle text-gray-600">Real-time insights into your pipeline performance</p>
-        </header>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center gap-4">
-            <div className="p-2 bg-emerald-50 rounded-lg">
-              <FiTrendingUp className="w-6 h-6 text-emerald-500" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Total Runs</p>
-              <span className="text-lg font-semibold text-gray-900">{totalRuns}</span>
-            </div>
+    <main className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto py-8 px-4">
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-6">
+            <button
+              onClick={() => window.history.back()}
+              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2"
+            >
+              <X className="h-4 w-4" />
+              Back to Home
+            </button>
           </div>
-          <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center gap-4">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <FiLayers className="w-6 h-6 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Success Rate</p>
-              <span className="text-lg font-semibold text-gray-900">{successRate}%</span>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center gap-4">
-            <div className="p-2 bg-amber-50 rounded-lg">
-              <Clock className="w-6 h-6 text-amber-500" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Avg Duration</p>
-              <span className="text-lg font-semibold text-gray-900">{avgDuration}s</span>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center gap-4">
-            <div className="p-2 bg-purple-50 rounded-lg">
-              <FiLayers className="w-6 h-6 text-purple-500" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Total Steps</p>
-              <span className="text-lg font-semibold text-gray-900">{totalSteps}</span>
-            </div>
+          <div className="text-center">
+            <h1 className="text-xl font-semibold text-gray-900">Analytics</h1>
+            <p className="text-gray-600 text-sm mt-1">Real-time insights into your pipeline performance</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="lg:col-span-2">
-            <Card title="Workflow Runs Over Time">
-              <RunStatsChart data={runStats} />
+        {isLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin h-8 w-8 border-b-2 border-blue-900"></div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-white border border-gray-300 p-4 flex items-center gap-3">
+                <div className="p-2 bg-green-50 border border-green-200">
+                  <TrendingUp className="h-6 w-6 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Runs</p>
+                  <span className="text-sm font-medium text-gray-900">{totalRuns}</span>
+                </div>
+              </div>
+              <div className="bg-white border border-gray-300 p-4 flex items-center gap-3">
+                <div className="p-2 bg-blue-50 border border-blue-200">
+                  <Layers className="h-6 w-6 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Success Rate</p>
+                  <span className="text-sm font-medium text-gray-900">{successRate}%</span>
+                </div>
+              </div>
+              <div className="bg-white border border-gray-300 p-4 flex items-center gap-3">
+                <div className="p-2 bg-yellow-50 border border-yellow-200">
+                  <Clock className="h-6 w-6 text-yellow-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Avg Duration</p>
+                  <span className="text-sm font-medium text-gray-900">{avgDuration}s</span>
+                </div>
+              </div>
+              <div className="bg-white border border-gray-300 p-4 flex items-center gap-3">
+                <div className="p-2 bg-purple-50 border border-purple-200">
+                  <Layers className="h-6 w-6 text-purple-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Steps</p>
+                  <span className="text-sm font-medium text-gray-900">{totalSteps}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <Card title="Workflow Runs Over Time">
+                  <RunStatsChart data={runStats} />
+                </Card>
+              </div>
+              <Card title="Run Status Distribution">
+                <StatusPieChart data={runStats} />
+              </Card>
+            </div>
+
+            <Card title="Error Messages Frequency">
+              <ErrorMessagesChart data={failureAnalysis} />
             </Card>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Card title="Recent Failures">
+                <FailureTable data={failureAnalysis} />
+              </Card>
+              <Card title="Step Performance">
+                <StepPerformanceTable data={stepPerformance} />
+              </Card>
+            </div>
           </div>
-          <Card title="Run Status Distribution">
-            <StatusPieChart data={runStats} />
-          </Card>
-        </div>
-
-        <Card title="Error Messages Frequency">
-          <ErrorMessagesChart data={failureAnalysis} />
-        </Card>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-          <Card title="Recent Failures">
-            <FailureTable data={failureAnalysis} />
-          </Card>
-          <Card title="Step Performance">
-            <StepPerformanceTable data={stepPerformance} />
-          </Card>
-        </div>
+        )}
       </div>
-    </div>
+    </main>
   );
 };
 

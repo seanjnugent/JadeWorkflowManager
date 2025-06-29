@@ -18,7 +18,25 @@ const Navigation = ({ currentPath, user }) => {
       {navItems
         .filter(item => !item.adminOnly || (item.adminOnly && isAdmin))
         .map((item, index) => {
-          const isActive = currentPath === item.to || (item.to === '/datasets' && currentPath.startsWith('/dataset'));
+          // Special case for home - only highlight exact match
+          if (item.to === '/home') {
+            const isActive = currentPath === item.to;
+            return (
+              <li key={index} className="ds_site-navigation__item">
+                <Link
+                  to={item.to}
+                  className={`ds_site-navigation__link ${isActive ? 'ds_current' : ''}`}
+                  aria-current={isActive ? 'true' : undefined}
+                  tabIndex={0}
+                >
+                  <span className="label-nav">{item.label}</span>
+                </Link>
+              </li>
+            );
+          }
+
+          // For other routes, highlight if current path starts with the nav item path
+          const isActive = currentPath.startsWith(item.to);
           return (
             <li key={index} className="ds_site-navigation__item">
               <Link

@@ -42,7 +42,6 @@ from routes.runs.get_run_status import router as get_run_status_router
 
 from routes.connections.post_new_connection import router as connections_router
 from routes.workflows.post_update_workflow import router as update_workflow_router
-from routes.workflows.post_new_workflow_step import router as new_workflow_steps_router
 from routes.workflows.get_workflow_permissions import router as workflow_permissions
 from routes.users.user_authentication import router as user_authentication
 from routes.users.user_details import router as user_details
@@ -72,7 +71,6 @@ app.include_router(get_analytics_router)
 
 app.include_router(connections_router)
 app.include_router(update_workflow_router)
-app.include_router(new_workflow_steps_router)
 app.include_router(post_new_dag_router)
 app.include_router(dag_repo_access)
 app.include_router(post_trigger_workflow_router)

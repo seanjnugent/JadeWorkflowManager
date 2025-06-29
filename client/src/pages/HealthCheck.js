@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, Github } from 'lucide-react';
+import { Activity, Github, X } from 'lucide-react';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '[invalid url, do not cite]';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://your-api-domain.com';
 
 const capitalizeFirstLetter = (str) => {
   if (!str) return str;
@@ -34,14 +34,13 @@ const HealthCheck = () => {
             navigate('/login');
             return;
           }
-         
-
- throw new Error('Failed to fetch health status');
+          throw new Error('Failed to fetch health status');
         }
         const data = await response.json();
         setHealthStatus(data);
       } catch (error) {
         console.error('Error fetching health status:', error);
+        setError('Failed to fetch health status. Please try again.');
         setTimeout(() => setError(''), 5000);
       }
     };
@@ -50,103 +49,106 @@ const HealthCheck = () => {
 
   if (!userId) {
     return (
-      <div className="ds_wrapper flex justify-center items-center h-screen">
-        <p>Please log in to access system health.</p>
-      </div>
+      <main className="min-h-screen bg-gray-50 flex justify-center items-center">
+        <p className="text-gray-600 text-sm">Please log in to access system health.</p>
+      </main>
     );
   }
 
   return (
-    <div className="ds_wrapper">
-      {error && (
-        <div className="ds_notification ds_notification--error">
-          <p>{error}</p>
+    <main className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto py-8 px-4">
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-6">
+            <button
+              onClick={() => navigate('/settings')}
+              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2"
+            >
+              <X className="h-4 w-4" />
+              Back to Settings
+            </button>
+          </div>
+          <div className="text-center">
+            <h1 className="text-xl font-semibold text-gray-900">System Health</h1>
+            <p className="text-gray-600 text-sm mt-1">Monitor the status of system components</p>
+          </div>
         </div>
-      )}
-      <main id="main-content" className="ds_layout ds_layout--question">
-        <div className="ds_layout__header">
-          <header className="ds_page-header">
-            <h1 className="ds_page-header__title">
-              <Activity className="mr-2 inline-block" size={24} /> System Health
-            </h1>
-          </header>
-        </div>
-        <div className="ds_layout__content">
+
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 flex justify-between items-center">
+            <span className="text-red-700 text-sm">{error}</span>
+            <button onClick={() => setError('')} className="text-red-700 hover:text-red-900">
+              ✕
+            </button>
+          </div>
+        )}
+
+        <div className="bg-white border border-gray-300 p-6">
           {healthStatus ? (
-            <ul className="ds_summary-list">
-              <li className="ds_summary-list__item">
-                <span className="ds_summary-list__key" id="item-overall-key">Overall Status</span>
-                <span className="ds_summary-list__value">
-                  <q className="ds_summary-list__answer">
-                    <span className={healthStatus.status === 'healthy' ? 'ds_tag ds_tag--success' : 'ds_tag ds_tag--error'}>
-                      {capitalizeFirstLetter(healthStatus.status)}
-                    </span>
-                  </q>
-                </span>
-              </li>
-              <li className="ds_summary-list__item">
-                <span className="ds_summary-list__key" id="item-supabase-key">Supabase</span>
-                <span className="ds_summary-list__value">
-                  <q className="ds_summary-list__answer">
-                    <span className={healthStatus.supabase === 'Connected' ? 'ds_tag ds_tag--success' : 'ds_tag ds_tag--error'}>
-                      {healthStatus.supabase}
-                    </span>
-                  </q>
-                </span>
-              </li>
-              <li className="ds_summary-list__item">
-                <span className="ds_summary-list__key" id="item-database-key">Database</span>
-                <span className="ds_summary-list__value">
-                  <q className="ds_summary-list__answer">
-                    <span className={healthStatus.database === 'Connected' ? 'ds_tag ds_tag--success' : 'ds_tag ds_tag--error'}>
-                      {healthStatus.database}
-                    </span>
-                  </q>
-                </span>
-              </li>
-              <li className="ds_summary-list__item">
-                <span className="ds_summary-list__key" id="item-dagster-key">Dagster</span>
-                <span className="ds_summary-list__value">
-                  <q className="ds_summary-list__answer">
-                    <span className={healthStatus.dagster === 'Connected' ? 'ds_tag ds_tag--success' : 'ds_tag ds_tag--error'}>
-                      {healthStatus.dagster}
-                    </span>
-                  </q>
-                </span>
-              </li>
-              <li className="ds_summary-list__item">
-                <span className="ds_summary-list__key" id="item-github-key">GitHub</span>
-                <span className="ds_summary-list__value">
-                  <q className="ds_summary-list__answer">
-                    <span className={healthStatus.github === 'Connected' ? 'ds_tag ds_tag--success' : 'ds_tag ds_tag--error'}>
-                      {healthStatus.github === 'Connected' ? 'Connected' : capitalizeFirstLetter(healthStatus.github)}
-                    </span>
-                  </q>
-                </span>
-              </li>
-              {healthStatus.github !== 'Connected' && (
-                <li className="ds_summary-list__item">
-                  <span className="ds_summary-list__key" id="item-github-error-key">GitHub Error</span>
-                  <span className="ds_summary-list__value">
-                    <q className="ds_summary-list__answer">{healthStatus.github}</q>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <span className="block text-sm font-medium text-gray-700">Overall Status</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border ${
+                    healthStatus.status === 'healthy' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                  }`}>
+                    {capitalizeFirstLetter(healthStatus.status)}
                   </span>
-                </li>
-              )}
-              {healthStatus.dagster !== 'Connected' && (
-                <li className="ds_summary-list__item">
-                  <span className="ds_summary-list__key" id="item-dagster-error-key">Dagster Error</span>
-                  <span className="ds_summary-list__value">
-                    <q className="ds_summary-list__answer">{healthStatus.dagster}</q>
+                </div>
+                <div>
+                  <span className="block text-sm font-medium text-gray-700">Supabase</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border ${
+                    healthStatus.supabase === 'Connected' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                  }`}>
+                    {healthStatus.supabase}
                   </span>
-                </li>
-              )}
-            </ul>
+                </div>
+                <div>
+                  <span className="block text-sm font-medium text-gray-700">Database</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border ${
+                    healthStatus.database === 'Connected' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                  }`}>
+                    {healthStatus.database}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-sm font-medium text-gray-700">Dagster</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border ${
+                    healthStatus.dagster === 'Connected' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                  }`}>
+                    {healthStatus.dagster}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-sm font-medium text-gray-700">GitHub</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border ${
+                    healthStatus.github === 'Connected' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                  }`}>
+                    {healthStatus.github === 'Connected' ? 'Connected' : capitalizeFirstLetter(healthStatus.github)}
+                  </span>
+                </div>
+                {healthStatus.github !== 'Connected' && (
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">GitHub Error</span>
+                    <span className="text-sm text-gray-600">{healthStatus.github}</span> 
+                  </div>
+                )}
+                {healthStatus.dagster !== 'Connected' && (
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">Dagster Error</span>
+                    <span className="text-sm text-gray-600">{healthStatus.dagster}</span>
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
-            <p>Loading health status...</p>
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin h-8 w-8 border-b-2 border-blue-900"></div>
+            </div>
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 };
 
