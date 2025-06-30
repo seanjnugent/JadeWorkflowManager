@@ -58,9 +58,8 @@ async def get_run(
         logs_query = f"""
             SELECT
                 rl.*,
-                COALESCE(ws.label, rl.step_code) AS step_label
+                rl.step_code AS step_label
             FROM workflow.run_log rl
-            LEFT JOIN workflow.workflow_step ws ON rl.step_code = ws.step_code
             WHERE rl.run_id = :run_id
             ORDER BY {order_by}
             LIMIT :limit OFFSET :offset
@@ -75,7 +74,7 @@ async def get_run(
         step_statuses = []
         if include_steps:
             step_status_query = """
-                SELECT
+      SELECT
                     rss.id,
                     rss.run_id,
                     rss.step_code,
@@ -84,13 +83,10 @@ async def get_run(
                     rss.finished_at,
                     rss.duration_ms,
                     rss.error_message,
-                    COALESCE(ws.label, rss.step_code) AS step_label,
-                    ws.description AS step_description,
-                    ws.step_order
+                    rss.step_code AS step_label
                 FROM workflow.run_step_status rss
-                LEFT JOIN workflow.workflow_step ws ON rss.step_code = ws.step_code
                 WHERE rss.run_id = :run_id
-                ORDER BY ws.step_order NULLS LAST, rss.started_at
+                ORDER BY rss.started_at
             """
 
             step_statuses = db.execute(

@@ -39,6 +39,7 @@ api.interceptors.response.use(
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('userId');
+        localStorage.removeItem('userRole');
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }
@@ -70,10 +71,11 @@ const Login = () => {
         password
       });
 
-      const { access_token, refresh_token, user_id } = response.data;
+      const { access_token, refresh_token, user_id, role } = response.data;
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('refresh_token', refresh_token);
       localStorage.setItem('userId', user_id);
+      localStorage.setItem('userRole',role);
       navigate('/home');
     } catch (err) {
       console.error('Login error:', err);
@@ -149,7 +151,7 @@ const Login = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1, delay: 0.5 }}
             >
-              <h1 className="text-5xl font-light tracking-tight">Pierre</h1>
+              <h1 className="text-5xl font-light tracking-tight">Jade</h1>
               <div className="h-px w-32 bg-white/30 my-6"></div>
               <p className="text-lg font-light text-white/90">
                 Data Workflow Manager

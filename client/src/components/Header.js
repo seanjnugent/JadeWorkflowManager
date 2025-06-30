@@ -157,7 +157,7 @@ const Header = () => {
                 alt="Scottish Government"
               />
             </NavLink>
-            <div className="ds_site-branding__title">Pierre Workflow Manager</div>
+            <div className="ds_site-branding__title">Jade Workflow Manager</div>
           </div>
 
           {/* User actions positioned at header level */}

@@ -66,7 +66,7 @@ async def get_failure_analysis(days: int = 30, db: Session = Depends(get_db)):
                     r.dagster_run_id
                 FROM workflow.run r
                 JOIN workflow.workflow w ON r.workflow_id = w.id
-                WHERE r.status = 'failed'
+                WHERE r.status = 'failed' or lower(r.status) = 'failure'
                 AND r.started_at >= :start_date AND r.started_at <= :end_date
                 ORDER BY r.started_at DESC
                 LIMIT 50
@@ -141,20 +141,19 @@ async def get_step_performance(days: int = 30, db: Session = Depends(get_db)):
 
         step_stats = db.execute(
             text("""
-                SELECT 
-                    ws.workflow_id,
-                    w.name as workflow_name,
-                    ws.label as step_label,
-                    ws.step_code,
-                    COUNT(rss.id) as execution_count,
-                    SUM(CASE WHEN rss.status = 'failed' THEN 1 ELSE 0 END) as failure_count,
-                    AVG(rss.duration_ms::float / 1000) as avg_duration_seconds
-                FROM workflow.workflow_step ws
-                JOIN workflow.workflow w ON ws.workflow_id = w.id
-                LEFT JOIN workflow.run_step_status rss ON ws.step_code = rss.step_code
-                WHERE rss.started_at >= :start_date AND rss.started_at <= :end_date
-                GROUP BY ws.workflow_id, w.name, ws.label, ws.step_code
-                ORDER BY failure_count DESC, avg_duration_seconds DESC
+SELECT 
+    w.id AS workflow_id,
+    w.name AS workflow_name,
+    rss.step_code,
+    COUNT(rss.id) AS execution_count,
+    SUM(CASE WHEN rss.status = 'failed' THEN 1 ELSE 0 END) AS failure_count,
+    AVG(rss.duration_ms::float / 1000) AS avg_duration_seconds
+FROM workflow.run_step_status rss
+JOIN workflow.workflow w ON rss.workflow_id = w.id
+WHERE rss.started_at >= :start_date AND rss.started_at <= :end_date
+GROUP BY w.id, w.name, rss.step_code
+ORDER BY failure_count DESC, avg_duration_seconds DESC
+
             """),
             {"start_date": start_date, "end_date": end_date}
         ).fetchall()

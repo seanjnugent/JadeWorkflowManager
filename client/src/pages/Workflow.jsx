@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
 import { useParams, useNavigate } from 'react-router-dom';
-import { RefreshCw, Clock, ChevronLeft, Play, FileText, CircleCheckBig, CircleAlert, GitBranch, CircleHelp, Github, X } from 'lucide-react';
+import { RefreshCw, Clock, ChevronLeft, Play, FileText, CircleCheckBig, CircleAlert, GitBranch, CircleHelp, Github, X, Pencil } from 'lucide-react';
 
 // Custom Tooltip Component
 const CustomTooltip = ({ content, children }) => {
@@ -66,24 +67,76 @@ const InputStructureModal = ({ isOpen, onClose, inputStructure }) => {
   );
 };
 
+// JSON Edit Modal Component
+const JsonEditModal = ({ isOpen, onClose, title, jsonData, onSave }) => {
+  const [jsonText, setJsonText] = useState(JSON.stringify(jsonData, null, 2));
+  const [error, setError] = useState(null);
+
+  const handleSave = () => {
+    try {
+      const parsedJson = JSON.parse(jsonText);
+      onSave(parsedJson);
+      setError(null);
+      onClose();
+    } catch (e) {
+      setError('Invalid JSON format');
+    }
+  };
+
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white border border-gray-300 max-w-4xl w-full max-h-[90vh] flex flex-col">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+          <h4 className="text-sm font-medium text-gray-900">{title}</h4>
+          <button
+            onClick={onClose}
+            className="text-gray-600 hover:text-gray-900"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="p-6 overflow-auto flex-grow">
+          <textarea
+            className="w-full h-64 p-4 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900"
+            value={jsonText}
+            onChange={(e) => setJsonText(e.target.value)}
+          />
+          {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 px-4 py-2"
+              onClick={handleSave}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // GitHub DAG Link Component
 const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
   const [dagInfo, setDagInfo] = useState({ authorized: false });
   const [loading, setLoading] = useState(true);
 
-  // Extract workflow_job_X pattern from any path or module name
   const extractJobName = (path) => {
     if (!path) return null;
-
     const match = path.match(/workflow_job_(\d+)/);
     if (match) return match[0];
-
     const segments = [...path.split('.'), ...path.replace(/\\/g, '/').split('/')];
     for (let seg of segments.reverse()) {
       const jobMatch = seg.match(/workflow_job_\d+/);
       if (jobMatch) return jobMatch[0];
     }
-
     return null;
   };
 
@@ -97,12 +150,9 @@ const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
         const response = await fetch(`http://localhost:8000/api/github-dag-info?dag_path=${filePath}`, {
           headers: { 'Accept': 'application/json' }
         });
-
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
         const data = await response.json();
         setDagInfo(data);
-
         if (data.authorized && setVersionControl) {
           setVersionControl({
             version: 'v' + data.version,
@@ -117,7 +167,6 @@ const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
         setLoading(false);
       }
     };
-
     fetchDagInfo();
   }, [filePath, repoOwner, repoName, setVersionControl]);
 
@@ -215,7 +264,6 @@ function formatDuration(ms) {
   return parts.join(' ');
 }
 
-
 // Main Workflow Component
 const Workflow = () => {
   const { workflowId } = useParams();
@@ -224,7 +272,13 @@ const Workflow = () => {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [showInputModal, setShowInputModal] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showParamsModal, setShowParamsModal] = useState(false);
+  const [showConfigTemplateModal, setShowConfigTemplateModal] = useState(false);
+  const [isConfigExpanded, setIsConfigExpanded] = useState(false);
+  const [isDestinationConfigExpanded, setIsDestinationConfigExpanded] = useState(false);
   const [versionControl, setVersionControl] = useState(null);
+  const [error, setError] = useState(null);
 
   const GITHUB_REPO_OWNER = 'seanjnugent';
   const GITHUB_REPO_NAME = 'DataWorkflowTool-Workflows';
@@ -269,6 +323,87 @@ const Workflow = () => {
     window.URL.revokeObjectURL(url);
   };
 
+  const handleSaveParameters = async (updatedParams) => {
+    try {
+      const accessToken = localStorage.getItem('access_token');
+      const response = await fetch('http://localhost:8000/workflows/workflow/update_parameters', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          workflow_id: workflowId,
+          parameters: updatedParams
+        })
+      });
+      if (!response.ok) throw new Error('Failed to update parameters');
+      const data = await response.json();
+      setWorkflowDetails(prev => ({
+        ...prev,
+        workflow: { ...prev.workflow, parameters: updatedParams }
+      }));
+    } catch (error) {
+      setError('Failed to update parameters: ' + error.message);
+    }
+  };
+
+  const handleSaveDestinationConfig = async (updatedConfig) => {
+    try {
+      const accessToken = localStorage.getItem('access_token');
+      const response = await fetch('http://localhost:8000/workflows/workflow/update_destination_config', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          workflow_id: workflowId,
+          destination_config: updatedConfig
+        })
+      });
+      if (!response.ok) throw new Error('Failed to update destination config');
+      const data = await response.json();
+      setWorkflowDetails(prev => ({
+        ...prev,
+        workflow: { ...prev.workflow, destination_config: updatedConfig }
+      }));
+    } catch (error) {
+      setError('Failed to update destination config: ' + error.message);
+    }
+  };
+
+  const handleSaveConfigTemplate = async (updatedConfig) => {
+    try {
+      const accessToken = localStorage.getItem('access_token');
+      const response = await fetch('http://localhost:8000/workflows/workflow/update_config_template', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          workflow_id: workflowId,
+          config_template: updatedConfig
+        })
+      });
+      if (!response.ok) throw new Error('Failed to update config template');
+      const data = await response.json();
+      setWorkflowDetails(prev => ({
+        ...prev,
+        workflow: { ...prev.workflow, config_template: updatedConfig }
+      }));
+    } catch (error) {
+      setError('Failed to update config template: ' + error.message);
+    }
+  };
+
+  const getLimitedJsonLines = (jsonData) => {
+    const jsonString = JSON.stringify(jsonData, null, 2);
+    const lines = jsonString.split('\n');
+    return lines.slice(0, 6).join('\n');
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-50 flex justify-center items-center">
@@ -290,7 +425,49 @@ const Workflow = () => {
 
   return (
     <main className="min-h-screen bg-gray-50">
+      <style>{`
+        .json-preview-container {
+          position: relative;
+          max-height: 160px;
+          overflow: hidden;
+        }
+        .json-preview-container.expanded {
+          max-height: none;
+        }
+        .json-preview-container .fade-out {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 40px;
+          background: linear-gradient(to bottom, rgba(249, 250, 251, 0), rgba(249, 250, 251, 1));
+        }
+        .json-preview-container.expanded .fade-out {
+          display: none;
+        }
+        .show-more-btn {
+          position: absolute;
+          right: 10px;
+          bottom: 10px;
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 4px;
+          padding: 2px 8px;
+          font-size: 12px;
+          cursor: pointer;
+          z-index: 10;
+        }
+        .show-more-btn:hover {
+          background: #f3f4f6;
+        }
+      `}</style>
+      
       <div className="max-w-4xl mx-auto py-8 px-4">
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 text-sm text-red-700">
+            {error}
+          </div>
+        )}
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-6">
             <button
@@ -364,7 +541,7 @@ const Workflow = () => {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Duration:</span>
-                  <span className="text-sm font-medium text-gray-900">{recent_runs?.[0]?.duration || 'N/A'}</span>
+                  <span className="text-sm font-medium text-gray-900">{recent_runs?.[0]?.duration_ms != null ? formatDuration(recent_runs[0].duration_ms) : 'N/A'}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Last run:</span>
@@ -477,22 +654,21 @@ const Workflow = () => {
                           </div>
                         </td>
                         <td className="py-4 px-6 w-[100px]"><StatusBadge status={run.status} /></td>
-<td className="py-4 px-6 w-[100px]">
-  <div className="text-xs text-gray-900">
-    {run.duration_ms != null ? formatDuration(run.duration_ms) : 'N/A'}
-  </div>
-</td>
+                        <td className="py-4 px-6 w-[100px]">
+                          <div className="text-xs text-gray-900">
+                            {run.duration_ms != null ? formatDuration(run.duration_ms) : 'N/A'}
+                          </div>
+                        </td>
                         <td className="py-4 px-6 w-[120px]"><div className="text-xs text-gray-900">{run.triggered_by_name || 'Unknown'}</div></td>
-
-<td className="py-4 px-6 w-[120px] text-right">
-  <button
-    className="inline-flex items-center justify-center gap-1 text-xs font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 px-2.5 py-1.5 whitespace-nowrap"
-    onClick={(e) => { e.stopPropagation(); navigate(`/runs/run/${run.id}`); }}
-  >
-    <FileText className="h-3.5 w-3.5" />
-    View Log
-  </button>
-</td>
+                        <td className="py-4 px-6 w-[120px] text-right">
+                          <button
+                            className="inline-flex items-center justify-center gap-1 text-xs font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 px-2.5 py-1.5 whitespace-nowrap"
+                            onClick={(e) => { e.stopPropagation(); navigate(`/runs/run/${run.id}`); }}
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            View Log
+                          </button>
+                        </td>
                       </tr>
                     ))
                   ) : (
@@ -540,53 +716,144 @@ const Workflow = () => {
 
           {/* Parameters */}
           <div className="bg-white border border-gray-300 p-6">
-            <div className="mb-4">
-              <h4 className="text-sm font-medium text-gray-900">Parameters</h4>
-              <p className="text-gray-600 text-sm mt-1">Configuration parameters for this workflow</p>
+            <div className="mb-4 flex justify-between items-center">
+              <div>
+                <h4 className="text-sm font-medium text-gray-900">Parameters</h4>
+                <p className="text-gray-600 text-sm mt-1">Configuration parameters for this workflow</p>
+              </div>
+              <button
+                className="text-gray-600 hover:text-gray-900"
+                onClick={() => setShowParamsModal(true)}
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
             </div>
             {workflow?.parameters?.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {workflow.parameters.map((param) => (
-                  <CustomTooltip key={param.name} content={`${param.type} • ${param.mandatory ? 'Required' : 'Optional'}`}>
-                    <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-gray-50 text-gray-700 border-gray-200 border">
-                      {param.name}
-                    </span>
-                  </CustomTooltip>
+                  <div key={param.name} className="flex items-start gap-4 p-3 bg-gray-50 rounded border border-gray-200">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900">{param.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${param.mandatory ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
+                          {param.mandatory ? 'Required' : 'Optional'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">{param.description || 'No description'}</p>
+                    </div>
+                    <span className="text-xs bg-gray-100 px-2 py-1 rounded">{param.type}</span>
+                  </div>
                 ))}
               </div>
             ) : (
               <p className="text-sm text-gray-600">No parameters defined</p>
             )}
+            <JsonEditModal
+              isOpen={showParamsModal}
+              onClose={() => setShowParamsModal(false)}
+              title="Edit Workflow Parameters"
+              jsonData={workflow?.parameters || []}
+              onSave={handleSaveParameters}
+            />
           </div>
 
-          {/* Destination */}
+
+          {/* Destination Config */}
           <div className="bg-white border border-gray-300 p-6">
-            <div className="mb-4">
-              <h4 className="text-sm font-medium text-gray-900">Destination</h4>
-              <p className="text-gray-600 text-sm mt-1">Output destination for this workflow</p>
+            <div className="mb-4 flex justify-between items-center">
+              <div>
+                <h4 className="text-sm font-medium text-gray-900">Destination Config</h4>
+                <p className="text-gray-600 text-sm mt-1">Configuration for the destination</p>
+              </div>
+              <button
+                className="text-gray-600 hover:text-gray-900"
+                onClick={() => setShowConfigModal(true)}
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
             </div>
-            {destination ? (
-              <div className="space-y-3">
-                <div>
-                  <span className="text-sm text-gray-600">Type:</span>
-                  <span className="text-sm font-medium text-gray-900 ml-2">{destination.destination_type}</span>
-                </div>
-                {destination.table_name && (
-                  <div>
-                    <span className="text-sm text-gray-600">Table:</span>
-                    <span className="text-sm font-medium text-gray-900 ml-2">{destination.table_name}</span>
-                  </div>
+            <div className="space-y-3">
+              <div className={`json-preview-container relative bg-gray-50 p-4 rounded border border-gray-200 ${isDestinationConfigExpanded ? 'expanded' : ''}`}>
+                <pre className="text-sm text-gray-900 overflow-x-auto mb-0">
+                  <code>{isDestinationConfigExpanded ? JSON.stringify(workflow?.destination_config || {}, null, 2) : getLimitedJsonLines(workflow?.destination_config || {})}</code>
+                </pre>
+                {!isDestinationConfigExpanded && (
+                  <>
+                    <div className="fade-out"></div>
+                    <button
+                      className="show-more-btn"
+                      onClick={() => setIsDestinationConfigExpanded(true)}
+                    >
+                      Show More
+                    </button>
+                  </>
                 )}
-                {destination.file_path && (
-                  <div>
-                    <span className="text-sm text-gray-600">Path:</span>
-                    <span className="text-sm font-medium text-gray-900 ml-2">{destination.file_path}</span>
-                  </div>
+                {isDestinationConfigExpanded && (
+                  <button
+                    className="show-more-btn"
+                    onClick={() => setIsDestinationConfigExpanded(false)}
+                  >
+                    Show Less
+                  </button>
                 )}
               </div>
-            ) : (
-              <p className="text-sm text-gray-600">No destination defined</p>
-            )}
+            </div>
+            <JsonEditModal
+              isOpen={showConfigModal}
+              onClose={() => setShowConfigModal(false)}
+              title="Edit Destination Configuration"
+              jsonData={workflow?.destination_config || {}}
+              onSave={handleSaveDestinationConfig}
+            />
+          </div>
+
+          {/* Configuration Template */}
+          <div className="bg-white border border-gray-300 p-6">
+            <div className="mb-4 flex justify-between items-center">
+              <div>
+                <h4 className="text-sm font-medium text-gray-900">Configuration Template</h4>
+                <p className="text-gray-600 text-sm mt-1">Dagster configuration template for this workflow</p>
+              </div>
+              <button
+                className="text-gray-600 hover:text-gray-900"
+                onClick={() => setShowConfigTemplateModal(true)}
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className={`json-preview-container relative bg-gray-50 p-4 rounded border border-gray-200 ${isConfigExpanded ? 'expanded' : ''}`}>
+                <pre className="text-sm text-gray-900 overflow-x-auto mb-0">
+                  <code>{isConfigExpanded ? JSON.stringify(workflow?.config_template || {}, null, 2) : getLimitedJsonLines(workflow?.config_template || {})}</code>
+                </pre>
+                {!isConfigExpanded && (
+                  <>
+                    <div className="fade-out"></div>
+                    <button
+                      className="show-more-btn"
+                      onClick={() => setIsConfigExpanded(true)}
+                    >
+                      Show More
+                    </button>
+                  </>
+                )}
+                {isConfigExpanded && (
+                  <button
+                    className="show-more-btn"
+                    onClick={() => setIsConfigExpanded(false)}
+                  >
+                    Show Less
+                  </button>
+                )}
+              </div>
+            </div>
+            <JsonEditModal
+              isOpen={showConfigTemplateModal}
+              onClose={() => setShowConfigTemplateModal(false)}
+              title="Edit Configuration Template"
+              jsonData={workflow?.config_template || {}}
+              onSave={handleSaveConfigTemplate}
+            />
           </div>
         </div>
       </div>
