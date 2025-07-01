@@ -1,10 +1,20 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.file_parsers import parser_map
-import uvicorn
+from dotenv import load_dotenv
+import logging
+import os
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Load environment variables FIRST
+load_dotenv()
+
+# Configure FastAPI app
 app = FastAPI()
 
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -12,29 +22,90 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Import routes
+from routes.get_health_check import router as health_check_router
+from routes.workflows.post_workflow_destination import router as workflow_destination_router
+from routes.workflows.get_workflow import router as get_workflow_router
+from routes.workflows.get_workflows import router as get_workflows_router
+from routes.workflows.post_new_workflow import router as post_new_workflow_router
+from routes.analytics.get_analytics import router as get_analytics_router
 
-@app.post("/upload/")
-async def upload_file(file: UploadFile = File(...)):
-    try:
-        # Get file extension
-        if not file.filename or "." not in file.filename:
-            raise HTTPException(400, "Invalid filename")
 
-        file_ext = file.filename.split(".")[-1].lower()
-        parser = parser_map.get(file_ext)
+from routes.files.get_file import router as file_router
 
-        if not parser:
-            raise HTTPException(400, f"Unsupported file type: {file_ext}")
+from routes.runs.get_run import router as get_run_router
+from routes.runs.get_runs import router as get_runs_router
+from routes.runs.post_run_step_status import router as post_run_step_status_router
+from routes.runs.post_trigger_workflow import router as post_trigger_workflow_router
+from routes.runs.post_sync_run_status import router as post_sync_run_status_router
+from routes.runs.get_run_status import router as get_run_status_router
 
-        # Process file
-        if hasattr(parser, "parse") and callable(parser.parse):
-            result = await parser.parse(file)
-        else:
-            result = parser.parse(file)
+from routes.connections.post_new_connection import router as connections_router
+from routes.workflows.post_update_workflow import router as update_workflow_router
+from routes.workflows.get_workflow_permissions import router as workflow_permissions
+from routes.users.user_authentication import router as user_authentication
+from routes.users.user_details import router as user_details
+from routes.users.get_user_activity import router as get_user_activity_router
 
-        return result
+from routes.users.user_list import router as user_list
+from routes.dags.post_new_dag import router as post_new_dag_router
+from routes.dags.get_dag_repo_access import router as dag_repo_access
 
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(500, f"Processing error: {str(e)}")
+# Include routers
+app.include_router(health_check_router)
+app.include_router(workflow_destination_router)
+
+# Workflows
+app.include_router(get_workflows_router)
+app.include_router(get_workflow_router)
+app.include_router(post_new_workflow_router)
+app.include_router(workflow_permissions)
+
+app.include_router(file_router)
+
+# Runs
+app.include_router(get_run_router)
+app.include_router(get_runs_router)
+app.include_router(post_run_step_status_router)
+app.include_router(get_analytics_router)
+
+app.include_router(connections_router)
+app.include_router(update_workflow_router)
+app.include_router(post_new_dag_router)
+app.include_router(dag_repo_access)
+app.include_router(post_trigger_workflow_router)
+app.include_router(post_sync_run_status_router)
+app.include_router(get_run_status_router)
+                   
+# Users
+app.include_router(user_authentication)
+app.include_router(user_details)
+app.include_router(user_list)
+app.include_router(get_user_activity_router)
+
+# ========== Configuration Validation ==========
+def validate_config():
+    """Validate all required environment variables"""
+    errors = []
+
+    # Supabase validation
+    if not os.getenv("SUPABASE_URL"):
+        errors.append("SUPABASE_URL is required")
+    if not os.getenv("SUPABASE_SERVICE_ROLE"):
+        errors.append("SUPABASE_SERVICE_ROLE is required")
+
+    # Database validation
+    if not os.getenv("DATABASE_URL"):
+        required_db_vars = ["DB_USER", "DB_PASSWORD", "DB_HOST", "DB_NAME"]
+        missing_db_vars = [var for var in required_db_vars if not os.getenv(var)]
+        if missing_db_vars:
+            errors.append(f"Missing database config: {', '.join(missing_db_vars)}")
+
+    # Dagster validation
+    if not os.getenv("DAGSTER_API_URL"):
+        errors.append("DAGSTER_API_URL is required")
+
+    if errors:
+        raise ValueError("Configuration errors:\n- " + "\n- ".join(errors))
+
+validate_config()

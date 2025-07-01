@@ -4,17 +4,31 @@
   "description": "Conduit is a simple data pipeline tool for loading and transforming csv files",
   "main": "index.js",
   "scripts": {
-    "start": "concurrently \"cd server && uvicorn main:app --host 0.0.0.0 --port 8000 --reload\" \"cd client && npm start\" \"cd admin_server && npm start\""
+    "start": "concurrently     \"cd server && python -m uvicorn main:app --host 0.0.0.0 --port 8000\"     \"cd client && npm start\"     \" python -m dagster dev -m server.app.dagster.repo -p 3500 \"",
+    "dev": "concurrently \"cd server && python -m uvicorn main:app --host 0.0.0.0 --port 8000\" \"cd client && npx serve -s build --single -l 3000\"  \" python -m dagster dev -m server.app.dagster.repo -p 3500 \"",
+    "build": "react-scripts build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@fortawesome/free-solid-svg-icons": "^6.7.2",
+    "@fortawesome/react-fontawesome": "^0.2.2",
+    "axios": "^1.9.0",
+    "chart.js": "^4.4.9",
     "concurrently": "^9.1.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
-    "framer-motion": "^12.6.2",
-    "pg": "^8.14.1"
+    "framer-motion": "^12.12.1",
+    "react-chartjs-2": "^5.3.0",
+    "react-icons": "^5.5.0",
+    "react-loader-spinner": "^6.1.6",
+    "react-loading": "^2.0.3",
+    "react-scripts": "^5.0.1",
+    "react-spinners": "^0.17.0",
+    "react-tooltip": "^5.28.1",
+    "tailwindcss": "^4.1.7"
+  },
+  "devDependencies": {
+    "@scottish-government/design-system": "^3.0.1",
+    "sass": "^1.89.2"
   }
 }

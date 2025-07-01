@@ -1,202 +1,322 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Lock, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
+import axios from "axios";
+import { Mail, Eye, EyeOff } from "lucide-react";
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        const refreshToken = localStorage.getItem('refresh_token');
+        const response = await axios.post(`${API_BASE_URL}/users/user/refresh`, { refresh_token: refreshToken });
+        const { access_token } = response.data;
+        localStorage.setItem('access_token', access_token);
+        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userRole');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState({ message: "", type: "" });
+  const [remainingAttempts, setRemainingAttempts] = useState(null);
+  const [lockedUntil, setLockedUntil] = useState(null);
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setError("");
-    
+    setError({ message: "", type: "" });
+    setRemainingAttempts(null);
+    setLockedUntil(null);
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/postUserAuthentication`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ email_address: email, password }),
+      const response = await api.post('/users/user/authenticate', {
+        email_address: email,
+        password
       });
 
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Received non-JSON response');
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
-
-      localStorage.setItem('token', '12345');
-      localStorage.setItem('userId', data.userId);
+      const { access_token, refresh_token, user_id, role } = response.data;
+      localStorage.setItem('access_token', access_token);
+      localStorage.setItem('refresh_token', refresh_token);
+      localStorage.setItem('userId', user_id);
+      localStorage.setItem('userRole',role);
       navigate('/home');
     } catch (err) {
-      console.error('Full error:', err);
-      setError(err.message || 'An unexpected error occurred');
+      console.error('Login error:', err);
+
+      if (err.response?.data?.detail) {
+        const errorDetail = err.response.data.detail;
+
+        if (errorDetail.error_code === "account_locked") {
+          setError({
+            message: "Your account is locked. Please try again later.",
+            type: "locked"
+          });
+          setLockedUntil(errorDetail.lockedUntil);
+        } else if (errorDetail.error_code === "invalid_credentials") {
+          setError({
+            message: "Invalid email or password",
+            type: "credentials"
+          });
+          if (errorDetail.remainingAttempts !== null) {
+            setRemainingAttempts(errorDetail.remainingAttempts);
+          }
+        } else {
+          setError({
+            message: errorDetail.message || "An unexpected error occurred",
+            type: "generic"
+          });
+        }
+      } else {
+        setError({
+          message: err.message || "An unexpected error occurred",
+          type: "generic"
+        });
+      }
+
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 relative overflow-hidden flex">
-      {/* Animated Blue Gradient Left Side */}
-  {/* Animated Blue Gradient Left Side */}
-<div className="hidden lg:block w-1/2 relative overflow-hidden">
-  {/* Animated Gradient Background - Now 150% size to prevent edge visibility */}
-  <motion.div 
-    className="absolute -inset-[25%]" // Increased size by 25% on all sides
-    style={{
-      background: `linear-gradient(
-        -45deg, 
-        #1e3c72, #2a5298, #3a6073, 
-        #16222a, #3a6073, #1e3c72
-      )`,
-      backgroundSize: '400% 400%'
-    }}
-    animate={{
-      backgroundPosition: [
-        '0% 50%', 
-        '100% 50%', 
-        '0% 50%'
-      ]
-    }}
-    transition={{
-      duration: 15,
-      repeat: Infinity,
-      ease: "linear"
-    }}
-  />
-
-  {/* Overlay with Soft Blur - Also enlarged */}
-  <motion.div 
-    className="absolute -inset-[15%]" // Slightly smaller than the gradient
-    style={{
-      background: `radial-gradient(
-        circle at 30% 30%, 
-        rgba(30, 60, 114, 0.7), 
-        rgba(58, 96, 115, 0.5), 
-        transparent 50%
-      )`,
-      backdropFilter: 'blur(50px)',
-      opacity: 0.8
-    }}
-    animate={{
-      scale: [1, 1.05, 1],
-      rotate: [0, 5, -5, 0]
-    }}
-    transition={{
-      duration: 10,
-      repeat: Infinity,
-      ease: "easeInOut"
-    }}
-  />
-  
-  {/* Content remains the same */}
-  <div className="relative h-full flex items-center justify-center p-12 z-10">
-    <div className="max-w-md space-y-6 text-white">
-      <h1 className="text-5xl font-bold">
-        Conduit
-      </h1>
-      <p className="text-xl text-white/80">
-        Transform your data workflows with intelligent automation
-      </p>
-      <div className="flex items-center gap-4">
-        <div className="w-2 h-2 bg-white/70 rounded-full animate-pulse" />
-        <span className="text-white/70 text-sm">Secure cloud processing</span>
+    <div className="min-h-screen bg-gray-50 flex font-sans">
+      {/* Left Side - Animated Gradient Background */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+        <motion.div
+          className="absolute inset-0"
+          style={{
+            background: `linear-gradient(
+              135deg,
+              #1e3c72 0%,
+              #2a5298 25%,
+              #3a6073 50%,
+              #16222a 75%,
+              #0b979c 100%
+            )`,
+            backgroundSize: '300% 300%'
+          }}
+          animate={{
+            backgroundPosition: [
+              '0% 0%',
+              '100% 100%',
+              '0% 0%'
+            ]
+          }}
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            ease: "linear"
+          }}
+        />
+        <div className="relative z-10 flex items-center justify-center w-full p-16">
+          <div className="text-left text-white space-y-8 max-w-xl w-full">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1, delay: 0.5 }}
+            >
+              <h1 className="text-5xl font-light tracking-tight">Jade</h1>
+              <div className="h-px w-32 bg-white/30 my-6"></div>
+              <p className="text-lg font-light text-white/90">
+                Data Workflow Manager
+              </p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1, delay: 1 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center gap-3 text-white/80">
+                <div className="w-2 h-2 bg-white/60 rounded-full animate-pulse"></div>
+                <span className="text-sm">Execute pipelines and process data in the cloud</span>
+              </div>
+            </motion.div>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-</div>
 
-      {/* Login Form Section */}
-      <div className="w-full lg:w-1/2 bg-white shadow-2xl">
-        <div className="min-h-screen flex items-center justify-center p-8">
-          <div className="w-full max-w-md">
-            <div className="text-center mb-10">
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">
-                Welcome Back
-              </h2>
-              <p className="text-gray-500">Sign in to your data workflow platform</p>
-            </div>
+      {/* Right Side - Login Form */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-16">
+        <div className="w-full max-w-md space-y-8">
+          {/* Header with Scottish Government Logo */}
+          <div className="text-center">
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/0/01/Scottish_Government_Logo.svg"
+              alt="Scottish Government"
+              className="h-12 mx-auto mb-6"
+            />
+            <h1 className="text-xl font-semibold text-gray-900">Sign In</h1>
+          </div>
 
+          {/* Login Form Card */}
+          <div className="bg-white border border-gray-300 p-8">
             <form onSubmit={handleLogin} className="space-y-6">
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center">
-                  {error}
+              {/* Error Message */}
+              {error.message && (
+                <div className={`p-4 text-sm ${
+                  error.type === "locked"
+                    ? "bg-amber-50 border border-amber-200 text-amber-800"
+                    : "bg-red-50 border border-red-200 text-red-800"
+                }`}>
+                  <p className="font-medium">{error.message}</p>
+                  {lockedUntil && (
+                    <p className="mt-1 text-xs opacity-80">
+                      Locked until: {new Date(lockedUntil).toLocaleString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false
+                      })}
+                    </p>
+                  )}
+                  {remainingAttempts !== null && remainingAttempts > 0 && (
+                    <p className="mt-1 text-xs opacity-80">
+                      {remainingAttempts} attempt{remainingAttempts !== 1 ? 's' : ''} remaining
+                    </p>
+                  )}
                 </div>
               )}
 
-              <div className="space-y-4">
-                <div className="relative group">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500">
-                    <Mail className="w-5 h-5" />
-                  </div>
+              {/* Email Field */}
+              <div className="space-y-2">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-900">
+                  Email Address
+                </label>
+                <div className="relative">
                   <input
                     type="email"
+                    id="email"
+                    required
+                    placeholder="your.name@gov.scot"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3.5 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-gray-800 placeholder-gray-500 border border-gray-200"
-                    placeholder="Work email"
-                    required
+                    className="w-full h-9 px-2 pl-8 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
                   />
-                </div>
-
-                <div className="relative group">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500">
-                    <Lock className="w-5 h-5" />
-                  </div>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3.5 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-gray-800 placeholder-gray-500 border border-gray-200"
-                    placeholder="Password"
-                    required
-                  />
+                  <Mail className="absolute left-2 top-2.5 h-4 w-4 text-gray-600" />
                 </div>
               </div>
 
+              {/* Password Field */}
+              <div className="space-y-2">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-900">
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    id="password"
+                    required
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full h-9 px-2 pr-8 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-2.5 text-gray-600 hover:text-gray-900"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Remember Me & Forgot Password */}
+              <div className="flex items-center justify-between text-sm">
+                <label className="flex items-center gap-2 text-gray-600">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 border-gray-300 text-blue-900 focus:ring-blue-900"
+                  />
+                  Remember me
+                </label>
+                <a
+                  href="#"
+                  className="text-blue-900 hover:underline"
+                >
+                  Forgot password?
+                </a>
+              </div>
+
+              {/* Sign In Button */}
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full relative inline-flex items-center justify-center px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all font-medium"
+                className="w-full text-sm font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Signing in...
+                  </div>
                 ) : (
-                  <>
-                    <span>Continue</span>
-                    <ArrowRight className="w-4 h-4 ml-2 -mr-1" />
-                  </>
+                  "Sign In"
                 )}
               </button>
             </form>
 
-            <div className="mt-8 text-center text-sm">
-              <button
-                onClick={() => navigate("/register")}
-                className="text-gray-600 hover:text-blue-600 transition-colors duration-200 font-medium"
-              >
-                Create account
-              </button>
-              <span className="mx-2 text-gray-400">·</span>
-              <button
-                className="text-gray-600 hover:text-blue-600 transition-colors duration-200 font-medium"
-              >
-                Recover access
-              </button>
+            {/* Contact Admin */}
+            <div className="mt-6 pt-4 border-t border-gray-200 text-center">
+              <p className="text-sm text-gray-600">
+                Need access to the platform?{' '}
+                <a
+                  href="#"
+                  className="text-blue-900 hover:underline font-medium"
+                >
+                  Contact your administrator
+                </a>
+              </p>
             </div>
+          </div>
+
+          {/* Footer */}
+          <div className="text-center mt-6">
+            <p className="text-xs text-gray-600">
+              This is a prototype only and contains no real data.
+            </p>
           </div>
         </div>
       </div>

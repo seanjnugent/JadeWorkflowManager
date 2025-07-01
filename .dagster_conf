@@ -1,0 +1,25 @@
+ops:
+  load_input_json_converter_22:
+    config:
+      input_file_path: fire.csv
+      output_file_path: workflow-files/outputs/ouffftput.json
+      workflow_id: 22
+  save_output_json_converter_22:
+    config:
+      output_file_path: workflow-files/outputs/outfffput.json
+      workflow_id: 29
+  transform_json_converter_22:
+    config:
+      workflow_id: 22
+resources:
+  db_engine:
+    config:
+      DATABASE_URL: postgresql://postgres.cxdfynepqojqrvfdbuaf:ConduitDB2025!@aws-0-eu-west-2.pooler.supabase.com:5432/postgres
+  supabase:
+    config:
+      S3_ACCESS_KEY_ID: '096d8848fc440de900c622c8b9f241ff'
+      S3_ENDPOINT: https://cxdfynepqojqrvfdbuaf.supabase.co/storage/v1/s3
+      S3_REGION: eu-west-2
+      S3_SECRET_ACCESS_KEY: 56fbac8666e2ca6a110409f02157ff76f313151330a5788463cf56e7afba3526
+      SUPABASE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4ZGZ5bmVwcW9qcXJ2ZmRidWFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDg1NDc3MTIsImV4cCI6MjAyNDEyMzcxMn0.COv9BBfQUP1LF41X9rGANKKwl0s_yM6JBRIvSgNIb_k
+      SUPABASE_URL: https://cxdfynepqojqrvfdbuaf.supabase.co

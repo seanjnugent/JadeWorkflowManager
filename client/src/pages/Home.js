@@ -1,147 +1,366 @@
-import React, { useState } from 'react';
-import { 
-  Plus, Workflow, Plug, Settings, Code, 
-  ChevronRight, Search, FileText, Database
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import {
+  Plus, Workflow, Plug, Settings, Filter,
+  ChevronRight, Search, FileText, Database, Waypoints,
+  CircleCheckBig
+} from 'lucide-react';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 const Home = () => {
   const navigate = useNavigate();
-  
-  // Sample workflows data
-  const sampleWorkflows = [
-    {
-      id: 1,
-      name: "Sales Data Pipeline",
-      description: "Monthly sales data extraction and analysis",
-      icon: <FileText className="w-6 h-6 text-blue-600" />,
-      status: "Active",
-      lastRun: "2 hours ago"
-    },
-    {
-      id: 2,
-      name: "Customer Database Sync",
-      description: "Sync CRM data with marketing platform",
-      icon: <Database className="w-6 h-6 text-green-600" />,
-      status: "Scheduled",
-      lastRun: "Yesterday"
-    },
-    {
-      id: 3,
-      name: "Marketing Performance Report",
-      description: "Generate weekly marketing insights",
-      icon: <Workflow className="w-6 h-6 text-purple-600" />,
-      status: "Paused",
-      lastRun: "Last week"
+  const [workflows, setWorkflows] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [user, setUser] = useState(null);
+
+  // Fetch workflows
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    const accessToken = localStorage.getItem('access_token');
+
+    if (!userId || !accessToken) {
+      navigate('/login', { replace: true });
+      return;
     }
-  ];
+
+    const apiUrl = `${API_BASE_URL}/workflows/?page=1&limit=10&user_id=${userId}`;
+
+    fetch(apiUrl, {
+      headers: {
+        'accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+      .then(response => {
+        if (!response.ok) throw new Error('Failed to fetch workflows');
+        return response.json();
+      })
+      .then(data => {
+        const mappedWorkflows = data.workflows.slice(0, 3).map((workflow) => ({
+          ...workflow,
+          icon: getDestinationIconAndColor(workflow.destination).icon,
+          lastRun: workflow.last_run ? formatLastRunDate(workflow.last_run) : "Never run"
+        }));
+        setWorkflows(mappedWorkflows);
+      })
+      .catch(error => console.error('Error fetching workflows:', error));
+  }, [navigate]);
+
+  // Fetch user info
+  useEffect(() => {
+    const fetchUser = async () => {
+      const userId = localStorage.getItem('userId');
+      const accessToken = localStorage.getItem('access_token');
+      if (!userId || !accessToken) {
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/user/${userId}`, {
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('userId');
+            navigate('/login', { replace: true });
+            return;
+          }
+          throw new Error('Failed to fetch user data');
+        }
+
+        const data = await response.json();
+        if (!data.user) throw new Error('User not found');
+        setUser(data.user);
+      } catch (err) {
+        console.error('Failed to fetch user:', err);
+      }
+    };
+
+    fetchUser();
+  }, [navigate]);
+
+  // Fetch recent activity
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    const accessToken = localStorage.getItem('access_token');
+
+    if (!userId || !accessToken) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    fetch(`${API_BASE_URL}/users/recent-activity?user_id=${userId}&limit=3`, {
+      headers: {
+        'accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+      .then(response => {
+        if (!response.ok) throw new Error("Failed to fetch recent activity");
+        return response.json();
+      })
+      .then(data => {
+        const formattedData = data.map(activity => ({
+          ...activity,
+          status: activity.status === "SUCCESS" ? "Completed" : activity.status,
+          lastRun: activity.last_updated
+            ? formatLastRunDate(activity.last_updated)
+            : "Never run",
+          workflow_id: `WF${String(activity.workflow_id).padStart(4, '0')}`,
+        }));
+        setRecentActivity(formattedData);
+      })
+      .catch(error => console.error('Error fetching recent activity:', error));
+  }, [navigate]);
+
+  // Helper: Format date like "17 Jun, 14:30"
+  const formatLastRunDate = (dateString) => {
+    return new Date(dateString).toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  };
+
+  // Helper: Get icons and colors based on destination
+  const getDestinationIconAndColor = (destination) => {
+    switch (destination?.toLowerCase()) {
+      case 'api':
+        return { icon: <Waypoints className="h-6 w-6 text-blue-600" /> };
+      case 'csv':
+        return { icon: <FileText className="h-6 w-6 text-teal-600" /> };
+      case 'database':
+        return { icon: <Database className="h-6 w-6 text-red-600" /> };
+      default:
+        return { icon: <FileText className="h-6 w-6 text-gray-600" /> };
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-white text-gray-900">
-      {/* Header */}
-     
+    <main className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto py-8 px-4">
+        {/* Header Section */}
+        <header className="mb-8 text-center">
+          <h1 className="text-xl font-semibold text-gray-900">Hi {user ? `${user.first_name}` : ''},</h1>
+          <p className="text-gray-600 text-sm mt-1">
+            Manage and monitor your dataset processing pipelines and publications
+          </p>
+        </header>
 
-      {/* Main Content */}
-      <div className="container mx-auto px-6 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Workflows Section */}
-          <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg shadow-lg p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">My Workflows</h2>
-              <button 
-                onClick={() => navigate('/workflows')} 
-                className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center"
-              >
-                View All <ChevronRight className="w-4 h-4 ml-1" />
+        {/* Recent Activity Section */}
+        <div className="bg-white border border-gray-300 p-6 mb-8">
+          <div className="mb-4">
+            <h4 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+              <CircleCheckBig className="h-6 w-6 text-blue-600" />
+              Recent Activity
+            </h4>
+            <p className="text-gray-600 text-sm mt-1">Your latest workflow activities</p>
+          </div>
+          <div className="relative w-full overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr className="border-b-2 border-gray-200">
+                  <th className="text-left font-medium text-gray-900 py-4 px-6 w-[100px]">Status</th>
+                  <th className="text-left font-medium text-gray-900 py-4 px-6 w-[280px]">Workflow</th>
+                  <th className="text-left font-medium text-gray-900 py-4 px-6 w-[120px]">User</th>
+                  <th className="text-left font-medium text-gray-900 py-4 px-6 w-[110px]">Time</th>
+                  <th className="text-left font-medium text-gray-900 py-4 px-6">Activity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((activity, index) => (
+                    <tr
+                      key={index}
+                      className="border-b border-gray-200 hover:bg-gray-50 bg-white"
+                      onClick={() => navigate(`/runs/run/${activity.run_id}`)}
+                    >
+                      <td className="py-4 px-6 w-[100px]">
+                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border ${
+                          activity.status === "Completed"
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : activity.status === "STARTED" || activity.status === "RUNNING"
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : "bg-gray-50 text-gray-700 border-gray-200"
+                        }`}>
+                          {activity.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 w-[280px]">
+                        <div className="max-w-[260px]">
+                          <div className="text-sm font-medium text-gray-900 break-words">{activity.workflow_name}</div>
+                          <div className="text-sm text-gray-600 mt-1">{activity.workflow_id}</div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 w-[120px]">
+                        <div className="text-sm text-gray-900">{activity.triggered_by_username}</div>
+                      </td>
+                      <td className="py-4 px-6 w-[110px]">
+                        <div className="text-sm text-gray-900 whitespace-nowrap">{activity.lastRun}</div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="text-sm text-gray-600 break-words">{activity.latest_activity}</div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="text-center py-4 text-sm text-gray-600">No recent activity found</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Workflows Section */}
+        <div className="bg-white border border-gray-300 p-6">
+          <div className="mb-4">
+            <h4 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+              <Workflow className="h-6 w-6 text-blue-600" />
+              Your Workflows
+            </h4>
+            <p className="text-gray-600 text-sm mt-1">Monitor and manage your dataset processing workflows</p>
+          </div>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-600 h-4 w-4" />
+                <input
+                  className="w-full h-9 px-3 py-1 pl-10 text-sm bg-white border border-gray-300 focus:border-blue-900"
+                  placeholder="Search dataset pipelines..."
+                  value=""
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-4 lg:mt-0">
+              <button className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2">
+                <Filter className="h-4 w-4" />
+                Filter
               </button>
             </div>
-
-            <div className="space-y-4">
-              {sampleWorkflows.map((workflow) => (
-                <motion.div
-                  key={workflow.id}
-                  whileHover={{ scale: 1.02 }}
-                  className="bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className="bg-white border border-gray-200 rounded-lg p-2">
-                      {workflow.icon}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-gray-800">{workflow.name}</h3>
-                      <p className="text-sm text-gray-600">{workflow.description}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      workflow.status === 'Active' ? 'bg-green-100 text-green-700' :
-                      workflow.status === 'Scheduled' ? 'bg-blue-100 text-blue-700' :
-                      'bg-gray-200 text-gray-600'
-                    }`}>
-                      {workflow.status}
-                    </span>
-                    <span className="text-sm text-gray-500">{workflow.lastRun}</span>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
           </div>
+          <div className="relative w-full overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr className="border-b-2 border-gray-200">
+                  <th className="text-left font-medium text-gray-900 py-4 px-6 w-[280px]">Pipeline Name</th>
+                  <th className="text-left font-medium text-gray-900 py-4 px-6 w-[120px]">Category</th>
+                  <th className="text-left font-medium text-gray-900 py-4 px-6 w-[100px]">Status</th>
+                  <th className="text-left font-medium text-gray-900 py-4 px-6 w-[110px]">Last Run</th>
+                  <th className="text-left font-medium text-gray-900 py-4 px-6 w-[250px]">Workflow Owner</th>
+                  <th className="text-left font-medium text-gray-900 py-4 px-6 w-[120px]">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {workflows.map((workflow) => (
+                  <tr
+                    key={workflow.id}
+                    className="border-b border-gray-200 hover:bg-gray-50 bg-white"
+                    onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
+                  >
+                    <td className="py-4 px-6 w-[280px]">
+                      <div className="max-w-[260px]">
+                                              <div className="text-sm text-gray-600 mt-1">{`WF${String(workflow.id).padStart(4, '0')}`}</div>
 
-          {/* Add Workflow and Quick Actions */}
-          <div className="space-y-6">
-            {/* Add Workflow Button */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/new-workflow')}
-              className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white rounded-lg p-6 flex flex-col items-start justify-between shadow-lg shadow-blue-500/20 transition-all"
-            >
-              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center mb-4">
-                <Plus className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold mb-2 text-left">Create New Workflow</h3>
-                <p className="text-sm text-white/80 text-left">
-                  Design a new data pipeline or ETL process
-                </p>
-              </div>
-            </motion.button>
+                        <div className="text-xs font-medium text-gray-900 break-words">{workflow.name}</div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 w-[120px]">
+                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium border bg-gray-50 text-gray-700 border-gray-200">
+                        {workflow.destination || 'Unknown'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 w-[100px]">
+                      <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border ${
+                        workflow.status === 'Active' ? 'bg-green-50 text-green-700 border-green-200' :
+                        workflow.status === 'Scheduled' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                        'bg-gray-50 text-gray-700 border-gray-200'
+                      }`}>
+                        {workflow.status}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 w-[110px]">
+                      <div className="text-sm text-gray-900 whitespace-nowrap">{workflow.lastRun}</div>
+                    </td>
+                    <td className="py-4 px-6 w-[250px]">
+                      <div className="max-w-[230px]">
+                        <div className="text-sm font-medium text-gray-900 break-words">{workflow.owner}</div>
+                        <div className="text-xs text-gray-600 mt-1 break-words">{workflow.group_name || ''}</div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 w-[120px]">
+                      <button className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 px-3 py-1">
+                        <ChevronRight className="h-4 w-4" />
+                        Explore
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-            {/* Quick Actions */}
-            <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-6 space-y-4">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Configuration</h2>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                onClick={() => navigate('/connections')}
-                className="w-full bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="bg-white border border-gray-200 rounded-lg p-2">
-                    <Plug className="w-6 h-6 text-green-600" />
-                  </div>
-                  <span className="font-medium text-gray-800">Data Connections</span>
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-400" />
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                onClick={() => navigate('/settings')}
-                className="w-full bg-gray-100 border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition-all"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="bg-white border border-gray-200 rounded-lg p-2">
-                    <Settings className="w-6 h-6 text-gray-600" />
-                  </div>
-                  <span className="font-medium text-gray-800">Settings</span>
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-400" />
-              </motion.button>
+        {/* Quick Actions Section */}
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <button
+            onClick={() => navigate('/workflows/new/')}
+            className="lg:col-span-1 bg-blue-900 border border-blue-900 text-white p-6 flex flex-col items-start justify-between"
+          >
+            <div className="w-12 h-12 bg-white/10 flex items-center justify-center mb-4">
+              <Plus className="h-6 w-6" />
             </div>
+            <div>
+              <h3 className="text-sm font-medium text-white mb-2 text-left">Create New Workflow</h3>
+              <p className="text-sm text-white/80 text-left">
+                Design a new data pipeline or ETL process
+              </p>
+            </div>
+          </button>
+          <div className="lg:col-span-2 bg-white border border-gray-300 p-6 space-y-4">
+            <h2 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+              <Settings className="h-6 w-6 text-blue-600" />
+              Configuration
+            </h2>
+            <button
+              onClick={() => navigate('/connections')}
+              className="w-full bg-white border border-gray-300 p-4 flex items-center justify-between hover:bg-gray-100"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="bg-gray-50 border border-gray-200 p-2">
+                  <Plug className="h-6 w-6 text-green-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-900">Data Connections</span>
+              </div>
+              <ChevronRight className="h-5 w-5 text-gray-600" />
+            </button>
+            <button
+              onClick={() => navigate('/settings')}
+              className="w-full bg-white border border-gray-300 p-4 flex items-center justify-between hover:bg-gray-100"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="bg-gray-50 border border-gray-200 p-2">
+                  <Settings className="h-6 w-6 text-gray-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-900">Settings</span>
+              </div>
+              <ChevronRight className="h-5 w-5 text-gray-600" />
+            </button>
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 };
 

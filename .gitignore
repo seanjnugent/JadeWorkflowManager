@@ -200,3 +200,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+dags/storage
+dags/history
+*.db
