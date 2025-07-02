@@ -43,6 +43,9 @@ from routes.runs.get_run_status import router as get_run_status_router
 from routes.connections.post_new_connection import router as connections_router
 from routes.workflows.post_update_workflow import router as update_workflow_router
 from routes.workflows.get_workflow_permissions import router as workflow_permissions
+from routes.workflows.post_update_workflow_config import router as post_update_workflow_config_router
+
+
 from routes.users.user_authentication import router as user_authentication
 from routes.users.user_details import router as user_details
 from routes.users.get_user_activity import router as get_user_activity_router
@@ -60,7 +63,7 @@ app.include_router(get_workflows_router)
 app.include_router(get_workflow_router)
 app.include_router(post_new_workflow_router)
 app.include_router(workflow_permissions)
-
+app.include_router(post_update_workflow_config_router)
 app.include_router(file_router)
 
 # Runs
