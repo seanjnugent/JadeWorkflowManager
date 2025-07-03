@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'chart.js/auto';
 import { TrendingUp, AlertCircle, Layers, Clock, X } from 'lucide-react';
+import { GridLoader } from 'react-spinners';
 
 const Card = ({ children, title }) => (
   <div className="bg-white border border-gray-300 p-6">
@@ -420,7 +421,7 @@ const Analytics = () => {
 
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin h-8 w-8 border-b-2 border-blue-900"></div>
+                  <GridLoader color="#1e3a8a" size={15} margin={2} />
           </div>
         ) : (
           <div className="space-y-6">

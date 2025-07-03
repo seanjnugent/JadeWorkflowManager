@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useParams, useNavigate } from 'react-router-dom';
-import { RefreshCw, Clock, ChevronLeft, Play, FileText, CircleCheckBig, CircleAlert, GitBranch, CircleHelp, Github, X, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronUp, RefreshCw, Clock, ChevronLeft, Play, FileText, CircleCheckBig, CircleAlert, GitBranch, CircleHelp, Github, X, Pencil } from 'lucide-react';
 
 // Custom Tooltip Component
 const CustomTooltip = ({ content, children }) => {
@@ -22,6 +22,7 @@ const CustomTooltip = ({ content, children }) => {
     </div>
   );
 };
+
 
 // Input Structure Modal Component
 const InputStructureModal = ({ isOpen, onClose, inputStructure }) => {
@@ -71,6 +72,7 @@ const InputStructureModal = ({ isOpen, onClose, inputStructure }) => {
 const JsonEditModal = ({ isOpen, onClose, title, jsonData, onSave }) => {
   const [jsonText, setJsonText] = useState(JSON.stringify(jsonData, null, 2));
   const [error, setError] = useState(null);
+  
 
   const handleSave = () => {
     try {
@@ -264,6 +266,13 @@ function formatDuration(ms) {
   return parts.join(' ');
 }
 
+// Function to limit JSON display lines
+const getLimitedJsonLines = (jsonData) => {
+  const jsonString = JSON.stringify(jsonData, null, 2);
+  const lines = jsonString.split('\n');
+  return lines.slice(0, 6).join('\n');
+};
+
 // Main Workflow Component
 const Workflow = () => {
   const { workflowId } = useParams();
@@ -279,6 +288,7 @@ const Workflow = () => {
   const [isDestinationConfigExpanded, setIsDestinationConfigExpanded] = useState(false);
   const [versionControl, setVersionControl] = useState(null);
   const [error, setError] = useState(null);
+  const [expandedSections, setExpandedSections] = useState({});
 
   const GITHUB_REPO_OWNER = 'seanjnugent';
   const GITHUB_REPO_NAME = 'DataWorkflowTool-Workflows';
@@ -305,12 +315,125 @@ const Workflow = () => {
       .finally(() => setLoading(false));
   }, [workflowId, navigate]);
 
+  const toggleSection = (sectionName) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [sectionName]: !prev[sectionName],
+    }));
+  };
+
+
   const handleStartRun = () => {
     if (workflowDetails?.workflow?.dag_status === 'ready' && !running) {
       setRunning(true);
       navigate(`/runs/new/${workflowId}`);
     }
   };
+
+  // DestinationConfigModal.jsx (new component)
+const DestinationConfigModal = ({ 
+  isOpen, 
+  onClose, 
+  initialConfig,
+  onSave
+}) => {
+  const [apiUrl, setApiUrl] = useState(initialConfig?.api_url || '');
+  const [apiToken, setApiToken] = useState('');
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setApiUrl(initialConfig?.api_url || '');
+      setApiToken('');
+    }
+  }, [isOpen, initialConfig]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    
+    if (!apiUrl) {
+      setError('API URL is required');
+      return;
+    }
+
+    try {
+      await onSave({
+        api_url: apiUrl,
+        api_token: apiToken
+      });
+      onClose();
+    } catch (error) {
+      setError(error.message || 'Failed to save configuration');
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white border border-gray-300 max-w-2xl w-full max-h-[90vh] flex flex-col">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+          <h4 className="text-sm font-medium text-gray-900">Edit Destination Configuration</h4>
+          <button
+            onClick={onClose}
+            className="text-gray-600 hover:text-gray-900"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 overflow-auto flex-grow space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-1">API URL</label>
+            <input
+              type="text"
+              value={apiUrl}
+              onChange={(e) => setApiUrl(e.target.value)}
+              className="w-full p-3 bg-white border border-gray-200 rounded text-sm text-gray-900"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-1">API Token</label>
+            <CustomTooltip content="The API token will be encrypted when saved. Leave blank to keep existing token.">
+              <input
+                type="password"
+                value={apiToken}
+                onChange={(e) => setApiToken(e.target.value)}
+                placeholder="Leave blank to keep existing token"
+                className="w-full p-3 bg-white border border-gray-200 rounded text-sm text-gray-900"
+              />
+            </CustomTooltip>
+          </div>
+          
+          <div className="mt-6 flex justify-end gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 px-4 py-2"
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 
   const handleDownloadTemplate = () => {
     const headers = workflowDetails?.workflow?.input_structure?.columns.map(col => col.name).join(',');
@@ -348,30 +471,48 @@ const Workflow = () => {
     }
   };
 
-  const handleSaveDestinationConfig = async (updatedConfig) => {
-    try {
-      const accessToken = localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/workflows/workflow/update_destination_config', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          workflow_id: workflowId,
-          destination_config: updatedConfig
-        })
-      });
-      if (!response.ok) throw new Error('Failed to update destination config');
-      const data = await response.json();
-      setWorkflowDetails(prev => ({
-        ...prev,
-        workflow: { ...prev.workflow, destination_config: updatedConfig }
-      }));
-    } catch (error) {
-      setError('Failed to update destination config: ' + error.message);
+const handleSaveDestinationConfig = async ({ api_url, api_token }) => {
+  try {
+    const accessToken = localStorage.getItem('access_token');
+    const formData = new FormData();
+    formData.append('api_url', api_url);
+    if (api_token) {
+      formData.append('api_token', api_token);
     }
-  };
+
+    const response = await fetch(`http://localhost:8000/admin/workflows/${workflowId}/destination_config`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to update destination config');
+    }
+
+    const data = await response.json();
+    
+    // Update local state with the new config (note: we don't get the encrypted token back)
+    setWorkflowDetails(prev => ({
+      ...prev,
+      workflow: { 
+        ...prev.workflow, 
+        destination_config: {
+          api_url: api_url,
+          api_token: prev.workflow.destination_config?.api_token // Keep existing encrypted token
+        }
+      }
+    }));
+    
+    return data;
+  } catch (error) {
+    setError('Failed to update destination config: ' + error.message);
+    throw error;
+  }
+};
 
   const handleSaveConfigTemplate = async (updatedConfig) => {
     try {
@@ -396,12 +537,6 @@ const Workflow = () => {
     } catch (error) {
       setError('Failed to update config template: ' + error.message);
     }
-  };
-
-  const getLimitedJsonLines = (jsonData) => {
-    const jsonString = JSON.stringify(jsonData, null, 2);
-    const lines = jsonString.split('\n');
-    return lines.slice(0, 6).join('\n');
   };
 
   if (loading) {
@@ -592,7 +727,7 @@ const Workflow = () => {
 
             {/* Support & Documentation */}
             <div className="bg-white border border-gray-300 p-6">
-              <h4 className="text-sm font-medium text-gray-900 mb-4 flex items-center">
+              <h4 className="text-sm font-medium text-gray-900 mb四大 flex items-center">
                 <CircleHelp className="h-6 w-6 text-orange-500 mr-2" />
                 Support & Documentation
               </h4>
@@ -616,7 +751,7 @@ const Workflow = () => {
           </div>
 
           {/* Recent Activity */}
-          <div className="bg-white border border-gray-300 p-6">
+<div className="bg-white border border-gray-300 p-6" style={{ marginBottom: 24 }}>
             <div className="mb-4">
               <h4 className="text-sm font-medium text-gray-900">Recent Activity</h4>
               <p className="text-gray-600 text-sm mt-1">Last 5 executions of this workflow</p>
@@ -682,7 +817,7 @@ const Workflow = () => {
           </div>
 
           {/* Input File Structure */}
-          <div className="bg-white border border-gray-300 p-6">
+<div className="bg-white border border-gray-300 p-6" style={{ marginBottom: 24 }}>
             <div className="mb-4">
               <h4 className="text-sm font-medium text-gray-900">Input File Structure</h4>
               <p className="text-gray-600 text-sm mt-1">Required input format for this workflow</p>
@@ -715,22 +850,62 @@ const Workflow = () => {
           </div>
 
           {/* Parameters */}
-          <div className="bg-white border border-gray-300 p-6">
-            <div className="mb-4 flex justify-between items-center">
-              <div>
-                <h4 className="text-sm font-medium text-gray-900">Parameters</h4>
-                <p className="text-gray-600 text-sm mt-1">Configuration parameters for this workflow</p>
-              </div>
-              <button
-                className="text-gray-600 hover:text-gray-900"
-                onClick={() => setShowParamsModal(true)}
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
+<div className="bg-white border border-gray-300 p-6" style={{ marginBottom: 24 }}>
+          <div className="mb-4 flex justify-between items-center">
+            <div>
+              <h4 className="text-sm font-medium text-gray-900">Parameters</h4>
+              <p className="text-gray-600 text-sm mt-1">Configuration parameters for this workflow</p>
             </div>
-            {workflow?.parameters?.length > 0 ? (
-              <div className="space-y-4">
-                {workflow.parameters.map((param) => (
+            <button
+              className="text-gray-600 hover:text-gray-900"
+              onClick={() => setShowParamsModal(true)}
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          </div>
+          {workflow?.parameters?.length > 0 ? (
+            <div className="space-y-4">
+              {workflow.parameters[0]?.section ? (
+                workflow.parameters.map((section, index) => (
+                  <div key={section.section} className="border border-gray-200 rounded">
+                    <button
+                      className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100"
+                      onClick={() => toggleSection(section.section)}
+                    >
+                      <h5 className="text-sm font-medium text-gray-900">{section.section}</h5>
+                      {expandedSections[section.section] ? (
+                        <ChevronUp className="h-4 w-4 text-gray-600" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-gray-600" />
+                      )}
+                    </button>
+                    {expandedSections[section.section] && (
+                      <div className="p-4 space-y-4">
+                        {section.parameters.map((param) => (
+                          <div key={param.name} className="flex items-start gap-4 p-3 bg-gray-50 rounded border border-gray-200">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-900">{param.name}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded ${param.mandatory ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
+                                  {param.mandatory ? 'Required' : 'Optional'}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600 mt-1">{param.description || 'No description'}</p>
+                              {param.options && (
+                                <p className="text-sm text-gray-600 mt-1">
+                                  Options: {param.options.map(opt => opt.label).join(', ')}
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-xs bg-gray-100 px-2 py-1 rounded">{param.type}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                workflow.parameters.map((param) => (
                   <div key={param.name} className="flex items-start gap-4 p-3 bg-gray-50 rounded border border-gray-200">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
@@ -740,72 +915,75 @@ const Workflow = () => {
                         </span>
                       </div>
                       <p className="text-sm text-gray-600 mt-1">{param.description || 'No description'}</p>
+                      {param.options && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          Options: {param.options.map(opt => opt.label).join(', ')}
+                        </p>
+                      )}
                     </div>
                     <span className="text-xs bg-gray-100 px-2 py-1 rounded">{param.type}</span>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-600">No parameters defined</p>
-            )}
-            <JsonEditModal
-              isOpen={showParamsModal}
-              onClose={() => setShowParamsModal(false)}
-              title="Edit Workflow Parameters"
-              jsonData={workflow?.parameters || []}
-              onSave={handleSaveParameters}
-            />
+                ))
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600">No parameters for this run</p>
+          )}
+          <JsonEditModal
+            isOpen={showParamsModal}
+            onClose={() => setShowParamsModal(false)}
+            title="Edit Workflow Parameters"
+            jsonData={workflow?.parameters || []}
+            onSave={handleSaveParameters}
+          />
+        </div>
+{/* destination config */}
+<div className="bg-white border border-gray-300 p-6" style={{ marginBottom: 24 }}>
+          <div className="mb-4 flex justify-between items-center">
+            <div>
+              <h4 className="text-sm font-medium text-gray-900">Destination Config</h4>
+              <p className="text-gray-600 text-sm mt-1">Configuration for the API destination</p>
+            </div>
+            <button
+              className="text-gray-600 hover:text-gray-900"
+              onClick={() => setShowConfigModal(true)}
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
           </div>
-
-
-          {/* Destination Config */}
-          <div className="bg-white border border-gray-300 p-6">
-            <div className="mb-4 flex justify-between items-center">
+          <div className="space-y-4">
+            <div className="flex flex-col gap-4">
               <div>
-                <h4 className="text-sm font-medium text-gray-900">Destination Config</h4>
-                <p className="text-gray-600 text-sm mt-1">Configuration for the destination</p>
+                <label className="block text-sm font-medium text-gray-900 mb-1">API URL</label>
+                <input
+                  type="text"
+                  value={workflow?.destination_config?.api_url || ''}
+                  readOnly
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-900"
+                />
               </div>
-              <button
-                className="text-gray-600 hover:text-gray-900"
-                onClick={() => setShowConfigModal(true)}
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div className={`json-preview-container relative bg-gray-50 p-4 rounded border border-gray-200 ${isDestinationConfigExpanded ? 'expanded' : ''}`}>
-                <pre className="text-sm text-gray-900 overflow-x-auto mb-0">
-                  <code>{isDestinationConfigExpanded ? JSON.stringify(workflow?.destination_config || {}, null, 2) : getLimitedJsonLines(workflow?.destination_config || {})}</code>
-                </pre>
-                {!isDestinationConfigExpanded && (
-                  <>
-                    <div className="fade-out"></div>
-                    <button
-                      className="show-more-btn"
-                      onClick={() => setIsDestinationConfigExpanded(true)}
-                    >
-                      Show More
-                    </button>
-                  </>
-                )}
-                {isDestinationConfigExpanded && (
-                  <button
-                    className="show-more-btn"
-                    onClick={() => setIsDestinationConfigExpanded(false)}
-                  >
-                    Show Less
-                  </button>
-                )}
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-1">API Token</label>
+                <CustomTooltip content="The API token is encrypted at the database level with a Fernet key and is decrypted only at runtime.">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value="Encrypted"
+                      readOnly
+                      className="w-full p-3 bg-gray-100 border border-gray-200 rounded text-sm text-gray-500 cursor-not-allowed"
+                    />
+                  </div>
+                </CustomTooltip>
               </div>
             </div>
-            <JsonEditModal
-              isOpen={showConfigModal}
-              onClose={() => setShowConfigModal(false)}
-              title="Edit Destination Configuration"
-              jsonData={workflow?.destination_config || {}}
-              onSave={handleSaveDestinationConfig}
-            />
           </div>
+<DestinationConfigModal
+  isOpen={showConfigModal}
+  onClose={() => setShowConfigModal(false)}
+  initialConfig={workflow?.destination_config || {}}
+  onSave={handleSaveDestinationConfig}
+/>
+        </div>
 
           {/* Configuration Template */}
           <div className="bg-white border border-gray-300 p-6">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Play, UploadCloud, Plug, Clock, CheckCircle, Download } from 'lucide-react';
+import { ChevronLeft, Play, UploadCloud, Plug, Clock, CheckCircle, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { GridLoader } from 'react-spinners';
 
 const NewRun = () => {
@@ -17,6 +17,7 @@ const NewRun = () => {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [expandedSections, setExpandedSections] = useState({});
 
   const steps = [
     { id: 1, title: 'Run Configuration', icon: Play },
@@ -24,6 +25,31 @@ const NewRun = () => {
     { id: 3, title: 'Parameters', icon: Plug },
     { id: 4, title: 'Schedule', icon: Clock },
     { id: 5, title: 'Review', icon: CheckCircle },
+  ];
+
+  // Fallback parameters if API returns empty
+  const fallbackParams = [
+    { name: 'publisher', type: 'text', required: true, label: 'Publisher' },
+    { name: 'name', type: 'text', required: true, label: 'Name' },
+    { name: 'title', type: 'text', required: true, label: 'Title' },
+    { name: 'owner_org', type: 'text', required: true, label: 'Owner Organization' },
+    { name: 'notes', type: 'text', required: false, label: 'Notes' },
+    { name: 'description', type: 'text', required: false, label: 'Description' },
+    { name: 'package_id', type: 'text', required: true, label: 'Package ID' },
+    { name: 'url', type: 'text', required: false, label: 'URL' },
+    { name: 'format', type: 'select', required: true, label: 'Format', options: [
+      { value: 'CSV', label: 'CSV' },
+      { value: 'JSON', label: 'JSON' }
+    ]},
+    { name: 'resource_type', type: 'text', required: true, label: 'Resource Type' },
+    { name: 'license_id', type: 'select', required: true, label: 'License', options: [
+      { value: 'cc-by', label: 'CC-BY' },
+      { value: 'cc-nc', label: 'CC-NC' }
+    ]},
+    { name: 'visibility', type: 'select', required: true, label: 'Visibility', options: [
+      { value: 'private', label: 'Private' },
+      { value: 'public', label: 'Public' }
+    ]}
   ];
 
   useEffect(() => {
@@ -46,17 +72,28 @@ const NewRun = () => {
           throw new Error(`Failed to fetch workflow details: ${response.status} ${response.statusText}`);
         }
         const data = await response.json();
+        console.log('Workflow Details:', data);
+        console.log('Parameters:', data.workflow?.parameters);
         setWorkflowDetails(data);
 
+        const workflowParams = data.workflow?.parameters?.length > 0 ? data.workflow.parameters : fallbackParams;
         const initialParams = {};
-        const workflowParams = data.workflow?.parameters || [];
+        
         if (Array.isArray(workflowParams)) {
-          workflowParams.forEach((p) => {
-            initialParams[p.name] = p.default || '';
-          });
+          if (workflowParams[0]?.section) {
+            workflowParams.forEach(section => {
+              section.parameters.forEach(param => {
+                initialParams[param.name] = param.default ?? '';
+              });
+            });
+          } else {
+            workflowParams.forEach(param => {
+              initialParams[param.name] = param.default ?? '';
+            });
+          }
         } else if (typeof workflowParams === 'object') {
           Object.keys(workflowParams).forEach(key => {
-            initialParams[key] = workflowParams[key]?.default || '';
+            initialParams[key] = workflowParams[key]?.default ?? '';
           });
         }
         setParameters(initialParams);
@@ -75,10 +112,27 @@ const NewRun = () => {
     fetchWorkflowDetails();
   }, [workflowId]);
 
+  // Ensure select default values are recognized
+  useEffect(() => {
+    const workflowParams = workflowDetails?.workflow?.parameters?.length > 0 ? workflowDetails.workflow.parameters : fallbackParams;
+    workflowParams.forEach(param => {
+      if (param.type === 'select' && param.default && parameters[param.name] !== undefined) {
+        handleParameterChange(param.name, parameters[param.name]);
+      }
+    });
+  }, [workflowDetails, parameters]);
+
   const handleParameterChange = (name, value) => {
     setParameters(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  const toggleSection = (sectionName) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
     }));
   };
 
@@ -97,15 +151,27 @@ const NewRun = () => {
         }
         break;
       case 3:
-        const workflowParams = workflowDetails?.workflow?.parameters || [];
+        const workflowParams = workflowDetails?.workflow?.parameters?.length > 0 ? workflowDetails.workflow.parameters : fallbackParams;
         let hasError = false;
+        
         if (Array.isArray(workflowParams)) {
-          workflowParams.forEach(param => {
-            if (param.required && (!parameters[param.name] || parameters[param.name].trim() === '')) {
-              setError(`Parameter "${param.name}" is required`);
-              hasError = true;
-            }
-          });
+          if (workflowParams[0]?.section) {
+            workflowParams.forEach(section => {
+              section.parameters.forEach(param => {
+                if (param.required && (!parameters[param.name] || parameters[param.name].trim() === '')) {
+                  setError(`Parameter "${param.name}" is required`);
+                  hasError = true;
+                }
+              });
+            });
+          } else {
+            workflowParams.forEach(param => {
+              if (param.required && (!parameters[param.name] || parameters[param.name].trim() === '')) {
+                setError(`Parameter "${param.name}" is required`);
+                hasError = true;
+              }
+            });
+          }
         }
         if (hasError) return false;
         break;
@@ -123,45 +189,63 @@ const NewRun = () => {
     return true;
   };
 
-const handleStartRun = async () => {
-  if (!validateCurrentStep()) return;
+  const handleStartRun = async () => {
+    if (!validateCurrentStep()) return;
 
-  setIsSubmitting(true);
-  try {
-    const formData = new FormData();
-    formData.append('workflow_id', workflowId);
-    formData.append('triggered_by', userId);
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('workflow_id', workflowId);
+      formData.append('triggered_by', userId);
+      formData.append('name', runName);
+      if (file) {
+        formData.append('file', file);
+      }
+      
+      const workflowParams = workflowDetails?.workflow?.parameters?.length > 0 ? workflowDetails.workflow.parameters : fallbackParams;
+      const validParameters = {};
+      
+      if (workflowParams[0]?.section) {
+        workflowParams.forEach(section => {
+          section = section.parameters.forEach(param => {
+            if (parameters[param.name] !== undefined) {
+              validParameters[param.name] = parameters[param.name];
+            }
+          });
+        });
+      } else {
+        workflowParams.forEach(param => {
+          if (parameters[param.name] !== undefined) {
+            validParameters[param.name] = parameters[param.name];
+          }
+        });
+      }
+      
+      if (Object.keys(validParameters).length) {
+        formData.append('parameters', JSON.stringify(validParameters));
+      }
+      
+      if (scheduleType !== 'none') {
+        formData.append('schedule', scheduleType);
+      }
 
-    if (file) {
-      formData.append('file', file);
+      const response = await fetch(`http://localhost:8000/runs/trigger`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Run failed');
+      }
+
+      navigate('/runs');
+    } catch (err) {
+      setError(err.message || 'Failed to start run');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    if (Object.keys(parameters).length) {
-      formData.append('parameters', JSON.stringify(parameters));
-    }
-
-    if (scheduleType !== 'none') {
-      formData.append('schedule', scheduleType);
-    }
-
-    const response = await fetch(`http://localhost:8000/runs/trigger`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Run failed');
-    }
-
-    navigate('/runs');
-  } catch (err) {
-    setError(err.message || 'Failed to start run');
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-
+  };
 
   const handleNextStep = () => {
     if (!validateCurrentStep()) return;
@@ -171,6 +255,127 @@ const handleStartRun = async () => {
     } else {
       setCurrentStep(currentStep + 1);
       setError('');
+    }
+  };
+
+  const renderParameters = () => {
+    const workflowParams = workflowDetails?.workflow?.parameters?.length > 0 ? workflowDetails.workflow.parameters : fallbackParams;
+
+    if (!workflowParams) {
+      return (
+        <div className="bg-red-50 p-4 border border-red-200">
+          <p className="text-red-700 text-sm">Error: Failed to load parameters for this workflow.</p>
+        </div>
+      );
+    }
+
+    if (workflowParams.length === 0) {
+      return (
+        <div className="bg-gray-50 p-4 border border-gray-200">
+          <p className="text-gray-600 text-sm">No parameters configured for this workflow.</p>
+        </div>
+      );
+    }
+
+    if (workflowParams[0]?.section) {
+      return (
+        <div className="space-y-4">
+          {workflowParams.map(section => (
+            <div key={section.section} className="border border-gray-200 rounded">
+              <button
+                className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100"
+                onClick={() => toggleSection(section.section)}
+              >
+                <h5 className="text-sm font-medium text-gray-900">{section.section}</h5>
+                {expandedSections[section.section] ? (
+                  <ChevronUp className="h-4 w-4 text-gray-600" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-gray-600" />
+                )}
+              </button>
+              {expandedSections[section.section] && (
+                <div className="p-4 space-y-4">
+                  {section.parameters.map(param => (
+                    <div key={param.name} className="bg-gray-50 p-4 border border-gray-200">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {param.label || param.name}
+                        {param.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      {param.type === 'select' && Array.isArray(param.options) ? (
+                        <select
+                          value={parameters[param.name] ?? ''}
+                          onChange={(e) => handleParameterChange(param.name, e.target.value)}
+                          className="w-full p-2 bg-white border border-gray-300 text-gray-700 text-sm"
+                        >
+                          <option value="" disabled>
+                            Select an option
+                          </option>
+                          {param.options.map(option => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={param.type === 'number' ? 'number' : 'text'}
+                          value={parameters[param.name] ?? ''}
+                          onChange={(e) => handleParameterChange(param.name, e.target.value)}
+                          placeholder={param.placeholder || `Enter ${param.label || param.name}`}
+                          className="w-full p-2 bg-white border border-gray-300 text-gray-700 text-sm"
+                        />
+                      )}
+                      {param.description && (
+                        <p className="text-gray-500 text-xs mt-1">{param.description}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    } else {
+      return (
+        <div className="space-y-4">
+          {workflowParams.map(param => (
+            <div key={param.name} className="bg-gray-50 p-4 border border-gray-200">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {param.label || param.name}
+                {param.required && <span className="text-red-500 ml-1">*</span>}
+              </label>
+              {param.type === 'select' && Array.isArray(param.options) ? (
+                <select
+                  value={parameters[param.name] ?? ''}
+                  onChange={(e) => handleParameterChange(param.name, e.target.value)}
+                  className="w-full p-2 bg-white border border-gray-300 text-gray-700 text-sm"
+                >
+                  <option value="" disabled>
+                    Select an option
+                  </option>
+                  {param.options.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={param.type === 'number' ? 'number' : 'text'}
+                  value={parameters[param.name] ?? ''}
+                  onChange={(e) => handleParameterChange(param.name, e.target.value)}
+                  placeholder={param.placeholder || `Enter ${param.label || param.name}`}
+                  className="w-full p-2 bg-white border border-gray-300 text-gray-700 text-sm"
+                />
+              )}
+              {param.description && (
+                <p className="text-gray-500 text-xs mt-1">{param.description}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      );
     }
   };
 
@@ -322,51 +527,7 @@ const handleStartRun = async () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Parameters
                 </label>
-                {Object.keys(parameters).length === 0 ? (
-                  <div className="bg-gray-50 p-4 border border-gray-200">
-                    <p className="text-gray-600 text-sm">No parameters available for this workflow.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {Object.entries(parameters).map(([name, value]) => {
-                      const paramDetails = Array.isArray(workflowDetails?.workflow?.parameters)
-                        ? workflowDetails?.workflow?.parameters.find(p => p.name === name)
-                        : null;
-                      return (
-                        <div key={name} className="bg-gray-50 p-4 border border-gray-200">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            {paramDetails?.label || name}
-                            {paramDetails?.required && <span className="text-red-500 ml-1">*</span>}
-                          </label>
-                          {paramDetails?.type === 'select' && Array.isArray(paramDetails?.options) ? (
-                            <select
-                              value={value}
-                              onChange={(e) => handleParameterChange(name, e.target.value)}
-                              className="w-full p-2 bg-white border border-gray-300 text-gray-700 text-sm"
-                            >
-                              {paramDetails.options.map(option => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <input
-                              type={paramDetails?.type === 'number' ? 'number' : 'text'}
-                              value={value}
-                              onChange={(e) => handleParameterChange(name, e.target.value)}
-                              placeholder={paramDetails?.placeholder || `Enter ${name}`}
-                              className="w-full p-2 bg-white border border-gray-300 text-gray-700 text-sm"
-                            />
-                          )}
-                          {paramDetails?.description && (
-                            <p className="text-gray-500 text-xs mt-1">{paramDetails.description}</p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                {renderParameters()}
               </div>
             )}
 
@@ -410,43 +571,124 @@ const handleStartRun = async () => {
             )}
 
             {currentStep === 5 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Review
-                </label>
-                <div className="bg-gray-50 p-4 border border-gray-200 space-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">Run Name</p>
-                    <p className="text-sm text-gray-600">{runName}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">Input File</p>
-                    <p className="text-sm text-gray-600">
-                      {file ? `${file.name} (${(file.size / 1024).toFixed(2)} KB)` : 'No file uploaded'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">Parameters</p>
-                    {Object.keys(parameters).length === 0 ? (
-                      <p className="text-sm text-gray-600">No parameters set</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {Object.entries(parameters).map(([name, value]) => (
-                          <p key={name} className="text-sm text-gray-600">
-                            {name}: {value}
+            <div>
+  <h2 className="text-2xl font-bold text-gray-800 mb-6">Review Configuration</h2>
+
+  <div className="space-y-6">
+    {/* Run Name Section */}
+    <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Run Name</h3>
+          <p className="text-base text-gray-700 mt-1">
+            {runName || <span className="text-red-600 font-medium">Not set</span>}
+          </p>
+        </div>
+        <button
+          onClick={() => setCurrentStep(1)}
+          className="text-blue-700 hover:text-blue-900 font-medium text-sm px-3 py-1 rounded-md border border-blue-200 hover:border-blue-400 transition duration-150 ease-in-out"
+        >
+          Edit
+        </button>
+      </div>
+    </div>
+
+    {/* Input File Section */}
+    <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Input File</h3>
+          <p className="text-base text-gray-700 mt-1">
+            {file ? (
+              <>
+                {/* Assuming 'Download' is an icon component */}
+                <Download className="inline h-5 w-5 mr-2 text-gray-600" />
+                {file.name} ({(file.size / 1024).toFixed(2)} KB)
+              </>
+            ) : (
+              <span className="text-red-600 font-medium">No file uploaded</span>
+            )}
+          </p>
+        </div>
+        <button
+          onClick={() => setCurrentStep(2)}
+          className="text-blue-700 hover:text-blue-900 font-medium text-sm px-3 py-1 rounded-md border border-blue-200 hover:border-blue-400 transition duration-150 ease-in-out"
+        >
+          Edit
+        </button>
+      </div>
+    </div>
+
+    {/* Parameters Section */}
+    <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Parameters</h3>
+          {Object.keys(parameters).length === 0 ? (
+            <p className="text-base text-gray-700 mt-1">No parameters set</p>
+          ) : (
+            <div className="mt-4 space-y-5">
+              {workflowDetails?.workflow?.parameters?.[0]?.section ? (
+                workflowDetails.workflow.parameters.map((section, sectionIndex) => (
+                  <div key={section.section}>
+                    <h4 className="text-md font-medium text-gray-800 mb-2 border-b border-gray-200 pb-1">
+                      {section.section}
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                      {section.parameters.map((param, paramIndex) => (
+                        <div key={param.name}>
+                          <p className="text-sm font-medium text-gray-600">{param.label || param.name}</p>
+                          <p className="text-base text-gray-800 mt-0.5">
+                            {parameters[param.name] || <span className="text-red-600 font-medium">Not set</span>}
                           </p>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">Schedule</p>
-                    <p className="text-sm text-gray-600 capitalize">
-                      {scheduleType === 'none' ? 'No Schedule' : scheduleType}
-                    </p>
-                  </div>
+                ))
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                  {Object.entries(parameters).map(([name, value]) => (
+                    <div key={name}>
+                      <p className="text-sm font-medium text-gray-600">{name}</p>
+                      <p className="text-base text-gray-800 mt-0.5">
+                        {value || <span className="text-red-600 font-medium">Not set</span>}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={() => setCurrentStep(3)}
+          className="text-blue-700 hover:text-blue-900 font-medium text-sm px-3 py-1 rounded-md border border-blue-200 hover:border-blue-400 transition duration-150 ease-in-out self-start"
+        >
+          Edit
+        </button>
+      </div>
+    </div>
+
+    {/* Schedule Section */}
+    <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Schedule</h3>
+          <p className="text-base text-gray-700 mt-1 capitalize">
+            {scheduleType === 'none' ? 'No Schedule (Run once)' : scheduleType}
+          </p>
+        </div>
+        <button
+          onClick={() => setCurrentStep(4)}
+          className="text-blue-700 hover:text-blue-900 font-medium text-sm px-3 py-1 rounded-md border border-blue-200 hover:border-blue-400 transition duration-150 ease-in-out"
+        >
+          Edit
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
             )}
           </div>
 

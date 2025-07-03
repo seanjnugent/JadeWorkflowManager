@@ -16,7 +16,6 @@ router = APIRouter()
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
-
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "workflow-files")
 DAGSTER_HOST = os.getenv("DAGSTER_HOST", "localhost")
 DAGSTER_PORT = os.getenv("DAGSTER_PORT", "3500")
@@ -29,7 +28,7 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
                 SELECT id, name, input_file_path, input_structure, destination,
                        config_template, default_parameters, parameters, resources_config,
                        dagster_location_name, dagster_repository_name, requires_file,
-                       output_file_pattern, supported_file_types
+                       output_file_pattern, supported_file_types, destination_config
                 FROM workflow.workflow
                 WHERE id = :workflow_id AND status = 'Active'
             """),
@@ -54,10 +53,11 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
             "dagster_repository_name": workflow_row.dagster_repository_name or "__repository__",
             "requires_file": workflow_row.requires_file,
             "output_file_pattern": workflow_row.output_file_pattern,
-            "supported_file_types": workflow_row.supported_file_types
+            "supported_file_types": workflow_row.supported_file_types,
+            "destination_config": workflow_row.destination_config
         }
 
-        json_fields = ["input_structure", "config_template", "default_parameters", "parameters", "resources_config", "supported_file_types"]
+        json_fields = ["input_structure", "config_template", "default_parameters", "parameters", "resources_config", "supported_file_types", "destination_config"]
         for field in json_fields:
             if workflow[field] and isinstance(workflow[field], str):
                 try:
@@ -216,6 +216,10 @@ def build_dagster_config(workflow: Dict[str, Any], input_path: str, parameters: 
         "run_uuid": run_uuid,
         "parameters_json": json.dumps(parameters)
     }
+
+    if workflow["destination"] == "API" and workflow.get("destination_config"):
+        template_vars["ckan_api_url"] = workflow["destination_config"].get("api_url", "")
+        template_vars["ckan_api_token"] = workflow["destination_config"].get("api_token", "")
 
     for key, value in parameters.items():
         template_vars[key] = value
