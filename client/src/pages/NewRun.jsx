@@ -207,7 +207,7 @@ const NewRun = () => {
       
       if (workflowParams[0]?.section) {
         workflowParams.forEach(section => {
-          section.parameters.forEach(param => {
+          section = section.parameters.forEach(param => {
             if (parameters[param.name] !== undefined) {
               validParameters[param.name] = parameters[param.name];
             }
@@ -224,6 +224,7 @@ const NewRun = () => {
       if (Object.keys(validParameters).length) {
         formData.append('parameters', JSON.stringify(validParameters));
       }
+      
       if (scheduleType !== 'none') {
         formData.append('schedule', scheduleType);
       }
@@ -570,113 +571,124 @@ const NewRun = () => {
             )}
 
             {currentStep === 5 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Review Configuration
-                </label>
-                <div className="space-y-6">
-                  <div className="bg-gray-50 p-4 border border-gray-200 rounded">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Run Name</p>
-                        <p className="text-sm text-gray-600">{runName || <span className="text-red-500">Not set</span>}</p>
-                      </div>
-                      <button
-                        onClick={() => setCurrentStep(1)}
-                        className="text-sm text-blue-900 hover:underline"
-                      >
-                        Edit
-                      </button>
+            <div>
+  <h2 className="text-2xl font-bold text-gray-800 mb-6">Review Configuration</h2>
+
+  <div className="space-y-6">
+    {/* Run Name Section */}
+    <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Run Name</h3>
+          <p className="text-base text-gray-700 mt-1">
+            {runName || <span className="text-red-600 font-medium">Not set</span>}
+          </p>
+        </div>
+        <button
+          onClick={() => setCurrentStep(1)}
+          className="text-blue-700 hover:text-blue-900 font-medium text-sm px-3 py-1 rounded-md border border-blue-200 hover:border-blue-400 transition duration-150 ease-in-out"
+        >
+          Edit
+        </button>
+      </div>
+    </div>
+
+    {/* Input File Section */}
+    <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Input File</h3>
+          <p className="text-base text-gray-700 mt-1">
+            {file ? (
+              <>
+                {/* Assuming 'Download' is an icon component */}
+                <Download className="inline h-5 w-5 mr-2 text-gray-600" />
+                {file.name} ({(file.size / 1024).toFixed(2)} KB)
+              </>
+            ) : (
+              <span className="text-red-600 font-medium">No file uploaded</span>
+            )}
+          </p>
+        </div>
+        <button
+          onClick={() => setCurrentStep(2)}
+          className="text-blue-700 hover:text-blue-900 font-medium text-sm px-3 py-1 rounded-md border border-blue-200 hover:border-blue-400 transition duration-150 ease-in-out"
+        >
+          Edit
+        </button>
+      </div>
+    </div>
+
+    {/* Parameters Section */}
+    <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Parameters</h3>
+          {Object.keys(parameters).length === 0 ? (
+            <p className="text-base text-gray-700 mt-1">No parameters set</p>
+          ) : (
+            <div className="mt-4 space-y-5">
+              {workflowDetails?.workflow?.parameters?.[0]?.section ? (
+                workflowDetails.workflow.parameters.map((section, sectionIndex) => (
+                  <div key={section.section}>
+                    <h4 className="text-md font-medium text-gray-800 mb-2 border-b border-gray-200 pb-1">
+                      {section.section}
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                      {section.parameters.map((param, paramIndex) => (
+                        <div key={param.name}>
+                          <p className="text-sm font-medium text-gray-600">{param.label || param.name}</p>
+                          <p className="text-base text-gray-800 mt-0.5">
+                            {parameters[param.name] || <span className="text-red-600 font-medium">Not set</span>}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <div className="bg-gray-50 p-4 border border-gray-200 rounded">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Input File</p>
-                        <p className="text-sm text-gray-600">
-                          {file ? (
-                            <>
-                              <Download className="inline h-4 w-4 mr-1" />
-                              {file.name} ({(file.size / 1024).toFixed(2)} KB)
-                            </>
-                          ) : (
-                            <span className="text-red-500">No file uploaded</span>
-                          )}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setCurrentStep(2)}
-                        className="text-sm text-blue-900 hover:underline"
-                      >
-                        Edit
-                      </button>
+                ))
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                  {Object.entries(parameters).map(([name, value]) => (
+                    <div key={name}>
+                      <p className="text-sm font-medium text-gray-600">{name}</p>
+                      <p className="text-base text-gray-800 mt-0.5">
+                        {value || <span className="text-red-600 font-medium">Not set</span>}
+                      </p>
                     </div>
-                  </div>
-                  <div className="bg-gray-50 p-4 border border-gray-200 rounded">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Parameters</p>
-                        {Object.keys(parameters).length === 0 ? (
-                          <p className="text-sm text-gray-600">No parameters set</p>
-                        ) : (
-                          <div className="space-y-4 mt-2">
-                            {workflowDetails?.workflow?.parameters?.[0]?.section ? (
-                              workflowDetails.workflow.parameters.map(section => (
-                                <div key={section.section}>
-                                  <p className="text-sm font-medium text-gray-800">{section.section}</p>
-                                  <div className="grid grid-cols-2 gap-4 mt-2">
-                                    {section.parameters.map(param => (
-                                      <div key={param.name}>
-                                        <p className="text-sm font-medium text-gray-600">{param.label || param.name}</p>
-                                        <p className="text-sm text-gray-800">
-                                          {parameters[param.name] || <span className="text-red-500">Not set</span>}
-                                        </p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))
-                            ) : (
-                              <div className="grid grid-cols-2 gap-4">
-                                {Object.entries(parameters).map(([name, value]) => (
-                                  <div key={name}>
-                                    <p className="text-sm font-medium text-gray-600">{name}</p>
-                                    <p className="text-sm text-gray-800">
-                                      {value || <span className="text-red-500">Not set</span>}
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => setCurrentStep(3)}
-                        className="text-sm text-blue-900 hover:underline"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 p-4 border border-gray-200 rounded">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Schedule</p>
-                        <p className="text-sm text-gray-600 capitalize">
-                          {scheduleType === 'none' ? 'No Schedule (Run once)' : scheduleType}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setCurrentStep(4)}
-                        className="text-sm text-blue-900 hover:underline"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              </div>
+              )}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={() => setCurrentStep(3)}
+          className="text-blue-700 hover:text-blue-900 font-medium text-sm px-3 py-1 rounded-md border border-blue-200 hover:border-blue-400 transition duration-150 ease-in-out self-start"
+        >
+          Edit
+        </button>
+      </div>
+    </div>
+
+    {/* Schedule Section */}
+    <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Schedule</h3>
+          <p className="text-base text-gray-700 mt-1 capitalize">
+            {scheduleType === 'none' ? 'No Schedule (Run once)' : scheduleType}
+          </p>
+        </div>
+        <button
+          onClick={() => setCurrentStep(4)}
+          className="text-blue-700 hover:text-blue-900 font-medium text-sm px-3 py-1 rounded-md border border-blue-200 hover:border-blue-400 transition duration-150 ease-in-out"
+        >
+          Edit
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
             )}
           </div>
 

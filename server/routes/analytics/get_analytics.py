@@ -57,15 +57,23 @@ async def get_failure_analysis(days: int = 30, db: Session = Depends(get_db)):
 
         failures = db.execute(
             text("""
-                SELECT 
-                    r.id,
-                    r.workflow_id,
-                    w.name as workflow_name,
-                    r.started_at,
-                    r.error_message,
-                    r.dagster_run_id
-                FROM workflow.run r
-                JOIN workflow.workflow w ON r.workflow_id = w.id
+                SELECT  
+    r.id,
+    r.workflow_id,
+    w.name AS workflow_name,
+    r.started_at,
+    r.dagster_run_id,
+    rss.error_message
+FROM workflow.run r
+JOIN workflow.workflow w ON r.workflow_id = w.id
+LEFT JOIN (
+    SELECT DISTINCT ON (run_id)
+        id,
+        run_id,
+        error_message
+    FROM workflow.run_step_status
+    ORDER BY run_id, id DESC
+) rss ON rss.run_id = r.id
                 WHERE r.status = 'failed' or lower(r.status) = 'failure'
                 AND r.started_at >= :start_date AND r.started_at <= :end_date
                 ORDER BY r.started_at DESC
