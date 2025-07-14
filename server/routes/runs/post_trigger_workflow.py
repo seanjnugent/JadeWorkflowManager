@@ -8,17 +8,28 @@ import os
 import pandas as pd
 from sqlalchemy import text
 import requests
+import boto3
+from botocore.exceptions import ClientError
 from app.file_parser import parser_map
-from ..get_health_check import get_db, supabase
+from ..get_health_check import get_db  
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
-SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "workflow-files")
+# AWS S3 Configuration
+S3_BUCKET = os.getenv("S3_BUCKET", "workflow-files")
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 DAGSTER_HOST = os.getenv("DAGSTER_HOST", "localhost")
 DAGSTER_PORT = os.getenv("DAGSTER_PORT", "3500")
+
+# Initialize S3 client
+s3_client = boto3.client(
+    's3',
+    region_name=AWS_REGION,
+    # Credentials handled by IAM role or environment variables
+)
 
 def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
     """Validate and retrieve workflow configuration from database"""
@@ -79,7 +90,7 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Workflow validation failed: {str(e)}")
 
 async def handle_file_upload(file: UploadFile, workflow: Dict[str, Any]) -> str:
-    """Handle file upload to Supabase storage"""
+    """Handle file upload to S3 storage"""
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
@@ -100,22 +111,25 @@ async def handle_file_upload(file: UploadFile, workflow: Dict[str, Any]) -> str:
             validate_file_structure(df, workflow["input_structure"])
 
         workflow_id = workflow["id"]
-        file_path = f"runs/{workflow_id}/{uuid.uuid4()}.{file_ext}"
+        s3_key = f"runs/{workflow_id}/{uuid.uuid4()}.{file_ext}"
 
-        response = supabase.storage.from_(SUPABASE_BUCKET).upload(
-            file_path,
-            content,
-            {"content-type": "application/octet-stream"}
+        # Upload to S3
+        s3_client.put_object(
+            Bucket=S3_BUCKET,
+            Key=s3_key,
+            Body=content,
+            ContentType="application/octet-stream"
         )
 
-        if hasattr(response, 'error') and response.error:
-            raise Exception(f"Supabase upload error: {response.error.message}")
-        elif hasattr(response, 'status_code') and response.status_code >= 400:
-            raise Exception(f"Supabase upload error: HTTP {response.status_code}")
+        logger.info(f"File uploaded to S3: {S3_BUCKET}/{s3_key}")
+        return f"{S3_BUCKET}/{s3_key}"
 
-        logger.info(f"File uploaded to {SUPABASE_BUCKET}/{file_path}")
-        return f"{SUPABASE_BUCKET}/{file_path}"
-
+    except ClientError as e:
+        logger.error(f"S3 upload failed: {e.response['Error']['Message']}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"File upload failed: {e.response['Error']['Message']}"
+        )
     except Exception as e:
         logger.error(f"File upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
@@ -253,14 +267,12 @@ def build_dagster_config(workflow: Dict[str, Any], input_path: str, parameters: 
                     "DATABASE_URL": {"env": "DATABASE_URL"}
                 }
             },
-            "supabase": {
+            "s3": {  
                 "config": {
-                    "S3_ACCESS_KEY_ID": {"env": "S3_ACCESS_KEY_ID"},
-                    "S3_ENDPOINT": {"env": "S3_ENDPOINT"},
-                    "S3_REGION": "eu-west-2",
-                    "S3_SECRET_ACCESS_KEY": {"env": "S3_SECRET_ACCESS_KEY"},
-                    "SUPABASE_KEY": {"env": "SUPABASE_KEY"},
-                    "SUPABASE_URL": {"env": "SUPABASE_URL"}
+                    "aws_access_key_id": {"env": "AWS_ACCESS_KEY_ID"},
+                    "aws_secret_access_key": {"env": "AWS_SECRET_ACCESS_KEY"},
+                    "region_name": AWS_REGION,
+                    "bucket_name": S3_BUCKET
                 }
             }
         })
@@ -493,7 +505,15 @@ async def trigger_workflow_run(
             if "save_output" in op_name and "config" in op_config:
                 output_path = op_config["config"].get("output_path")
                 if output_path:
-                    output_file_url = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/{output_path}"
+                    # Generate S3 presigned URL for output file
+                    output_file_url = s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={
+                            'Bucket': S3_BUCKET,
+                            'Key': output_path.replace(f"{S3_BUCKET}/", "")
+                        },
+                        ExpiresIn=3600  # 1 hour validity
+                    )
                 break
 
         response = {

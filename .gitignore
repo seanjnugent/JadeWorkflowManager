@@ -204,3 +204,5 @@ cython_debug/
 dags/storage
 dags/history
 *.db
+
+.dagster_conf

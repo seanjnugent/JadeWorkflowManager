@@ -30,7 +30,6 @@ from routes.workflows.get_workflows import router as get_workflows_router
 from routes.workflows.post_new_workflow import router as post_new_workflow_router
 from routes.analytics.get_analytics import router as get_analytics_router
 
-
 from routes.files.get_file import router as file_router
 
 from routes.runs.get_run import router as get_run_router
@@ -44,7 +43,6 @@ from routes.connections.post_new_connection import router as connections_router
 from routes.workflows.post_update_workflow import router as update_workflow_router
 from routes.workflows.get_workflow_permissions import router as workflow_permissions
 from routes.workflows.post_update_workflow_config import router as post_update_workflow_config_router
-
 
 from routes.users.user_authentication import router as user_authentication
 from routes.users.user_details import router as user_details
@@ -79,7 +77,7 @@ app.include_router(dag_repo_access)
 app.include_router(post_trigger_workflow_router)
 app.include_router(post_sync_run_status_router)
 app.include_router(get_run_status_router)
-                   
+
 # Users
 app.include_router(user_authentication)
 app.include_router(user_details)
@@ -91,11 +89,15 @@ def validate_config():
     """Validate all required environment variables"""
     errors = []
 
-    # Supabase validation
-    if not os.getenv("SUPABASE_URL"):
-        errors.append("SUPABASE_URL is required")
-    if not os.getenv("SUPABASE_SERVICE_ROLE"):
-        errors.append("SUPABASE_SERVICE_ROLE is required")
+    # S3 validation
+    if not os.getenv("S3_ACCESS_KEY_ID"):
+        errors.append("S3_ACCESS_KEY_ID is required")
+    if not os.getenv("S3_SECRET_ACCESS_KEY"):
+        errors.append("S3_SECRET_ACCESS_KEY is required")
+    if not os.getenv("S3_REGION"):
+        errors.append("S3_REGION is required")
+    if not os.getenv("S3_BUCKET"):
+        errors.append("S3_BUCKET is required")
 
     # Database validation
     if not os.getenv("DATABASE_URL"):

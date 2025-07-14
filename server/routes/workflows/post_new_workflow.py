@@ -8,19 +8,32 @@ import json
 import logging
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
-from ..get_health_check import get_db, supabase, engine
+from ..get_health_check import get_db, engine
 from dotenv import load_dotenv
 from sqlalchemy import text
 import os
 import base64
 import requests
+import boto3
+from botocore.exceptions import ClientError
 
 load_dotenv()
-
 logger = logging.getLogger(__name__)
 
-# Supabase configuration
-SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "workflow-files")
+# S3 Configuration
+S3_BUCKET = os.getenv("S3_BUCKET", "workflow-files")
+S3_REGION = os.getenv("S3_REGION", "eu-west-2")
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+
+# Initialize S3 client
+s3_client = boto3.client(
+    's3',
+    region_name=S3_REGION,
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+)
+
 GITHUB_TOKEN = os.getenv("GITHUB_ACCESS_TOKEN")
 GITHUB_REPO = f"{os.getenv('GITHUB_REPO_OWNER')}/{os.getenv('GITHUB_REPO_NAME')}"
 GITHUB_DAG_PATH = "DAGs"
@@ -39,19 +52,20 @@ class WorkflowCreate(BaseModel):
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
-def upload_to_storage(file_path: str, content: bytes) -> str:
-    """Upload file to Supabase storage with retry logic"""
+def upload_to_s3(file_path: str, content: bytes) -> str:
+    """Upload file to S3 storage with retry logic"""
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            supabase.storage.from_(SUPABASE_BUCKET).upload(
-                path=file_path,
-                file=content,
-                file_options={"content-type": "application/octet-stream"}
+            s3_client.put_object(
+                Bucket=S3_BUCKET,
+                Key=file_path,
+                Body=content,
+                ContentType="application/octet-stream"
             )
-            logger.info(f"File uploaded successfully to {SUPABASE_BUCKET}/{file_path}")
-            return f"{SUPABASE_BUCKET}/{file_path}"
-        except Exception as e:
+            logger.info(f"File uploaded successfully to {S3_BUCKET}/{file_path}")
+            return f"s3://{S3_BUCKET}/{file_path}"
+        except ClientError as e:
             logger.error(f"Upload attempt {attempt + 1} failed: {str(e)}")
             if attempt == max_retries - 1:
                 raise HTTPException(500, f"Failed to upload file after {max_retries} attempts: {str(e)}")
@@ -62,7 +76,6 @@ def create_github_dag(workflow_id: int, workflow_name: str) -> dict:
     dag_filename = f"workflow_job_{workflow_id}.py"
     dag_path = f"{GITHUB_DAG_PATH}/{dag_filename}"
     github_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{dag_path}"
-
     # Default DAG template
     dag_content = """from dagster import job, op
 
@@ -88,7 +101,6 @@ def workflow_job():
     save_data(processed)
 """
     encoded_content = base64.b64encode(dag_content.encode()).decode()
-
     headers = {
         "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json",
@@ -99,7 +111,6 @@ def workflow_job():
         "content": encoded_content,
         "branch": "main"
     }
-
     try:
         response = requests.put(github_url, headers=headers, json=payload)
         response.raise_for_status()
@@ -127,7 +138,7 @@ async def create_new_workflow(
     """Create a new workflow with optional file upload and DAG creation"""
     try:
         content_type = request.headers.get('content-type')
-        
+
         if content_type and 'multipart/form-data' in content_type:
             workflow = WorkflowCreate(
                 name=name,
@@ -139,25 +150,19 @@ async def create_new_workflow(
         else:
             json_data = await request.json()
             workflow = WorkflowCreate(**json_data)
-
         logger.info(f"Creating new workflow: {workflow.name}")
-
         parsed_data = None
         storage_url = None
-
         if file and not skip_structure:
             if not file.filename or "." not in file.filename:
                 logger.error("Invalid filename")
                 raise HTTPException(400, "Invalid filename")
-
             file_ext = file.filename.split(".")[-1].lower()
             logger.info(f"File extension: {file_ext}")
-
             parser = parser_map.get(file_ext)
             if not parser:
                 logger.error(f"Unsupported file type: {file_ext}")
                 raise HTTPException(400, f"Unsupported file type: {file_ext}")
-
             content = await file.read()
             logger.info("Parsing file content")
             try:
@@ -165,20 +170,16 @@ async def create_new_workflow(
             except Exception as parse_error:
                 logger.error(f"Failed to parse file: {str(parse_error)}")
                 raise HTTPException(500, f"File parsing failed: {str(parse_error)}")
-
             file_path = f"workflows/{workflow.name}/{uuid.uuid4()}.{file_ext}"
             logger.info(f"Generated file path: {file_path}")
-
-            logger.info("Uploading file to Supabase")
-            storage_url = upload_to_storage(file_path, content)
-
+            logger.info("Uploading file to S3")
+            storage_url = upload_to_s3(file_path, content)
             logger.info("Formatting parsed data")
             try:
                 parsed_data = parser.format_response(df, storage_url)
             except Exception as format_error:
                 logger.error(f"Failed to format parsed data: {str(format_error)}")
                 raise HTTPException(500, f"Failed to format parsed data: {str(format_error)}")
-
         logger.info("Inserting workflow into database")
         try:
             result = db.execute(
@@ -216,14 +217,12 @@ async def create_new_workflow(
                             "save_data": {"config": {"input_path": "{input_file_path}", "output_path": "{output_file_path}", "workflow_id": "{workflow_id}", "parameters": {}}}
                         },
                         "resources": {
-                            "supabase": {
+                            "s3": {
                                 "config": {
-                                    "S3_REGION": "eu-west-2",
-                                    "S3_ENDPOINT": {"env": "S3_ENDPOINT"},
-                                    "SUPABASE_KEY": {"env": "SUPABASE_KEY"},
-                                    "SUPABASE_URL": {"env": "SUPABASE_URL"},
-                                    "S3_ACCESS_KEY_ID": {"env": "S3_ACCESS_KEY_ID"},
-                                    "S3_SECRET_ACCESS_KEY": {"env": "S3_SECRET_ACCESS_KEY"}
+                                    "s3_region": S3_REGION,
+                                    "s3_bucket": S3_BUCKET,
+                                    "aws_access_key_id": {"env": "AWS_ACCESS_KEY_ID"},
+                                    "aws_secret_access_key": {"env": "AWS_SECRET_ACCESS_KEY"}
                                 }
                             }
                         }
@@ -239,10 +238,9 @@ async def create_new_workflow(
             workflow_record = result.fetchone()
             db.commit()
             logger.info("Workflow inserted successfully")
-
             # Create DAG in GitHub
             dag_info = create_github_dag(workflow_record.id, workflow.name)
-            
+
             # Update workflow with dag_path and commit_sha
             db.execute(
                 text("""
@@ -258,21 +256,17 @@ async def create_new_workflow(
             logger.error(f"Database insertion failed: {str(db_error)}")
             db.rollback()
             raise HTTPException(500, f"Database insertion failed: {str(db_error)}")
-
         response_data = {
             "message": "Workflow created successfully",
             "workflow": dict(workflow_record._mapping) | {"dag_path": dag_info["dag_path"], "commit_sha": dag_info["commit_sha"]}
         }
-
         if parsed_data:
             response_data["file_info"] = {
                 "path": storage_url,
                 "schema": parsed_data["schema"],
                 "preview": parsed_data["data"]
             }
-
         return response_data
-
     except HTTPException:
         raise
     except Exception as e:
@@ -288,7 +282,6 @@ async def update_workflow(
     """Update an existing workflow"""
     try:
         logger.info(f"Updating workflow {workflow.workflow_id}")
-
         result = db.execute(
             text("""
                 UPDATE workflow.workflow
@@ -326,7 +319,7 @@ async def update_workflow(
         workflow_record = result.fetchone()
         if not workflow_record:
             raise HTTPException(404, "Workflow not found")
-        
+
         db.commit()
         logger.info("Workflow updated successfully")
         return {
@@ -346,11 +339,11 @@ async def get_workflow(workflow_id: int, db: Session = Depends(get_db)):
     try:
         result = db.execute(
             text("""
-                SELECT 
-                    id, name, description, created_by, status, 
-                    input_file_path, input_structure, dag_path, 
+                SELECT
+                    id, name, description, created_by, status,
+                    input_file_path, input_structure, dag_path,
                     commit_sha, config_template, default_parameters,
-                    destination, destination_config, 
+                    destination, destination_config,
                     requires_file, output_file_pattern, supported_file_types,
                     created_at, updated_at
                 FROM workflow.workflow
@@ -361,12 +354,11 @@ async def get_workflow(workflow_id: int, db: Session = Depends(get_db)):
         workflow = result.fetchone()
         if not workflow:
             raise HTTPException(404, "Workflow not found")
-
         # Fetch recent runs
         recent_runs_result = db.execute(
             text("""
-                SELECT 
-                    id, workflow_id, status, started_at, 
+                SELECT
+                    id, workflow_id, status, started_at,
                     duration_ms, triggered_by_name
                 FROM workflow.run
                 WHERE workflow_id = :workflow_id
@@ -376,7 +368,6 @@ async def get_workflow(workflow_id: int, db: Session = Depends(get_db)):
             {"workflow_id": workflow_id}
         )
         recent_runs = [dict(row._mapping) for row in recent_runs_result.fetchall()]
-
         return {
             "workflow": dict(workflow._mapping),
             "destination": {
@@ -400,7 +391,6 @@ async def get_github_dag_info(dag_path: str):
         "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     }
-
     try:
         response = requests.get(github_url, headers=headers)
         response.raise_for_status()

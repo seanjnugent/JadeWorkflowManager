@@ -1,18 +1,28 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional
 import logging
 from dotenv import load_dotenv
 import os
-from ..get_health_check import get_db, supabase
+import boto3
+from botocore.exceptions import ClientError
+
+from ..get_health_check import get_db  
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Supabase configuration
-SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "workflow-files")
+# AWS S3 Configuration
+S3_BUCKET = os.getenv("S3_BUCKET", "your-default-bucket-name")
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+
+# Initialize S3 client
+s3_client = boto3.client(
+    's3',
+    region_name=AWS_REGION,
+    # Credentials handled by IAM role or environment variables
+)
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -21,62 +31,42 @@ class FileDownloadRequest(BaseModel):
 
 @router.post("/download-url")
 async def get_download_url(request: FileDownloadRequest, db: Session = Depends(get_db)):
-    """Generate a pre-signed URL for downloading a file from Supabase storage"""
+    """Generate a pre-signed URL for downloading a file from S3"""
     try:
         file_path = request.file_path
         if not file_path:
             logger.error("No file path provided")
             raise HTTPException(status_code=400, detail="File path is required")
 
-        # Normalize file path by removing bucket prefix if present
-        relative_path = file_path
-        if file_path.startswith(f"{SUPABASE_BUCKET}/"):
-            relative_path = file_path[len(f"{SUPABASE_BUCKET}/"):]
-        elif file_path.startswith(SUPABASE_BUCKET):
-            relative_path = file_path[len(SUPABASE_BUCKET):].lstrip('/')
+        # Normalize path - remove leading/trailing slashes and any bucket prefixes
+        clean_path = file_path.strip('/')
+        if clean_path.startswith(f"{S3_BUCKET}/"):
+            clean_path = clean_path[len(S3_BUCKET)+1:]
         
-        logger.info(f"Normalized relative path: {relative_path}")
-
-        # Check if file exists by attempting to list the parent directory
-        try:
-            # Extract the parent directory (e.g., 'workflows/example' from 'workflows/example/1234.csv')
-            parent_dir = '/'.join(relative_path.split('/')[:-1]) or ''
-            file_name = relative_path.split('/')[-1]
-            logger.info(f"Listing parent directory: {parent_dir}, looking for file: {file_name}")
-
-            response = supabase.storage.from_(SUPABASE_BUCKET).list(path=parent_dir)
-            logger.debug(f"Supabase list response: {response}")
-
-            file_exists = False
-            if response:
-                file_exists = any(obj.get('name') == file_name for obj in response)
-            
-            if not file_exists:
-                logger.warning(f"File not found in bucket: {SUPABASE_BUCKET}/{relative_path}")
-                # Continue to generate signed URL as a fallback, as list might not always be reliable
-        except Exception as e:
-            logger.error(f"Error checking file existence: {str(e)}")
-            # Log the error but attempt to generate the signed URL anyway
-            logger.info("Proceeding with signed URL generation despite existence check failure")
+        logger.info(f"Using S3 object key: {clean_path}")
 
         # Generate pre-signed URL
         try:
-            signed_url = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
-                path=relative_path,
-                expires_in=3600  # URL valid for 1 hour
+            url = s3_client.generate_presigned_url(
+                ClientMethod='get_object',
+                Params={
+                    'Bucket': S3_BUCKET,
+                    'Key': clean_path
+                },
+                ExpiresIn=3600  # 1 hour validity
             )
-            if not signed_url or 'signedURL' not in signed_url:
-                logger.error("Failed to generate signed URL")
-                raise HTTPException(status_code=500, detail="Failed to generate download URL")
+            logger.info(f"Generated S3 pre-signed URL for {clean_path}")
+            return {"url": url}
             
-            logger.info(f"Generated signed URL for file: {SUPABASE_BUCKET}/{relative_path}")
-            return {"url": signed_url['signedURL']}
-        except Exception as e:
-            logger.error(f"Failed to generate signed URL: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Failed to generate signed URL: {str(e)}")
+        except ClientError as e:
+            logger.error(f"S3 ClientError: {e.response['Error']['Message']}")
+            raise HTTPException(
+                status_code=404 if 'NotFound' in str(e) else 500,
+                detail=f"S3 operation failed: {e.response['Error']['Message']}"
+            )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in generating download URL: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+        logger.error(f"Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

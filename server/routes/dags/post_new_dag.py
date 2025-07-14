@@ -27,8 +27,7 @@ class DagCreate(BaseModel):
 
 def validate_environment():
     required_vars = [
-        "SUPABASE_URL", "SUPABASE_KEY", 
-        "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY",
+        "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "S3_REGION", "S3_BUCKET",
         "DATABASE_URL"
     ]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
@@ -65,7 +64,6 @@ import datetime
 import json
 import boto3
 from botocore.config import Config
-from supabase import Client
 from sqlalchemy import create_engine
 import os
 from dotenv import load_dotenv
@@ -73,21 +71,24 @@ from dotenv import load_dotenv
 load_dotenv()
 
 @resource(config_schema={{
-    "SUPABASE_URL": Field(str, default_value=os.getenv("SUPABASE_URL")),
-    "SUPABASE_KEY": Field(str, default_value=os.getenv("SUPABASE_KEY")),
     "S3_ACCESS_KEY_ID": Field(str, default_value=os.getenv("S3_ACCESS_KEY_ID")),
     "S3_SECRET_ACCESS_KEY": Field(str, default_value=os.getenv("S3_SECRET_ACCESS_KEY")),
     "S3_REGION": Field(str, default_value=os.getenv("S3_REGION", "eu-west-2")),
-    "S3_ENDPOINT": Field(str, default_value=os.getenv("S3_ENDPOINT", "https://cxdfynepqojqrvfdbuaf.supabase.co/storage/v1/s3"))
+    "S3_BUCKET": Field(str, default_value=os.getenv("S3_BUCKET"))
 }})
-def supabase_resource(init_context):
+def s3_resource(init_context):
     try:
         config = init_context.resource_config
-        client = Client(config["SUPABASE_URL"], config["SUPABASE_KEY"])
-        client._config = config
-        return client
+        s3_client = boto3.client(
+            "s3",
+            region_name=config["S3_REGION"],
+            aws_access_key_id=config["S3_ACCESS_KEY_ID"],
+            aws_secret_access_key=config["S3_SECRET_ACCESS_KEY"],
+            config=Config(s3={{"addressing_style": "path"}})
+        )
+        return s3_client
     except Exception as e:
-        init_context.log.error(f"Failed to initialize Supabase client: {{str(e)}}")
+        init_context.log.error(f"Failed to initialize S3 client: {{str(e)}}")
         raise
 
 @resource(config_schema={{
@@ -101,10 +102,10 @@ def db_engine_resource(init_context):
         raise
 
 @op(
-    required_resource_keys={{ "supabase", "db_engine" }},
+    required_resource_keys={{ "s3", "db_engine" }},
     config_schema={{
-        "input_file_path": Field(str, description="Path to input file in format 'bucket/path'"),
-        "output_file_path": Field(str, description="Path to save output in format 'bucket/path'"),
+        "input_file_path": Field(str, description="Path to input file in format 'path'"),
+        "output_file_path": Field(str, description="Path to save output in format 'path'"),
         "workflow_id": Field(int, description="ID of the workflow"),
     }},
     out=Out(pd.DataFrame),
@@ -117,31 +118,13 @@ def load_input_op(context: OpExecutionContext):
     context.log.info(f"Loading input file: {{input_file_path}} for workflow {{workflow_id}}")
     
     try:
-        supabase_client = context.resources.supabase
+        s3_client = context.resources.s3
+        s3_bucket = s3_client._config.get("S3_BUCKET")
         
-        s3_access_key = supabase_client._config.get("S3_ACCESS_KEY_ID")
-        s3_secret_key = supabase_client._config.get("S3_SECRET_ACCESS_KEY")
-        s3_region = supabase_client._config.get("S3_REGION", "eu-west-2")
-        s3_endpoint = supabase_client._config.get("S3_ENDPOINT", "https://cxdfynepqojqrvfdbuaf.supabase.co/storage/v1/s3")
+        if not s3_bucket:
+            raise ValueError("S3 bucket not provided in config")
         
-        if not all([s3_access_key, s3_secret_key]):
-            raise ValueError("S3 credentials not provided in config")
-        
-        if "/" in input_file_path:
-            bucket, path = input_file_path.split("/", 1)
-        else:
-            bucket = "workflow-files"
-            path = input_file_path
-        
-        s3_client = boto3.client(
-            "s3",
-            region_name=s3_region,
-            endpoint_url=s3_endpoint,
-            aws_access_key_id=s3_access_key,
-            aws_secret_access_key=s3_secret_key,
-            config=Config(s3={{"addressing_style": "path"}}))
-        
-        response = s3_client.get_object(Bucket=bucket, Key=path)
+        response = s3_client.get_object(Bucket=s3_bucket, Key=input_file_path)
         file_content = response["Body"].read()
         
         df = pd.read_csv(io.BytesIO(file_content))
@@ -180,10 +163,10 @@ def transform_op(context: OpExecutionContext, input_df: pd.DataFrame):
         raise
 
 @op(
-    required_resource_keys={{ "supabase", "db_engine" }},
+    required_resource_keys={{ "s3", "db_engine" }},
     ins={{ "transformed_data": In(dict) }},
     config_schema={{
-        "output_file_path": Field(str, description="Path to save output in format 'bucket/path'"),
+        "output_file_path": Field(str, description="Path to save output in format 'path'"),
         "workflow_id": Field(int, description="ID of the workflow")
     }},
     name="save_output_{job_name}"
@@ -194,35 +177,17 @@ def save_output_op(context: OpExecutionContext, transformed_data: dict):
     context.log.info(f"Saving output to {{output_file_path}} for workflow {{workflow_id}}")
     
     try:
-        supabase_client = context.resources.supabase
+        s3_client = context.resources.s3
+        s3_bucket = s3_client._config.get("S3_BUCKET")
         
-        s3_access_key = supabase_client._config.get("S3_ACCESS_KEY_ID")
-        s3_secret_key = supabase_client._config.get("S3_SECRET_ACCESS_KEY")
-        s3_region = supabase_client._config.get("S3_REGION", "eu-west-2")
-        s3_endpoint = supabase_client._config.get("S3_ENDPOINT", "https://cxdfynepqojqrvfdbuaf.supabase.co/storage/v1/s3")
-        
-        if not all([s3_access_key, s3_secret_key]):
-            raise ValueError("S3 credentials not provided in config")
-        
-        if "/" in output_file_path:
-            bucket, path = output_file_path.split("/", 1)
-        else:
-            bucket = "workflow-files"
-            path = output_file_path
-        
-        s3_client = boto3.client(
-            "s3",
-            region_name=s3_region,
-            endpoint_url=s3_endpoint,
-            aws_access_key_id=s3_access_key,
-            aws_secret_access_key=s3_secret_key,
-            config=Config(s3={{"addressing_style": "path"}}))
+        if not s3_bucket:
+            raise ValueError("S3 bucket not provided in config")
         
         json_data = json.dumps(transformed_data, indent=2).encode("utf-8")
         
         s3_client.put_object(
-            Bucket=bucket,
-            Key=path,
+            Bucket=s3_bucket,
+            Key=output_file_path,
             Body=json_data,
             ContentType="application/json"
         )
@@ -235,15 +200,15 @@ def save_output_op(context: OpExecutionContext, transformed_data: dict):
 @job(
     name="{job_name}",
     resource_defs={{
-        "supabase": supabase_resource,
+        "s3": s3_resource,
         "db_engine": db_engine_resource
     }},
     config={{
         "ops": {{
             "load_input_{job_name}": {{
                 "config": {{
-                    "input_file_path": "workflow-files/inputs/{{{{ run_id }}}}.csv",
-                    "output_file_path": "workflow-files/outputs/{{{{ run_id }}}}.json",
+                    "input_file_path": "inputs/{{{{ run_id }}}}.csv",
+                    "output_file_path": "outputs/{{{{ run_id }}}}.json",
                     "workflow_id": {workflow_id}
                 }}
             }},
@@ -255,7 +220,7 @@ def save_output_op(context: OpExecutionContext, transformed_data: dict):
             }},
             "save_output_{job_name}": {{
                 "config": {{
-                    "output_file_path": "workflow-files/outputs/{{{{ run_id }}}}.json",
+                    "output_file_path": "outputs/{{{{ run_id }}}}.json",
                     "workflow_id": {workflow_id}
                 }}
             }}

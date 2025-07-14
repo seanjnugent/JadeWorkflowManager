@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from supabase import create_client, Client
+import boto3
+from botocore.exceptions import ClientError
 from github import Github, GithubException
 import os
 from dotenv import load_dotenv
@@ -15,20 +16,28 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# Supabase configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE = os.getenv("SUPABASE_SERVICE_ROLE")
-if not all([SUPABASE_URL, SUPABASE_SERVICE_ROLE]):
-    raise EnvironmentError("Missing required Supabase environment variables.")
+# S3 configuration
+S3_ACCESS_KEY_ID = os.getenv("S3_ACCESS_KEY_ID")
+S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY")
+S3_REGION = os.getenv("S3_REGION", "eu-west-2")
+S3_BUCKET = os.getenv("S3_BUCKET")
+if not all([S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_REGION, S3_BUCKET]):
+    raise EnvironmentError("Missing required S3 environment variables.")
 
-# Initialize Supabase client
+# Initialize S3 client
 try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE)
-    supabase.storage.list_buckets()
-    logger.info("Supabase client initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize Supabase client: {str(e)}")
-    raise RuntimeError(f"Failed to initialize Supabase client: {str(e)}")
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=S3_ACCESS_KEY_ID,
+        aws_secret_access_key=S3_SECRET_ACCESS_KEY,
+        region_name=S3_REGION
+    )
+    # Verify S3 connectivity by listing buckets
+    s3_client.list_buckets()
+    logger.info("S3 client initialized successfully")
+except ClientError as e:
+    logger.error(f"Failed to initialize S3 client: {str(e)}")
+    raise RuntimeError(f"Failed to initialize S3 client: {str(e)}")
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -111,29 +120,49 @@ def check_github_health():
         logger.error(f"Unexpected GitHub connection error: {str(e)}")
         return f"error ({str(e)})"
 
+def check_s3_health():
+    """Check S3 bucket access"""
+    try:
+        s3_client.head_bucket(Bucket=S3_BUCKET)
+        logger.info(f"Successfully accessed S3 bucket {S3_BUCKET}")
+        return "Connected"
+    except ClientError as e:
+        logger.error(f"S3 connection failed: {str(e)}")
+        if e.response['Error']['Code'] in ['403']:
+            return "unauthorized"
+        elif e.response['Error']['Code'] == '404':
+            return "bucket_not_found"
+        return f"error ({str(e)})"
+    except Exception as e:
+        logger.error(f"Unexpected S3 connection error: {str(e)}")
+        return f"error ({str(e)})"
+
 @router.get("/health_check")
 def health_check():
     """Comprehensive health check endpoint"""
     dagster_status = check_dagster_health()
     github_status = check_github_health()
+    s3_status = check_s3_health()
     
     overall_status = "healthy" if all([
-        supabase is not None,
+        s3_client is not None,
         engine is not None,
         dagster_status == "Connected",
-        github_status == "Connected"
+        github_status == "Connected",
+        s3_status == "Connected"
     ]) else "unhealthy"
     
     return {
         "status": overall_status,
-        "supabase": "Connected" if supabase else "Disconnected",
+        "s3": s3_status,
         "database": "Connected" if engine else "Disconnected",
         "dagster": dagster_status,
         "github": github_status,
         "details": {
             "dagster_api_url": os.getenv("DAGSTER_API_URL"),
-            "supabase_initialized": bool(supabase),
+            "s3_initialized": bool(s3_client),
             "database_connected": bool(engine),
-            "github_access": github_status
+            "github_access": github_status,
+            "s3_bucket": S3_BUCKET
         }
     }

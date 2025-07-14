@@ -48,34 +48,42 @@ GITHUB_REPO_NAME = os.getenv("GITHUB_REPO_NAME", "DataWorkflowTool-Workflows")
 GITHUB_BRANCH = "main"
 
 # Validate env vars
-if not GITHUB_ACCESS_TOKEN:
-    logger.error("GITHUB_ACCESS_TOKEN not set in .env")
-    raise ValueError("GITHUB_ACCESS_TOKEN not set in .env")
+required_vars = [
+    "GITHUB_ACCESS_TOKEN",
+    "S3_ACCESS_KEY_ID",
+    "S3_SECRET_ACCESS_KEY",
+    "S3_REGION",
+    "S3_BUCKET",
+    "DATABASE_URL"
+]
+missing_vars = [var for var in required_vars if not os.getenv(var)]
+if missing_vars:
+    logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+    raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
 # --- Resources ---
 @resource(config_schema={
-    "SUPABASE_URL": Field(StringSource, is_required=False, default_value=EnvVar("SUPABASE_URL")),
-    "SUPABASE_KEY": Field(StringSource, is_required=False, default_value=EnvVar("SUPABASE_KEY")),
     "S3_ACCESS_KEY_ID": Field(StringSource, is_required=False, default_value=EnvVar("S3_ACCESS_KEY_ID")),
     "S3_SECRET_ACCESS_KEY": Field(StringSource, is_required=False, default_value=EnvVar("S3_SECRET_ACCESS_KEY")),
     "S3_REGION": Field(StringSource, is_required=False, default_value=os.getenv("S3_REGION", "eu-west-2")),
-    "S3_ENDPOINT": Field(StringSource, is_required=False, default_value=EnvVar("S3_ENDPOINT"))
+    "S3_BUCKET": Field(StringSource, is_required=False, default_value=EnvVar("S3_BUCKET"))
 })
-def supabase_resource(init_context):
+def s3_resource(init_context):
     try:
         config = init_context.resource_config
         client = boto3.client(
             "s3",
             region_name=config["S3_REGION"],
-            endpoint_url=config["S3_ENDPOINT"],
             aws_access_key_id=config["S3_ACCESS_KEY_ID"],
             aws_secret_access_key=config["S3_SECRET_ACCESS_KEY"],
             config=Config(s3={"addressing_style": "path"})
         )
-        logger.info("Initialized Supabase client successfully")
+        # Verify S3 connectivity
+        client.head_bucket(Bucket=config["S3_BUCKET"])
+        logger.info("Initialized S3 client successfully")
         return client
     except Exception as e:
-        logger.error(f"Failed to initialize Supabase client: {str(e)}")
+        logger.error(f"Failed to initialize S3 client: {str(e)}")
         raise
 
 @resource(config_schema={
@@ -148,7 +156,7 @@ def log_failure(context: OpExecutionContext):
 )
 def run_status_sensor(context: SensorEvaluationContext):
     """Sensor to monitor Dagster run and step status and update database."""
-    context.log.info("Starting sensor evaluation")  # Use context.log instead of logger
+    context.log.info("Starting sensor evaluation")
     
     try:
         # Get event log storage
@@ -413,7 +421,7 @@ def load_jobs_from_github(directory: str = "DAGs") -> List[JobDefinition]:
                     for name, obj in module_globals.items():
                         if isinstance(obj, JobDefinition):
                             obj._resource_defs = {
-                                "supabase": supabase_resource,
+                                "s3": s3_resource,
                                 "db_engine": db_engine_resource
                             }
                             obj._hooks = {log_success, log_failure}
@@ -460,7 +468,7 @@ def get_all_jobs():
 defs = Definitions(
     jobs=get_all_jobs(),
     resources={
-        "supabase": supabase_resource,
+        "s3": s3_resource,
         "db_engine": db_engine_resource
     },
     sensors=[run_status_sensor]

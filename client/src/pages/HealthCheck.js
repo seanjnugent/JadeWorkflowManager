@@ -96,11 +96,11 @@ const HealthCheck = () => {
                   </span>
                 </div>
                 <div>
-                  <span className="block text-sm font-medium text-gray-700">Supabase</span>
+                  <span className="block text-sm font-medium text-gray-700">S3</span>
                   <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border ${
-                    healthStatus.supabase === 'Connected' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                    healthStatus.s3 === 'Connected' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
                   }`}>
-                    {healthStatus.supabase}
+                    {healthStatus.s3}
                   </span>
                 </div>
                 <div>
@@ -137,6 +137,12 @@ const HealthCheck = () => {
                   <div>
                     <span className="block text-sm font-medium text-gray-700">Dagster Error</span>
                     <span className="text-sm text-gray-600">{healthStatus.dagster}</span>
+                  </div>
+                )}
+                {healthStatus.s3 !== 'Connected' && (
+                  <div>
+                    <span className="block text-sm font-medium text-gray-700">S3 Error</span>
+                    <span className="text-sm text-gray-600">{healthStatus.s3}</span>
                   </div>
                 )}
               </div>
