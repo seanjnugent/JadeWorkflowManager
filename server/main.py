@@ -1,8 +1,11 @@
-from fastapi import FastAPI
+rom fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import logging
 import os
+from fastapi.responses import JSONResponse
+
+app = FastAPI(root_path="/api")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -11,16 +14,17 @@ logger = logging.getLogger(__name__)
 # Load environment variables FIRST
 load_dotenv()
 
-# Configure FastAPI app
-app = FastAPI()
-
 # CORS setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/health")
+def health_check():
+    return JSONResponse(content={"status": "ok"}, status_code=200)
 
 # Import routes
 from routes.get_health_check import router as health_check_router
