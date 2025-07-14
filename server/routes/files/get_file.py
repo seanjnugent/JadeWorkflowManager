@@ -20,8 +20,10 @@ AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 # Initialize S3 client
 s3_client = boto3.client(
     's3',
-    region_name=AWS_REGION,
-    # Credentials handled by IAM role or environment variables
+    region_name=os.getenv("S3_REGION"),
+    endpoint_url=os.getenv("S3_ENDPOINT"),
+    aws_access_key_id=os.getenv("S3_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("S3_SECRET_ACCESS_KEY"),
 )
 
 router = APIRouter(prefix="/files", tags=["files"])
