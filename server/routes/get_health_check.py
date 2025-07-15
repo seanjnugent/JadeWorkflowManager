@@ -23,6 +23,7 @@ S3_REGION = os.getenv("S3_REGION", "eu-west-2")
 S3_BUCKET = os.getenv("S3_BUCKET")
 if not all([S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_REGION, S3_BUCKET]):
     raise EnvironmentError("Missing required S3 environment variables.")
+print(f"S3_ACCESS_KEY_ID: {S3_ACCESS_KEY_ID}")
 
 # Initialize S3 client
 try:
