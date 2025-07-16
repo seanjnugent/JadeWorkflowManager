@@ -16,29 +16,42 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# S3 configuration
+# S3/MinIO configuration
 S3_ACCESS_KEY_ID = os.getenv("S3_ACCESS_KEY_ID")
 S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY")
-S3_REGION = os.getenv("S3_REGION", "eu-west-2")
+S3_REGION = os.getenv("S3_REGION", "us-east-1")
+S3_ENDPOINT = os.getenv("S3_ENDPOINT")  # Add this for MinIO
 S3_BUCKET = os.getenv("S3_BUCKET")
+
 if not all([S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_REGION, S3_BUCKET]):
     raise EnvironmentError("Missing required S3 environment variables.")
 print(f"S3_ACCESS_KEY_ID: {S3_ACCESS_KEY_ID}")
+print(f"S3_ENDPOINT: {S3_ENDPOINT}")
 
-# Initialize S3 client
+# Initialize S3 client with MinIO endpoint
 try:
-    s3_client = boto3.client(
-        's3',
-        aws_access_key_id=S3_ACCESS_KEY_ID,
-        aws_secret_access_key=S3_SECRET_ACCESS_KEY,
-        region_name=S3_REGION
-    )
-    # Verify S3 connectivity by listing buckets
-    s3_client.list_buckets()
-    logger.info("S3 client initialized successfully")
+    # Configure for MinIO
+    s3_client_config = {
+        'aws_access_key_id': S3_ACCESS_KEY_ID,
+        'aws_secret_access_key': S3_SECRET_ACCESS_KEY,
+        'region_name': S3_REGION
+    }
+    
+    # Add endpoint_url for MinIO
+    if S3_ENDPOINT:
+        s3_client_config['endpoint_url'] = S3_ENDPOINT
+    
+    s3_client = boto3.client('s3', **s3_client_config)
+    
+    # Verify S3/MinIO connectivity by listing buckets
+    response = s3_client.list_buckets()
+    logger.info(f"S3/MinIO client initialized successfully. Found {len(response['Buckets'])} buckets.")
+    for bucket in response['Buckets']:
+        logger.info(f"  - {bucket['Name']}")
+        
 except ClientError as e:
-    logger.error(f"Failed to initialize S3 client: {str(e)}")
-    raise RuntimeError(f"Failed to initialize S3 client: {str(e)}")
+    logger.error(f"Failed to initialize S3/MinIO client: {str(e)}")
+    raise RuntimeError(f"Failed to initialize S3/MinIO client: {str(e)}")
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -122,20 +135,20 @@ def check_github_health():
         return f"error ({str(e)})"
 
 def check_s3_health():
-    """Check S3 bucket access"""
+    """Check S3/MinIO bucket access"""
     try:
         s3_client.head_bucket(Bucket=S3_BUCKET)
-        logger.info(f"Successfully accessed S3 bucket {S3_BUCKET}")
+        logger.info(f"Successfully accessed S3/MinIO bucket {S3_BUCKET}")
         return "Connected"
     except ClientError as e:
-        logger.error(f"S3 connection failed: {str(e)}")
+        logger.error(f"S3/MinIO connection failed: {str(e)}")
         if e.response['Error']['Code'] in ['403']:
             return "unauthorized"
         elif e.response['Error']['Code'] == '404':
             return "bucket_not_found"
         return f"error ({str(e)})"
     except Exception as e:
-        logger.error(f"Unexpected S3 connection error: {str(e)}")
+        logger.error(f"Unexpected S3/MinIO connection error: {str(e)}")
         return f"error ({str(e)})"
 
 @router.get("/health_check")
@@ -164,6 +177,7 @@ def health_check():
             "s3_initialized": bool(s3_client),
             "database_connected": bool(engine),
             "github_access": github_status,
-            "s3_bucket": S3_BUCKET
+            "s3_bucket": S3_BUCKET,
+            "s3_endpoint": S3_ENDPOINT
         }
     }
