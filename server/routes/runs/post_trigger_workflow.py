@@ -20,16 +20,23 @@ router = APIRouter(prefix="/runs", tags=["runs"])
 
 # AWS S3 Configuration
 S3_BUCKET = os.getenv("S3_BUCKET", "workflow-files")
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+AWS_REGION = os.getenv("S3_REGION", "us-east-1")  # Changed from AWS_REGION
+S3_ENDPOINT = os.getenv("S3_ENDPOINT")  # Add endpoint support
 DAGSTER_HOST = os.getenv("DAGSTER_HOST", "localhost")
 DAGSTER_PORT = os.getenv("DAGSTER_PORT", "3500")
 
-# Initialize S3 client
-s3_client = boto3.client(
-    's3',
-    region_name=AWS_REGION,
-    # Credentials handled by IAM role or environment variables
-)
+# Initialize S3 client with explicit credentials
+s3_client_config = {
+    'region_name': AWS_REGION,
+    'aws_access_key_id': os.getenv("S3_ACCESS_KEY_ID"),
+    'aws_secret_access_key': os.getenv("S3_SECRET_ACCESS_KEY"),
+}
+
+# Add endpoint URL if provided (for S3-compatible services like MinIO)
+if S3_ENDPOINT:
+    s3_client_config['endpoint_url'] = S3_ENDPOINT
+
+s3_client = boto3.client('s3', **s3_client_config)
 
 def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
     """Validate and retrieve workflow configuration from database"""
@@ -160,8 +167,21 @@ def validate_file_structure(df: pd.DataFrame, expected_structure: Dict[str, Any]
 def validate_parameters(input_params: Dict[str, Any], parameters: List[Dict[str, Any]]) -> None:
     """Validate input parameters against workflow requirements"""
     try:
-        expected_param_names = {p["name"] for p in parameters}
+        # Flatten the sectioned parameters structure
+        flattened_params = []
+        for section in parameters:
+            if "parameters" in section:
+                flattened_params.extend(section["parameters"])
+            else:
+                # Handle case where it's already flat (backward compatibility)
+                flattened_params.append(section)
+        
+        logger.info(f"Input parameters: {input_params}")
+        logger.info(f"Flattened parameters config: {flattened_params}")
+        
+        expected_param_names = {p["name"] for p in flattened_params}
         input_param_names = set(input_params.keys())
+        
         missing_params = expected_param_names - input_param_names
         extra_params = input_param_names - expected_param_names
 
@@ -171,19 +191,30 @@ def validate_parameters(input_params: Dict[str, Any], parameters: List[Dict[str,
         if extra_params:
             errors.append(f"Unexpected parameters: {', '.join(extra_params)}")
 
-        for param in parameters:
-            if param["name"] in input_params:
+        for param in flattened_params:
+            param_name = param["name"]
+            if param_name in input_params:
                 expected_type = param["type"]
-                actual_value = input_params[param["name"]]
-                if expected_type == "string" and not isinstance(actual_value, str):
-                    errors.append(f"Parameter {param['name']} must be a string")
+                actual_value = input_params[param_name]
+                
+                # Handle select type validation
+                if expected_type == "select":
+                    if "options" in param:
+                        valid_values = [opt["value"] for opt in param["options"]]
+                        if actual_value not in valid_values:
+                            errors.append(f"Parameter {param_name} must be one of: {', '.join(valid_values)}")
+                elif expected_type == "string" and not isinstance(actual_value, str):
+                    errors.append(f"Parameter {param_name} must be a string")
                 elif expected_type == "integer" and not isinstance(actual_value, int):
-                    errors.append(f"Parameter {param['name']} must be an integer")
+                    errors.append(f"Parameter {param_name} must be an integer")
+                    
+                # Check mandatory parameters
                 if param.get("mandatory") and not actual_value:
-                    errors.append(f"Parameter {param['name']} is mandatory")
+                    errors.append(f"Parameter {param_name} is mandatory")
 
         if errors:
             raise HTTPException(status_code=400, detail="; ".join(errors))
+            
     except Exception as e:
         logger.error(f"Parameter validation failed: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Parameter validation failed: {str(e)}")
