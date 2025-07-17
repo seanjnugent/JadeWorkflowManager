@@ -61,7 +61,7 @@ const ManagePermissions = () => {
     setLoading(true);
     try {
       const accessToken = localStorage.getItem('access_token');
-      const response = await fetch(`${API_BASE_URL}/workflows`, {
+      const response = await fetch(`${API_BASE_URL}/workflows/`, {
         headers: {
           Accept: 'application/json',
           Authorization: `Bearer ${accessToken}`,
