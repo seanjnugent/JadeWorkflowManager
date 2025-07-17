@@ -23,6 +23,9 @@ import {
   File
 } from 'lucide-react';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+
+
 // StatusBadge Component
 const StatusBadge = ({ status }) => {
   const statusMap = {
@@ -219,7 +222,7 @@ const Run = () => {
         return;
       }
 
-      const response = await fetch(`http://localhost:8000/runs/run/${runId}`, {
+      const response = await fetch(`${API_BASE_URL}/runs/run/${runId}`, {
         headers: {
           'accept': 'application/json',
           'Authorization': `Bearer ${accessToken}`,

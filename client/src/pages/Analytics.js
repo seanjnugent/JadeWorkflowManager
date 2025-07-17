@@ -3,6 +3,9 @@ import Chart from 'chart.js/auto';
 import { TrendingUp, AlertCircle, Layers, Clock, X } from 'lucide-react';
 import { GridLoader } from 'react-spinners';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+
+
 const Card = ({ children, title }) => (
   <div className="bg-white border border-gray-300 p-6">
     {title && (
@@ -14,7 +17,7 @@ const Card = ({ children, title }) => (
 
 const fetchData = async (endpoint) => {
   try {
-    const response = await fetch(`http://localhost:8000/analytics/${endpoint}`, {
+    const response = await fetch(`${API_BASE_URL}/analytics/${endpoint}`, {
       headers: {
         'accept': 'application/json',
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

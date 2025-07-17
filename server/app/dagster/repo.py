@@ -66,26 +66,37 @@ if missing_vars:
     "S3_ACCESS_KEY_ID": Field(StringSource, is_required=False, default_value=EnvVar("S3_ACCESS_KEY_ID")),
     "S3_SECRET_ACCESS_KEY": Field(StringSource, is_required=False, default_value=EnvVar("S3_SECRET_ACCESS_KEY")),
     "S3_REGION": Field(StringSource, is_required=False, default_value=os.getenv("S3_REGION", "eu-west-2")),
-    "S3_BUCKET": Field(StringSource, is_required=False, default_value=EnvVar("S3_BUCKET"))
+    "S3_BUCKET": Field(StringSource, is_required=False, default_value=EnvVar("S3_BUCKET")),
+    "S3_ENDPOINT": Field(StringSource, is_required=False, default_value=os.getenv("S3_ENDPOINT", ""))  # Add this line
 })
 def s3_resource(init_context):
     try:
         config = init_context.resource_config
+        client_kwargs = {
+            "region_name": config["S3_REGION"],
+            "aws_access_key_id": config["S3_ACCESS_KEY_ID"],
+            "aws_secret_access_key": config["S3_SECRET_ACCESS_KEY"],
+            "config": Config(s3={"addressing_style": "path"})
+        }
+        
+        # Add endpoint URL if configured
+        if config["S3_ENDPOINT"]:
+            client_kwargs["endpoint_url"] = config["S3_ENDPOINT"]
+            init_context.log.info(f"Using custom S3 endpoint: {config['S3_ENDPOINT']}")
+
         client = boto3.client(
             "s3",
-            region_name=config["S3_REGION"],
-            aws_access_key_id=config["S3_ACCESS_KEY_ID"],
-            aws_secret_access_key=config["S3_SECRET_ACCESS_KEY"],
-            config=Config(s3={"addressing_style": "path"})
+            **client_kwargs
         )
+        
         # Verify S3 connectivity
         client.head_bucket(Bucket=config["S3_BUCKET"])
-        logger.info("Initialized S3 client successfully")
+        init_context.log.info("Initialized S3 client successfully")
         return client
     except Exception as e:
-        logger.error(f"Failed to initialize S3 client: {str(e)}")
+        init_context.log.error(f"Failed to initialize S3 client: {str(e)}")
         raise
-
+    
 @resource(config_schema={
     "DATABASE_URL": Field(StringSource, is_required=False, default_value=EnvVar("DATABASE_URL"))
 })

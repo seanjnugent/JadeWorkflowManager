@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, RefreshCw, Clock, ChevronLeft, Play, FileText, CircleCheckBig, CircleAlert, GitBranch, CircleHelp, Github, X, Pencil } from 'lucide-react';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+
 // Custom Tooltip Component
 const CustomTooltip = ({ content, children }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -149,7 +151,7 @@ const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
   useEffect(() => {
     const fetchDagInfo = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/api/workflows/github-dag-info?dag_path=${filePath}`, {
+        const response = await fetch(`${API_BASE_URL}/api/workflows/github-dag-info?dag_path=${filePath}`, {
           headers: { 'Accept': 'application/json' }
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -293,27 +295,26 @@ const Workflow = () => {
   const GITHUB_REPO_OWNER = 'seanjnugent';
   const GITHUB_REPO_NAME = 'DataWorkflowTool-Workflows';
 
-  useEffect(() => {
-    setLoading(true);
-    const accessToken = localStorage.getItem('access_token');
-    const userId = localStorage.getItem('userId');
-
-    if (!userId || !accessToken) {
-      navigate('/login', { replace: true });
-      return;
+useEffect(() => {
+  setLoading(true);
+  const accessToken = localStorage.getItem('access_token');
+  const userId = localStorage.getItem('userId');
+  if (!userId || !accessToken) {
+    navigate('/login', { replace: true });
+    return;
+  }
+  fetch(`${API_BASE_URL}/workflows/workflow/${workflowId}`, {
+    headers: {
+      'accept': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
     }
+  })
+    .then(response => response.json())
+    .then(data => setWorkflowDetails(data))
+    .catch(error => console.error('Error:', error))
+    .finally(() => setLoading(false));
+}, [workflowId, navigate]);
 
-    fetch(`http://localhost:8000/workflows/workflow/${workflowId}`, {
-      headers: {
-        'accept': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      }
-    })
-      .then(response => response.json())
-      .then(data => setWorkflowDetails(data))
-      .catch(error => console.error('Error:', error))
-      .finally(() => setLoading(false));
-  }, [workflowId, navigate]);
 
   const toggleSection = (sectionName) => {
     setExpandedSections((prev) => ({
@@ -434,7 +435,7 @@ const DestinationConfigModal = ({
   );
 };
 
-
+ 
   const handleDownloadTemplate = () => {
     const headers = workflowDetails?.workflow?.input_structure?.columns.map(col => col.name).join(',');
     const blob = new Blob([headers], { type: 'text/csv' });
@@ -446,30 +447,31 @@ const DestinationConfigModal = ({
     window.URL.revokeObjectURL(url);
   };
 
-  const handleSaveParameters = async (updatedParams) => {
-    try {
-      const accessToken = localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/workflows/workflow/update_parameters', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          workflow_id: workflowId,
-          parameters: updatedParams
-        })
-      });
-      if (!response.ok) throw new Error('Failed to update parameters');
-      const data = await response.json();
-      setWorkflowDetails(prev => ({
-        ...prev,
-        workflow: { ...prev.workflow, parameters: updatedParams }
-      }));
-    } catch (error) {
-      setError('Failed to update parameters: ' + error.message);
-    }
-  };
+const handleSaveParameters = async (updatedParams) => {
+  try {
+    const accessToken = localStorage.getItem('access_token');
+    const response = await fetch(`${API_BASE_URL}/workflows/workflow/update_parameters`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        workflow_id: workflowId,
+        parameters: updatedParams
+      })
+    });
+    if (!response.ok) throw new Error('Failed to update parameters');
+    const data = await response.json();
+    setWorkflowDetails(prev => ({
+      ...prev,
+      workflow: { ...prev.workflow, parameters: updatedParams }
+    }));
+  } catch (error) {
+    setError('Failed to update parameters: ' + error.message);
+  }
+};
+
 
 const handleSaveDestinationConfig = async ({ api_url, api_token }) => {
   try {
@@ -480,7 +482,7 @@ const handleSaveDestinationConfig = async ({ api_url, api_token }) => {
       formData.append('api_token', api_token);
     }
 
-    const response = await fetch(`http://localhost:8000/admin/workflows/${workflowId}/destination_config`, {
+    const response = await fetch(`${API_BASE_URL}/admin/workflows/${workflowId}/destination_config`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -514,30 +516,31 @@ const handleSaveDestinationConfig = async ({ api_url, api_token }) => {
   }
 };
 
-  const handleSaveConfigTemplate = async (updatedConfig) => {
-    try {
-      const accessToken = localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/workflows/workflow/update_config_template', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          workflow_id: workflowId,
-          config_template: updatedConfig
-        })
-      });
-      if (!response.ok) throw new Error('Failed to update config template');
-      const data = await response.json();
-      setWorkflowDetails(prev => ({
-        ...prev,
-        workflow: { ...prev.workflow, config_template: updatedConfig }
-      }));
-    } catch (error) {
-      setError('Failed to update config template: ' + error.message);
-    }
-  };
+const handleSaveConfigTemplate = async (updatedConfig) => {
+  try {
+    const accessToken = localStorage.getItem('access_token');
+    const response = await fetch(`${API_BASE_URL}/workflows/workflow/update_config_template`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        workflow_id: workflowId,
+        config_template: updatedConfig
+      })
+    });
+    if (!response.ok) throw new Error('Failed to update config template');
+    const data = await response.json();
+    setWorkflowDetails(prev => ({
+      ...prev,
+      workflow: { ...prev.workflow, config_template: updatedConfig }
+    }));
+  } catch (error) {
+    setError('Failed to update config template: ' + error.message);
+  }
+};
+
 
   if (loading) {
     return (

@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Mail, Lock, Shield, Check, X } from 'lucide-react';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+
+
 const NewUser = () => {
   const navigate = useNavigate();
   const [newUser, setNewUser] = useState({
@@ -13,44 +16,45 @@ const NewUser = () => {
     confirmPassword: '',
   });
   const [error, setError] = useState('');
-
+ 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setNewUser((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (newUser.password !== newUser.confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
+  e.preventDefault();
+  if (newUser.password !== newUser.confirmPassword) {
+    setError('Passwords do not match');
+    return;
+  }
 
-    try {
-      const response = await fetch('http://localhost:8000/users/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          first_name: newUser.first_name,
-          surname: newUser.surname,
-          email: newUser.email,
-          role: newUser.role,
-          password: newUser.password,
-        }),
-      });
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        first_name: newUser.first_name,
+        surname: newUser.surname,
+        email: newUser.email,
+        role: newUser.role,
+        password: newUser.password,
+      }),
+    });
 
-      if (response.ok) {
-        navigate('/users');
-      } else {
-        setError('Failed to create user');
-      }
-    } catch (error) {
-      console.error('Error creating user:', error);
-      setError('An error occurred while creating the user.');
+    if (response.ok) {
+      navigate('/users');
+    } else {
+      setError('Failed to create user');
     }
-  };
+  } catch (error) {
+    console.error('Error creating user:', error);
+    setError('An error occurred while creating the user.');
+  }
+};
+
 
   return (
     <main className="min-h-screen bg-gray-50">
