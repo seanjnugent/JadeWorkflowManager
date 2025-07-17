@@ -98,6 +98,51 @@ LEFT JOIN (
         logger.error(f"Failed to fetch failure analysis: {str(e)}")
         raise HTTPException(500, f"Failed to fetch failure analysis: {str(e)}")
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy.sql import text
+from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
+
+@router.get("/run-analysis")
+async def get_run_analysis(days: int = 30, db: Session = Depends(get_db)):
+    """Get aggregated run statistics by workflow and status within a date range"""
+    try:
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+
+        query = text("""
+            SELECT  
+                r.workflow_id,
+                w.name AS workflow_name,
+                r.status,
+                COUNT(*) AS run_count
+            FROM workflow.run r
+            JOIN workflow.workflow w ON r.workflow_id = w.id
+            WHERE r.started_at BETWEEN :start_date AND :end_date
+            GROUP BY r.workflow_id, w.name, r.status
+            ORDER BY w.name, r.status;
+        """)
+
+        results = db.execute(query, {"start_date": start_date, "end_date": end_date}).fetchall()
+
+        return {
+            "analysis": [
+                {
+                    "workflow_id": row.workflow_id,
+                    "workflow_name": row.workflow_name,
+                    "status": row.status,
+                    "run_count": row.run_count
+                }
+                for row in results
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch run analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch run analysis: {str(e)}")
+
 @router.get("/user-activity")
 async def get_user_activity(days: int = 30, db: Session = Depends(get_db)):
     """Get user activity metrics"""

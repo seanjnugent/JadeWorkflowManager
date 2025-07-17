@@ -5,7 +5,6 @@ import { GridLoader } from 'react-spinners';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
-
 const Card = ({ children, title }) => (
   <div className="bg-white border border-gray-300 p-6">
     {title && (
@@ -23,23 +22,15 @@ const fetchData = async (endpoint) => {
         'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
       },
     });
-    if (!response.ok) throw new Error(`Failed to fetch ${endpoint}`);
-    return await response.json();
+    if (response.ok) {
+      return await response.json();
+    }
+    throw new Error(`Failed to fetch ${endpoint}`);
   } catch (error) {
     console.error(`Error fetching ${endpoint}:`, error);
     return {};
   }
 };
-
-const fakeStepPerformance = {
-  step_stats: [
-    { step_name: 'data_ingestion', avg_duration_seconds: 12.5, success_rate: 98.2, runs: 150 },
-    { step_name: 'data_processing', avg_duration_seconds: 8.7, success_rate: 95.6, runs: 145 },
-    { step_name: 'model_training', avg_duration_seconds: 25.3, success_rate: 92.1, runs: 140 },
-    { step_name: 'output_validation', avg_duration_seconds: 5.2, success_rate: 99.0, runs: 148 },
-  ],
-};
-
 const RunStatsChart = ({ data }) => {
   useEffect(() => {
     if (!data.run_stats) return;
@@ -249,6 +240,89 @@ const ErrorMessagesChart = ({ data }) => {
   );
 };
 
+const RunAnalysisChart = ({ data }) => {
+  useEffect(() => {
+    if (!data.analysis) return;
+
+    const workflows = [...new Set(data.analysis.map(item => item.workflow_name))];
+    const successData = workflows.map(workflow => {
+      const success = data.analysis.find(item => item.workflow_name === workflow && item.status === 'SUCCESS');
+      return success ? success.run_count : 0;
+    });
+    const failureData = workflows.map(workflow => {
+      const failure = data.analysis.find(item => item.workflow_name === workflow && item.status === 'FAILURE');
+      return failure ? failure.run_count : 0;
+    });
+
+    const ctx = document.getElementById('runAnalysisChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: workflows,
+        datasets: [
+          {
+            label: 'Successful Runs',
+            data: successData,
+            backgroundColor: '#10B981',
+            borderWidth: 0,
+          },
+          {
+            label: 'Failed Runs',
+            data: failureData,
+            backgroundColor: '#EF4444',
+            borderWidth: 0,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          title: { display: false },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { 
+              color: '#6B7280', 
+              font: { family: "'Inter', sans-serif", size: 12 },
+              callback: function(value) {
+                return this.getLabelForValue(value).substring(0, 15) + (this.getLabelForValue(value).length > 15 ? '...' : '');
+              }
+            },
+          },
+          y: {
+            grid: { color: 'rgba(229, 231, 235, 0.5)' },
+            ticks: { color: '#6B7280', font: { family: "'Inter', sans-serif", size: 12 } },
+            beginAtZero: true,
+          },
+        },
+      },
+    });
+
+    return () => chart.destroy();
+  }, [data]);
+
+  return (
+    <div>
+      <div className="h-64">
+        <canvas id="runAnalysisChart" className="w-full h-full"></canvas>
+      </div>
+      <div className="flex justify-center gap-4 mt-3">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-green-500"></div>
+          <span className="text-xs text-gray-600">Successful Runs</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-red-500"></div>
+          <span className="text-xs text-gray-600">Failed Runs</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const identifyPattern = (message) => {
   if (message.includes('GraphQL API error')) return 'GraphQL API Error';
   if (message.includes('Local execution error')) return 'Local Execution Error';
@@ -320,49 +394,10 @@ const FailureTable = ({ data }) => {
   );
 };
 
-const StepPerformanceTable = ({ data }) => (
-  <div className="relative w-full overflow-x-auto">
-    <table className="w-full text-sm">
-      <thead className="bg-gray-50">
-        <tr className="border-b-2 border-gray-200">
-          <th className="text-left font-medium text-gray-900 py-4 px-6 w-[280px]">Step Name</th>
-          <th className="text-left font-medium text-gray-900 py-4 px-6 w-[120px]">Avg Duration (s)</th>
-          <th className="text-left font-medium text-gray-900 py-4 px-6 w-[120px]">Success Rate (%)</th>
-          <th className="text-left font-medium text-gray-900 py-4 px-6 w-[100px]">Total Runs</th>
-        </tr>
-      </thead>
-      <tbody>
-        {data.step_stats.map((step) => (
-          <tr
-            key={step.step_name}
-            className="border-b border-gray-200 hover:bg-gray-50 bg-white"
-            style={{ cursor: 'pointer' }}
-          >
-            <td className="py-4 px-6 w-[280px]">
-              <div className="max-w-[260px]">
-                <div className="font-medium text-gray-900 break-words leading-tight">{step.step_name}</div>
-              </div>
-            </td>
-            <td className="py-4 px-6 w-[120px]">
-              <div className="text-sm text-gray-900">{step.avg_duration_seconds.toFixed(1)}</div>
-            </td>
-            <td className="py-4 px-6 w-[120px]">
-              <div className="text-sm text-gray-900">{step.success_rate.toFixed(1)}</div>
-            </td>
-            <td className="py-4 px-6 w-[100px]">
-              <div className="text-sm text-gray-900">{step.runs}</div>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
-
 const Analytics = () => {
   const [runStats, setRunStats] = useState({ run_stats: [] });
   const [failureAnalysis, setFailureAnalysis] = useState({ failures: [] });
-  const [stepPerformance, setStepPerformance] = useState({ step_stats: [] });
+  const [runAnalysis, setRunAnalysis] = useState({ analysis: [] });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -377,14 +412,14 @@ const Analytics = () => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [runStatsData, failureData, stepData] = await Promise.all([
+        const [runStatsData, failureData, runAnalysisData] = await Promise.all([
           fetchData('workflow-run-stats'),
           fetchData('failure-analysis'),
-          fetchData('step-performance'),
+          fetchData('run-analysis'),
         ]);
         setRunStats(runStatsData);
         setFailureAnalysis(failureData);
-        setStepPerformance(stepData.step_stats.length > 0 ? stepData : fakeStepPerformance);
+        setRunAnalysis(runAnalysisData);
       } catch (error) {
         console.error("Error loading data:", error);
       } finally {
@@ -398,10 +433,7 @@ const Analytics = () => {
   const successRate = totalRuns > 0
     ? (runStats.run_stats.reduce((sum, stat) => sum + stat.successful_runs, 0) / totalRuns * 100).toFixed(1)
     : 0;
-  const avgDuration = stepPerformance.step_stats.length > 0
-    ? (stepPerformance.step_stats.reduce((sum, stat) => sum + stat.avg_duration_seconds, 0) / stepPerformance.step_stats.length).toFixed(1)
-    : 0;
-  const totalSteps = stepPerformance.step_stats.length;
+  const totalWorkflows = [...new Set(runAnalysis.analysis.map(item => item.workflow_id))].length;
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -424,11 +456,11 @@ const Analytics = () => {
 
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
-                  <GridLoader color="#1e3a8a" size={15} margin={2} />
+            <GridLoader color="#1e3a8a" size={15} margin={2} />
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-0 sm:grid-cols-2 gap-4">
               <div className="bg-white border border-gray-300 p-4 flex items-center gap-3">
                 <div className="p-2 bg-green-50 border border-green-200">
                   <TrendingUp className="h-6 w-6 text-green-500" />
@@ -452,17 +484,8 @@ const Analytics = () => {
                   <Clock className="h-6 w-6 text-yellow-500" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Avg Duration</p>
-                  <span className="text-sm font-medium text-gray-900">{avgDuration}s</span>
-                </div>
-              </div>
-              <div className="bg-white border border-gray-300 p-4 flex items-center gap-3">
-                <div className="p-2 bg-purple-50 border border-purple-200">
-                  <Layers className="h-6 w-6 text-purple-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total Steps</p>
-                  <span className="text-sm font-medium text-gray-900">{totalSteps}</span>
+                  <p className="text-sm text-gray-600">Total Workflows</p>
+                  <span className="text-sm font-medium text-gray-900">{totalWorkflows}</span>
                 </div>
               </div>
             </div>
@@ -486,8 +509,8 @@ const Analytics = () => {
               <Card title="Recent Failures">
                 <FailureTable data={failureAnalysis} />
               </Card>
-              <Card title="Step Performance">
-                <StepPerformanceTable data={stepPerformance} />
+              <Card title="Workflow Run Analysis">
+                <RunAnalysisChart data={runAnalysis} />
               </Card>
             </div>
           </div>

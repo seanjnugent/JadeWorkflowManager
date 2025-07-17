@@ -5,7 +5,6 @@ import { GridLoader } from 'react-spinners';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
-
 const NewRun = () => {
   const navigate = useNavigate();
   const { workflowId } = useParams();
@@ -24,10 +23,10 @@ const NewRun = () => {
 
   const steps = [
     { id: 1, title: 'Run Configuration', icon: Play },
-    { id: 2, title: 'Input File', icon: UploadCloud },
-    { id: 3, title: 'Parameters', icon: Plug },
-    { id: 4, title: 'Schedule', icon: Clock },
-    { id: 5, title: 'Review', icon: CheckCircle },
+    ...(workflowDetails?.workflow?.requires_file ? [{ id: 2, title: 'Input File', icon: UploadCloud }] : []),
+    { id: workflowDetails?.workflow?.requires_file ? 3 : 2, title: 'Parameters', icon: Plug },
+    { id: workflowDetails?.workflow?.requires_file ? 4 : 3, title: 'Schedule', icon: Clock },
+    { id: workflowDetails?.workflow?.requires_file ? 5 : 4, title: 'Review', icon: CheckCircle },
   ];
 
   useEffect(() => {
@@ -41,42 +40,41 @@ const NewRun = () => {
   }, [navigate]);
 
   useEffect(() => {
-  const fetchWorkflowDetails = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/workflows/workflow/${workflowId}`, {
-        headers: { 'Accept': 'application/json' }
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch workflow details: ${response.status} ${response.statusText}`);
-      }
-      const data = await response.json();
-      setWorkflowDetails(data);
-      // Initialize parameters and expanded sections from API response
-      const workflowParams = data.workflow?.parameters || [];
-      const initialParams = {};
-      const initialExpanded = {};
-      if (Array.isArray(workflowParams) && workflowParams.length > 0) {
-        workflowParams.forEach(section => {
-          initialExpanded[section.section] = true;
-          section.parameters.forEach(param => {
-            initialParams[param.name] = param.default ?? '';
-          });
+    const fetchWorkflowDetails = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/workflows/workflow/${workflowId}`, {
+          headers: { 'Accept': 'application/json' }
         });
+        if (!response.ok) {
+          throw new Error(`Failed to fetch workflow details: ${response.status} ${response.statusText}`);
+        }
+        const data = await response.json();
+        setWorkflowDetails(data);
+        const workflowParams = data.workflow?.parameters || [];
+        const initialParams = {};
+        const initialExpanded = {};
+        if (Array.isArray(workflowParams) && workflowParams.length > 0) {
+          workflowParams.forEach(section => {
+            initialExpanded[section.section] = true;
+            section.parameters.forEach(param => {
+              initialParams[param.name] = param.default ?? '';
+            });
+          });
+        }
+        setParameters(initialParams);
+        setExpandedSections(initialExpanded);
+        if (data.workflow?.name) {
+          setRunName(`${data.workflow.name} Run - ${new Date().toLocaleDateString()}`);
+        }
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setError(`Failed to load workflow details: ${err.message}`);
+      } finally {
+        setLoading(false);
       }
-      setParameters(initialParams);
-      setExpandedSections(initialExpanded);
-      if (data.workflow?.name) {
-        setRunName(`${data.workflow.name} Run - ${new Date().toLocaleDateString()}`);
-      }
-    } catch (err) {
-      console.error('Fetch error:', err);
-      setError(`Failed to load workflow details: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-  fetchWorkflowDetails();
-}, [workflowId]);
+    };
+    fetchWorkflowDetails();
+  }, [workflowId]);
 
   useEffect(() => {
     const workflowParams = workflowDetails?.workflow?.parameters || [];
@@ -114,12 +112,12 @@ const NewRun = () => {
         }
         break;
       case 2:
-        if (!file && workflowDetails?.workflow?.requires_file) {
+        if (workflowDetails?.workflow?.requires_file && !file) {
           setError('Please upload an input file');
           return false;
         }
         break;
-      case 3:
+      case workflowDetails?.workflow?.requires_file ? 3 : 2:
         const workflowParams = workflowDetails?.workflow?.parameters || [];
         if (!Array.isArray(workflowParams) || workflowParams.length === 0) {
           setError('No parameters available for this workflow');
@@ -136,7 +134,7 @@ const NewRun = () => {
         });
         if (hasError) return false;
         break;
-      case 5:
+      case workflowDetails?.workflow?.requires_file ? 5 : 4:
         if (!runName.trim()) {
           setError('Please complete the run name');
           return false;
@@ -161,54 +159,52 @@ const NewRun = () => {
     return true;
   };
 
-const handleStartRun = async () => {
-  if (!validateCurrentStep()) return;
-  setIsSubmitting(true);
-  try {
-    const formData = new FormData();
-    formData.append('workflow_id', workflowId);
-    formData.append('triggered_by', userId);
-    formData.append('name', runName);
-    if (file) {
-      formData.append('file', file);
-    }
-    const workflowParams = workflowDetails?.workflow?.parameters || [];
-    const validParameters = {};
-    if (Array.isArray(workflowParams)) {
-      workflowParams.forEach(section => {
-        section.parameters.forEach(param => {
-          if (parameters[param.name] !== undefined) {
-            validParameters[param.name] = parameters[param.name];
-          }
+  const handleStartRun = async () => {
+    if (!validateCurrentStep()) return;
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('workflow_id', workflowId);
+      formData.append('triggered_by', userId);
+      formData.append('name', runName);
+      if (file) {
+        formData.append('file', file);
+      }
+      const workflowParams = workflowDetails?.workflow?.parameters || [];
+      const validParameters = {};
+      if (Array.isArray(workflowParams)) {
+        workflowParams.forEach(section => {
+          section.parameters.forEach(param => {
+            if (parameters[param.name] !== undefined) {
+              validParameters[param.name] = parameters[param.name];
+            }
+          });
         });
+      }
+      if (Object.keys(validParameters).length) {
+        formData.append('parameters', JSON.stringify(validParameters));
+      }
+      if (scheduleType !== 'none') {
+        formData.append('schedule', scheduleType);
+      }
+      const response = await fetch(`${API_BASE_URL}/runs/trigger`, {
+        method: 'POST',
+        body: formData,
       });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Run failed');
+      }
+      navigate('/runs');
+    } catch (err) {
+      setError(err.message || 'Failed to start run');
+    } finally {
+      setIsSubmitting(false);
     }
-    if (Object.keys(validParameters).length) {
-      formData.append('parameters', JSON.stringify(validParameters));
-    }
-    if (scheduleType !== 'none') {
-      formData.append('schedule', scheduleType);
-    }
-    const response = await fetch(`${API_BASE_URL}/runs/trigger`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Run failed');
-    }
-    navigate('/runs');
-  } catch (err) {
-    setError(err.message || 'Failed to start run');
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-
+  };
 
   const handleNextStep = () => {
     if (!validateCurrentStep()) return;
-
     if (currentStep === steps.length) {
       handleStartRun();
     } else {
@@ -219,7 +215,6 @@ const handleStartRun = async () => {
 
   const renderParameters = () => {
     const workflowParams = workflowDetails?.workflow?.parameters || [];
-
     if (!Array.isArray(workflowParams) || workflowParams.length === 0) {
       return (
         <div className="bg-red-50 p-4 border border-red-200">
@@ -227,7 +222,6 @@ const handleStartRun = async () => {
         </div>
       );
     }
-
     return (
       <div className="space-y-4">
         {workflowParams.map(section => (
@@ -306,7 +300,6 @@ const handleStartRun = async () => {
           </div>
         </div>
       )}
-
       <div className="max-w-4xl mx-auto py-8 px-4">
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-6">
@@ -318,18 +311,16 @@ const handleStartRun = async () => {
               Back to Workflow
             </button>
           </div>
-
           <div className="mb-6 text-center">
             <h1 className="text-xl font-semibold text-gray-900">{steps[currentStep - 1].title}</h1>
             <p className="text-gray-600 text-sm mt-1">
               {currentStep === 1 && 'Configure the basic settings for this workflow run'}
-              {currentStep === 2 && 'Upload the input file required for this workflow'}
-              {currentStep === 3 && 'Set parameters for this workflow run'}
-              {currentStep === 4 && 'Configure when this workflow should run'}
-              {currentStep === 5 && 'Review your workflow run configuration'}
+              {currentStep === (workflowDetails?.workflow?.requires_file ? 2 : null) && 'Upload the input file required for this workflow'}
+              {currentStep === (workflowDetails?.workflow?.requires_file ? 3 : 2) && 'Set parameters for this workflow run'}
+              {currentStep === (workflowDetails?.workflow?.requires_file ? 4 : 3) && 'Configure when this workflow should run'}
+              {currentStep === (workflowDetails?.workflow?.requires_file ? 5 : 4) && 'Review your workflow run configuration'}
             </p>
           </div>
-
           <div className="max-w-3xl mx-auto">
             <div className="w-100 h-1 bg-gray-200">
               <div
@@ -349,7 +340,6 @@ const handleStartRun = async () => {
             </div>
           </div>
         </div>
-
         <div className="bg-white border border-gray-300 p-6 limpi-container">
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 flex justify-between items-center">
@@ -359,7 +349,6 @@ const handleStartRun = async () => {
               </button>
             </div>
           )}
-
           <div className="space-y-6">
             {currentStep === 1 && (
               <div>
@@ -386,8 +375,7 @@ const handleStartRun = async () => {
                 </div>
               </div>
             )}
-
-            {currentStep === 2 && (
+            {currentStep === (workflowDetails?.workflow?.requires_file ? 2 : null) && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Input File
@@ -430,8 +418,7 @@ const handleStartRun = async () => {
                 </div>
               </div>
             )}
-
-            {currentStep === 3 && (
+            {currentStep === (workflowDetails?.workflow?.requires_file ? 3 : 2) && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Parameters
@@ -439,8 +426,7 @@ const handleStartRun = async () => {
                 {renderParameters()}
               </div>
             )}
-
-            {currentStep === 4 && (
+            {currentStep === (workflowDetails?.workflow?.requires_file ? 4 : 3) && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Schedule
@@ -478,8 +464,7 @@ const handleStartRun = async () => {
                 </div>
               </div>
             )}
-
-            {currentStep === 5 && (
+            {currentStep === (workflowDetails?.workflow?.requires_file ? 5 : 4) && (
               <div>
                 <h2 className="text-2xl font-bold text-gray-800 mb-6">Review Configuration</h2>
                 <div className="space-y-6">
@@ -499,31 +484,31 @@ const handleStartRun = async () => {
                       </button>
                     </div>
                   </div>
-
-                  <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm limpi-subcontainer">
-                    <div className="flex justify-between items-center mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">Input File</h3>
-                        <p className="text-base text-gray-700 mt-1">
-                          {file ? (
-                            <>
-                              <Download className="inline h-5 w-5 mr-2 text-gray-600" />
-                              {file.name} ({(file.size / 1024).toFixed(2)} KB)
-                            </>
-                          ) : (
-                            <span className="text-red-600 font-medium">No file uploaded</span>
-                          )}
-                        </p>
+                  {workflowDetails?.workflow?.requires_file && (
+                    <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm limpi-subcontainer">
+                      <div className="flex justify-between items-center mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">Input File</h3>
+                          <p className="text-base text-gray-700 mt-1">
+                            {file ? (
+                              <>
+                                <Download className="inline h-5 w-5 mr-2 text-gray-600" />
+                                {file.name} ({(file.size / 1024).toFixed(2)} KB)
+                              </>
+                            ) : (
+                              <span className="text-red-600 font-medium">No file uploaded</span>
+                            )}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setCurrentStep(2)}
+                          className="text-blue-700 hover:text-blue-900 font-medium text-sm px-3 py-1 rounded-md border border-blue-200 hover:border-blue-400 transition duration-150 ease-in-out limpi-button"
+                        >
+                          Edit
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setCurrentStep(2)}
-                        className="text-blue-700 hover:text-blue-900 font-medium text-sm px-3 py-1 rounded-md border border-blue-200 hover:border-blue-400 transition duration-150 ease-in-out limpi-button"
-                      >
-                        Edit
-                      </button>
                     </div>
-                  </div>
-
+                  )}
                   <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm limpi-subcontainer">
                     <div className="flex justify-between items-center mb-4">
                       <div>
@@ -553,14 +538,13 @@ const handleStartRun = async () => {
                         </div>
                       </div>
                       <button
-                        onClick={() => setCurrentStep(3)}
+                        onClick={() => setCurrentStep(workflowDetails?.workflow?.requires_file ? 3 : 2)}
                         className="text-blue-700 hover:text-blue-900 font-medium text-sm px-3 py-1 rounded-md border border-blue-200 hover:border-blue-400 transition duration-150 ease-in-out limpi-button"
                       >
                         Edit
                       </button>
                     </div>
                   </div>
-
                   <div className="bg-white p-6 border border-gray-200 rounded-lg shadow-sm limpi-subcontainer">
                     <div className="flex justify-between items-center mb-4">
                       <div>
@@ -570,7 +554,7 @@ const handleStartRun = async () => {
                         </p>
                       </div>
                       <button
-                        onClick={() => setCurrentStep(4)}
+                        onClick={() => setCurrentStep(workflowDetails?.workflow?.requires_file ? 4 : 3)}
                         className="text-blue-700 hover:text-blue-900 font-medium text-sm px-3 py-1 rounded-md border border-blue-200 hover:border-blue-400 transition duration-150 ease-in-out limpi-button"
                       >
                         Edit
@@ -581,7 +565,6 @@ const handleStartRun = async () => {
               </div>
             )}
           </div>
-
           <div className="flex justify-between items-center mt-8">
             <button
               onClick={() => {
