@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, Search, X, UserPlus, Clock, Database, AlertCircle, User, Mail, Calendar, Activity } from 'lucide-react';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://your-api-domain.com';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 const ManagePermissions = () => {
   const [workflows, setWorkflows] = useState([]);
@@ -81,7 +81,7 @@ const ManagePermissions = () => {
   const fetchUsers = async () => {
     try {
       const accessToken = localStorage.getItem('access_token');
-      const response = await fetch(`${API_BASE_URL}/users`, {
+      const response = await fetch(`${API_BASE_URL}/users/`, {
         headers: {
           Accept: 'application/json',
           Authorization: `Bearer ${accessToken}`,

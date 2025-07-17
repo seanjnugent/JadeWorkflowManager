@@ -3,6 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Play, UploadCloud, Plug, Clock, CheckCircle, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { GridLoader } from 'react-spinners';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+
+
 const NewRun = () => {
   const navigate = useNavigate();
   const { workflowId } = useParams();
@@ -38,47 +41,42 @@ const NewRun = () => {
   }, [navigate]);
 
   useEffect(() => {
-    const fetchWorkflowDetails = async () => {
-      try {
-        const response = await fetch(`http://localhost:8000/workflows/workflow/${workflowId}`, {
-          headers: { 'Accept': 'application/json' }
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to fetch workflow details: ${response.status} ${response.statusText}`);
-        }
-        const data = await response.json();
-        setWorkflowDetails(data);
-
-        // Initialize parameters and expanded sections from API response
-        const workflowParams = data.workflow?.parameters || [];
-        const initialParams = {};
-        const initialExpanded = {};
-
-        if (Array.isArray(workflowParams) && workflowParams.length > 0) {
-          workflowParams.forEach(section => {
-            initialExpanded[section.section] = true;
-            section.parameters.forEach(param => {
-              initialParams[param.name] = param.default ?? '';
-            });
-          });
-        }
-
-        setParameters(initialParams);
-        setExpandedSections(initialExpanded);
-
-        if (data.workflow?.name) {
-          setRunName(`${data.workflow.name} Run - ${new Date().toLocaleDateString()}`);
-        }
-      } catch (err) {
-        console.error('Fetch error:', err);
-        setError(`Failed to load workflow details: ${err.message}`);
-      } finally {
-        setLoading(false);
+  const fetchWorkflowDetails = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/workflows/workflow/${workflowId}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch workflow details: ${response.status} ${response.statusText}`);
       }
-    };
-
-    fetchWorkflowDetails();
-  }, [workflowId]);
+      const data = await response.json();
+      setWorkflowDetails(data);
+      // Initialize parameters and expanded sections from API response
+      const workflowParams = data.workflow?.parameters || [];
+      const initialParams = {};
+      const initialExpanded = {};
+      if (Array.isArray(workflowParams) && workflowParams.length > 0) {
+        workflowParams.forEach(section => {
+          initialExpanded[section.section] = true;
+          section.parameters.forEach(param => {
+            initialParams[param.name] = param.default ?? '';
+          });
+        });
+      }
+      setParameters(initialParams);
+      setExpandedSections(initialExpanded);
+      if (data.workflow?.name) {
+        setRunName(`${data.workflow.name} Run - ${new Date().toLocaleDateString()}`);
+      }
+    } catch (err) {
+      console.error('Fetch error:', err);
+      setError(`Failed to load workflow details: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+  fetchWorkflowDetails();
+}, [workflowId]);
 
   useEffect(() => {
     const workflowParams = workflowDetails?.workflow?.parameters || [];
@@ -163,57 +161,50 @@ const NewRun = () => {
     return true;
   };
 
-  const handleStartRun = async () => {
-    if (!validateCurrentStep()) return;
-
-    setIsSubmitting(true);
-    try {
-      const formData = new FormData();
-      formData.append('workflow_id', workflowId);
-      formData.append('triggered_by', userId);
-      formData.append('name', runName);
-      if (file) {
-        formData.append('file', file);
-      }
-
-      const workflowParams = workflowDetails?.workflow?.parameters || [];
-      const validParameters = {};
-
-      if (Array.isArray(workflowParams)) {
-        workflowParams.forEach(section => {
-          section.parameters.forEach(param => {
-            if (parameters[param.name] !== undefined) {
-              validParameters[param.name] = parameters[param.name];
-            }
-          });
-        });
-      }
-
-      if (Object.keys(validParameters).length) {
-        formData.append('parameters', JSON.stringify(validParameters));
-      }
-
-      if (scheduleType !== 'none') {
-        formData.append('schedule', scheduleType);
-      }
-
-      const response = await fetch(`http://localhost:8000/runs/trigger`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Run failed');
-      }
-
-      navigate('/runs');
-    } catch (err) {
-      setError(err.message || 'Failed to start run');
-    } finally {
-      setIsSubmitting(false);
+const handleStartRun = async () => {
+  if (!validateCurrentStep()) return;
+  setIsSubmitting(true);
+  try {
+    const formData = new FormData();
+    formData.append('workflow_id', workflowId);
+    formData.append('triggered_by', userId);
+    formData.append('name', runName);
+    if (file) {
+      formData.append('file', file);
     }
-  };
+    const workflowParams = workflowDetails?.workflow?.parameters || [];
+    const validParameters = {};
+    if (Array.isArray(workflowParams)) {
+      workflowParams.forEach(section => {
+        section.parameters.forEach(param => {
+          if (parameters[param.name] !== undefined) {
+            validParameters[param.name] = parameters[param.name];
+          }
+        });
+      });
+    }
+    if (Object.keys(validParameters).length) {
+      formData.append('parameters', JSON.stringify(validParameters));
+    }
+    if (scheduleType !== 'none') {
+      formData.append('schedule', scheduleType);
+    }
+    const response = await fetch(`${API_BASE_URL}/runs/trigger`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Run failed');
+    }
+    navigate('/runs');
+  } catch (err) {
+    setError(err.message || 'Failed to start run');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
 
   const handleNextStep = () => {
     if (!validateCurrentStep()) return;
