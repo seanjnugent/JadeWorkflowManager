@@ -1,8 +1,12 @@
+import os
 import json
 import logging
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+# Define the DAGSTER_API_URL using an environment variable or a default value
+DAGSTER_API_URL = os.getenv('DAGSTER_API_URL', 'http://localhost:3500')
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +20,7 @@ def get_validated_config(job_name: str, config: dict) -> tuple[bool, str]:
         session.mount("https://", adapter)
 
         response = session.post(
-            "http://localhost:3500/graphql",
+            f"{DAGSTER_API_URL}/graphql",
             json={
                 "query": """
                 query ValidateConfig($selector: JobSelector!, $runConfigData: RunConfigData!) {
@@ -45,9 +49,9 @@ def get_validated_config(job_name: str, config: dict) -> tuple[bool, str]:
             },
             timeout=10
         )
+
         response.raise_for_status()
         data = response.json()
-
         logger.debug(f"Validation response: {json.dumps(data, indent=2)}")
 
         if "errors" in data and data["errors"]:
@@ -56,6 +60,7 @@ def get_validated_config(job_name: str, config: dict) -> tuple[bool, str]:
             return False, error_msg
 
         validation = data.get("data", {}).get("runConfigValidation", {})
+
         if validation.get("__typename") == "RunConfigValidationValid":
             return True, "Configuration is valid"
         elif validation.get("__typename") == "RunConfigValidationInvalid":

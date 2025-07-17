@@ -291,34 +291,33 @@ const Run = () => {
     fetchRunData();
   }, [runId, navigate]);
 
-  const handleSync = async () => {
-    if (!runData?.dagsterRunId) return;
-    try {
-      setSyncLoading(true);
-      const accessToken = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/runs/sync/${runData.dagsterRunId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        if (errorData.detail && errorData.detail.includes("could not be found")) {
-          console.log("Run not found, doing nothing.");
-          return;
-        }
-        throw new Error(errorData.detail || 'Failed to sync run status');
+const handleSync = async () => {
+  if (!runData?.dagsterRunId) return;
+  try {
+    setSyncLoading(true);
+    const accessToken = localStorage.getItem('access_token');
+    const response = await fetch(`${API_BASE_URL}/runs/sync/${runData.dagsterRunId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
       }
-
-      await fetchRunData();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSyncLoading(false);
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      if (errorData.detail && errorData.detail.includes("could not be found")) {
+        console.log("Run not found, doing nothing.");
+        return;
+      }
+      throw new Error(errorData.detail || 'Failed to sync run status');
     }
-  };
+    await fetchRunData();
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setSyncLoading(false);
+  }
+};
+
 
   const getFileNameFromPath = (path) => {
     if (!path) return null;
@@ -332,38 +331,37 @@ const Run = () => {
     return extension || 'unknown';
   };
 
-  const handleDownload = async (filePath, type) => {
-    if (!filePath) return;
-    try {
-      setDownloadLoading(prev => ({ ...prev, [type]: true }));
-      const accessToken = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/files/download-url`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ file_path: filePath })
-      });
-      if (!response.ok) throw new Error(`Failed to get download URL for ${type} file`);
-      const { url } = await response.json();
+const handleDownload = async (filePath, type) => {
+  if (!filePath) return;
+  try {
+    setDownloadLoading(prev => ({ ...prev, [type]: true }));
+    const accessToken = localStorage.getItem('access_token');
+    const response = await fetch(`${API_BASE_URL}/files/download-url`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ file_path: filePath })
+    });
+    if (!response.ok) throw new Error(`Failed to get download URL for ${type} file`);
+    const { url } = await response.json();
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = getFileNameFromPath(filePath);
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.setAttribute('download', getFileNameFromPath(filePath));
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    setError(`Failed to download ${type} file: ${err.message}`);
+  } finally {
+    setDownloadLoading(prev => ({ ...prev, [type]: false }));
+  }
+};
 
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = getFileNameFromPath(filePath);
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.setAttribute('download', getFileNameFromPath(filePath));
-
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      setError(`Failed to download ${type} file: ${err.message}`);
-    } finally {
-      setDownloadLoading(prev => ({ ...prev, [type]: false }));
-    }
-  };
 
   const toggleLogExpansion = (logId) => {
     setExpandedLogs(prev => ({

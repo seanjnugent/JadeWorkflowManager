@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Edit, Save, ChevronLeft } from 'lucide-react';
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+
 const EditWorkflow = () => {
     const { workflowId } = useParams();
     const navigate = useNavigate();
@@ -12,7 +14,7 @@ const EditWorkflow = () => {
 
     useEffect(() => {
         setLoading(true);
-        fetch(`http://localhost:8000/workflows/workflow/${workflowId}`, {
+        fetch(`${API_BASE_URL}/workflows/workflow/${workflowId}`, {
             headers: { 'accept': 'application/json' }
         })
             .then(response => response.json())
@@ -24,7 +26,7 @@ const EditWorkflow = () => {
     const handleSave = async () => {
         setSaving(true);
         try {
-            const response = await fetch(`http://localhost:8000/workflows/workflow/update`, {
+            const response = await fetch(`${API_BASE_URL}/workflows/workflow/update`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -106,7 +108,6 @@ const EditWorkflow = () => {
                             </div>
                         </motion.button>
                     </div>
-
                     <div className="mt-6 pt-6 border-t border-gray-100">
                         <div className="space-y-6">
                             <div>
