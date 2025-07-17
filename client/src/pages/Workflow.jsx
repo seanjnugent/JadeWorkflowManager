@@ -149,7 +149,7 @@ const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
   useEffect(() => {
     const fetchDagInfo = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/api/github-dag-info?dag_path=${filePath}`, {
+        const response = await fetch(`http://localhost:8000/api/workflows/github-dag-info?dag_path=${filePath}`, {
           headers: { 'Accept': 'application/json' }
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);

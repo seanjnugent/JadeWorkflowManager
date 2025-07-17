@@ -384,27 +384,63 @@ async def get_workflow(workflow_id: int, db: Session = Depends(get_db)):
         raise HTTPException(500, f"Failed to retrieve workflow: {str(e)}")
 
 @router.get("/github-dag-info")
-async def get_github_dag_info(dag_path: str):
-    """Retrieve GitHub DAG information"""
-    github_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/DAGs/{dag_path}.py"
+async def get_github_dag_info(dag_path: str) -> Dict[str, Any]:
+    """Retrieve GitHub DAG information (last commit details for the file)"""
+    # Construct the path to the DAG file within the repo
+    file_in_repo_path = f"{GITHUB_DAG_PATH}/{dag_path}.py"
+
+    # API endpoint to get *commits* for a specific file
+    commits_url = f"https://api.github.com/repos/{GITHUB_REPO}/commits"
     headers = {
         "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     }
+    params = {
+        "path": file_in_repo_path,
+        "per_page": 1, # We only need the latest commit
+        "sha": "main" # Or your desired branch name
+    }
+
     try:
-        response = requests.get(github_url, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        commit_response = requests.get(data["commit"]["url"], headers=headers)
-        commit_response.raise_for_status()
-        commit_data = commit_response.json()
+        logger.info(f"Fetching GitHub commit info for file: {file_in_repo_path} in repo: {GITHUB_REPO}")
+        response = requests.get(commits_url, headers=headers, params=params)
+        response.raise_for_status() # Raises HTTPError for bad responses (4xx or 5xx)
+
+        commits_data = response.json()
+
+        if not commits_data:
+            logger.warning(f"No commits found for file: {file_in_repo_path}")
+            return {"authorized": True, "message": "DAG file exists, but no commit history found directly via path.", "version": "N/A", "last_updated": "N/A", "author": "N/A", "commit_message": "N/A"}
+
+        latest_commit = commits_data[0] # Get the first (most recent) commit
+
+        # Extract relevant information
+        version = latest_commit["sha"][:7] # Short SHA
+        last_updated = latest_commit["commit"]["committer"]["date"]
+        author = latest_commit["commit"]["author"]["name"]
+        commit_message = latest_commit["commit"]["message"]
+
+        logger.info(f"Successfully retrieved DAG info for {file_in_repo_path}. Version: {version}")
+
         return {
             "authorized": True,
-            "version": commit_data["sha"][:7],
-            "last_updated": commit_data["commit"]["committer"]["date"],
-            "author": commit_data["commit"]["author"]["name"],
-            "commit_message": commit_data["commit"]["message"]
+            "version": version,
+            "last_updated": last_updated,
+            "author": author,
+            "commit_message": commit_message
         }
-    except requests.RequestException as e:
-        logger.error(f"Failed to fetch GitHub DAG info: {str(e)}")
-        return {"authorized": False}
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"GitHub API HTTP error for {file_in_repo_path}: {e.response.status_code} - {e.response.text}")
+        if e.response.status_code == 404:
+            return {"authorized": False, "message": f"DAG file '{file_in_repo_path}' not found in GitHub."}
+        elif e.response.status_code == 401 or e.response.status_code == 403:
+            return {"authorized": False, "message": "Unauthorized or forbidden access to GitHub repository. Check GITHUB_ACCESS_TOKEN and repository permissions."}
+        raise HTTPException(status_code=500, detail=f"GitHub API error: {e.response.status_code} - {e.response.text}")
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"Connection error to GitHub API: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Could not connect to GitHub API: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error fetching GitHub DAG info for {file_in_repo_path}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch DAG info: {str(e)}")
+

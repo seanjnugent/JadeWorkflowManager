@@ -30,7 +30,7 @@ if not GITHUB_ACCESS_TOKEN:
 def extract_job_name(dag_path: str) -> Optional[str]:
     """
     Extract the workflow job name (e.g., 'workflow_job_2') from various formats.
-    
+   
     Handles:
     - Full Windows/Linux paths
     - Python module paths
@@ -38,13 +38,13 @@ def extract_job_name(dag_path: str) -> Optional[str]:
     """
     if not dag_path:
         return None
-    
+   
     # Try extracting last part after dots or slashes
     segments = []
 
     # Split by dot (for Python module paths)
     segments.extend(dag_path.split("."))
-    
+   
     # Split by OS path separators
     segments.extend(dag_path.replace("\\", "/").split("/"))
 
@@ -100,14 +100,14 @@ async def get_github_dag_info(
 
             # Get commits for the specific file (file-level history)
             commits = list(repo.get_commits(path=file_path, sha=GITHUB_BRANCH))
-            
+           
             if not commits:
                 logger.warning(f"No commits found for file: {file_path}")
                 return {"authorized": False}
 
             # Get the most recent commit for this file
             latest_commit = commits[0]
-            
+           
             # Count the actual number of commits that modified this specific file
             file_commit_count = len(commits)
 
