@@ -212,6 +212,7 @@ const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
 };
 
 // Status Badge Component
+// Status Badge Component
 const StatusBadge = ({ status }) => {
   const statusConfig = {
     completed: {
@@ -225,6 +226,11 @@ const StatusBadge = ({ status }) => {
       text: 'Completed'
     },
     failed: {
+      color: 'bg-red-50 text-red-700 border-red-200',
+      icon: <CircleAlert className="h-4 w-4 text-red-600" />,
+      text: 'Failed'
+    },
+    failure: { // Add this mapping for FAILURE status
       color: 'bg-red-50 text-red-700 border-red-200',
       icon: <CircleAlert className="h-4 w-4 text-red-600" />,
       text: 'Failed'
@@ -251,6 +257,7 @@ const StatusBadge = ({ status }) => {
     </div>
   );
 };
+
 
 function formatDuration(ms) {
   const msAbs = Math.abs(ms);

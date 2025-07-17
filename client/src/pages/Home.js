@@ -89,37 +89,38 @@ const Home = () => {
 
   // Fetch recent activity
   useEffect(() => {
-    const userId = localStorage.getItem('userId');
-    const accessToken = localStorage.getItem('access_token');
+  const userId = localStorage.getItem('userId');
+  const accessToken = localStorage.getItem('access_token');
+  if (!userId || !accessToken) {
+    navigate('/login', { replace: true });
+    return;
+  }
 
-    if (!userId || !accessToken) {
-      navigate('/login', { replace: true });
-      return;
+  fetch(`${API_BASE_URL}/users/recent-activity?user_id=${userId}&limit=3`, {
+    headers: {
+      'accept': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
     }
-
-    fetch(`${API_BASE_URL}/users/recent-activity?user_id=${userId}&limit=3`, {
-      headers: {
-        'accept': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      }
+  })
+    .then(response => {
+      if (!response.ok) throw new Error("Failed to fetch recent activity");
+      return response.json();
     })
-      .then(response => {
-        if (!response.ok) throw new Error("Failed to fetch recent activity");
-        return response.json();
-      })
-      .then(data => {
-        const formattedData = data.map(activity => ({
-          ...activity,
-          status: activity.status === "SUCCESS" ? "Completed" : activity.status,
-          lastRun: activity.last_updated
-            ? formatLastRunDate(activity.last_updated)
-            : "Never run",
-          workflow_id: `WF${String(activity.workflow_id).padStart(4, '0')}`,
-        }));
-        setRecentActivity(formattedData);
-      })
-      .catch(error => console.error('Error fetching recent activity:', error));
-  }, [navigate]);
+    .then(data => {
+      const formattedData = data.map(activity => ({
+        ...activity,
+        status: activity.status === "SUCCESS" ? "Completed" :
+               activity.status === "FAILURE" ? "Failed" :
+               activity.status,
+        lastRun: activity.last_updated
+          ? formatLastRunDate(activity.last_updated)
+          : "Never run",
+        workflow_id: `WF${String(activity.workflow_id).padStart(4, '0')}`,
+      }));
+      setRecentActivity(formattedData);
+    })
+    .catch(error => console.error('Error fetching recent activity:', error));
+}, [navigate]);
 
   // Helper: Format date like "17 Jun, 14:30"
   const formatLastRunDate = (dateString) => {
@@ -177,48 +178,51 @@ const Home = () => {
                   <th className="text-left font-medium text-gray-900 py-4 px-6">Activity</th>
                 </tr>
               </thead>
-              <tbody>
-                {recentActivity.length > 0 ? (
-                  recentActivity.map((activity, index) => (
-                    <tr
-                      key={index}
-                      className="border-b border-gray-200 hover:bg-gray-50 bg-white"
-                      onClick={() => navigate(`/runs/run/${activity.run_id}`)}
-                    >
-                      <td className="py-4 px-6 w-[100px]">
-                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border ${
-                          activity.status === "Completed"
-                            ? "bg-green-50 text-green-700 border-green-200"
-                            : activity.status === "STARTED" || activity.status === "RUNNING"
-                              ? "bg-blue-50 text-blue-700 border-blue-200"
-                              : "bg-gray-50 text-gray-700 border-gray-200"
-                        }`}>
-                          {activity.status}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 w-[280px]">
-                        <div className="max-w-[260px]">
-                          <div className="text-sm font-medium text-gray-900 break-words">{activity.workflow_name}</div>
-                          <div className="text-sm text-gray-600 mt-1">{activity.workflow_id}</div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 w-[120px]">
-                        <div className="text-sm text-gray-900">{activity.triggered_by_username}</div>
-                      </td>
-                      <td className="py-4 px-6 w-[110px]">
-                        <div className="text-sm text-gray-900 whitespace-nowrap">{activity.lastRun}</div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="text-sm text-gray-600 break-words">{activity.latest_activity}</div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="text-center py-4 text-sm text-gray-600">No recent activity found</td>
-                  </tr>
-                )}
-              </tbody>
+            <tbody>
+  {recentActivity.length > 0 ? (
+    recentActivity.map((activity, index) => (
+      <tr
+        key={index}
+        className="border-b border-gray-200 hover:bg-gray-50 bg-white"
+        onClick={() => navigate(`/runs/run/${activity.run_id}`)}
+      >
+        <td className="py-4 px-6 w-[100px]">
+          <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border ${
+            activity.status === "Completed"
+              ? "bg-green-50 text-green-700 border-green-200"
+              : activity.status === "STARTED" || activity.status === "RUNNING"
+                ? "bg-blue-50 text-blue-700 border-blue-200"
+                : activity.status === "Failed"
+                  ? "bg-red-50 text-red-700 border-red-200"
+                  : "bg-gray-50 text-gray-700 border-gray-200"
+          }`}>
+            {activity.status}
+          </span>
+        </td>
+        <td className="py-4 px-6 w-[280px]">
+          <div className="max-w-[260px]">
+            <div className="text-sm font-medium text-gray-900 break-words">{activity.workflow_name}</div>
+            <div className="text-sm text-gray-600 mt-1">{activity.workflow_id}</div>
+          </div>
+        </td>
+        <td className="py-4 px-6 w-[120px]">
+          <div className="text-sm text-gray-900">{activity.triggered_by_username}</div>
+        </td>
+        <td className="py-4 px-6 w-[110px]">
+          <div className="text-sm text-gray-900 whitespace-nowrap">{activity.lastRun}</div>
+        </td>
+        <td className="py-4 px-6">
+          <div className="text-sm text-gray-600 break-words">{activity.latest_activity}</div>
+        </td>
+      </tr>
+    ))
+  ) : (
+    <tr>
+      <td colSpan={5} className="text-center py-4 text-sm text-gray-600">No recent activity found</td>
+    </tr>
+  )}
+</tbody>
+
             </table>
           </div>
         </div>
