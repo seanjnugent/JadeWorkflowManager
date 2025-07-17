@@ -68,7 +68,7 @@ const ManageUsers = () => {
     setLoading(true);
     try {
       const accessToken = localStorage.getItem('access_token');
-      const response = await fetch(`${API_BASE_URL}/users`, {
+      const response = await fetch(`${API_BASE_URL}/users/`, {
         headers: {
           Accept: 'application/json',
           Authorization: `Bearer ${accessToken}`,
