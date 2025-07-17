@@ -24,7 +24,7 @@ const Runs = () => {
       return;
     }
 
-    fetch(`${API_BASE_URL}/runs?user_id=${userId}&page=${currentPage}&limit=${limit}`, {
+    fetch(`${API_BASE_URL}/runs/?user_id=${userId}&page=${currentPage}&limit=${limit}`, {
       headers: {
         'accept': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
