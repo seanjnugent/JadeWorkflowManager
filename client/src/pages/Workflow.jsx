@@ -827,37 +827,39 @@ const handleSaveConfigTemplate = async (updatedConfig) => {
           </div>
 
           {/* Input File Structure */}
-<div className="bg-white border border-gray-300 p-6" style={{ marginBottom: 24 }}>
-            <div className="mb-4">
-              <h4 className="text-sm font-medium text-gray-900">Input File Structure</h4>
-              <p className="text-gray-600 text-sm mt-1">Required input format for this workflow</p>
-            </div>
-            <div className="space-y-2">
-              <button
-                className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 w-full px-4 py-2"
-                onClick={() => setShowInputModal(true)}
-              >
-                <FileText className="h-4 w-4" />
-                View Input Structure
-              </button>
-              <button
-                className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 w-full px-4 py-2"
-                onClick={handleDownloadTemplate}
-              >
-                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                Download Template
-              </button>
-            </div>
-            <InputStructureModal
-              isOpen={showInputModal}
-              onClose={() => setShowInputModal(false)}
-              inputStructure={workflow?.input_structure || { columns: [] }}
-            />
-          </div>
+{workflow.requires_file && (
+  <div className="bg-white border border-gray-300 p-6" style={{ marginBottom: 24 }}>
+    <div className="mb-4">
+      <h4 className="text-sm font-medium text-gray-900">Input File Structure</h4>
+      <p className="text-gray-600 text-sm mt-1">Required input format for this workflow</p>
+    </div>
+    <div className="space-y-2">
+      <button
+        className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 w-full px-4 py-2"
+        onClick={() => setShowInputModal(true)}
+      >
+        <FileText className="h-4 w-4" />
+        View Input Structure
+      </button>
+      <button
+        className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 w-full px-4 py-2"
+        onClick={handleDownloadTemplate}
+      >
+        <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Download Template
+      </button>
+    </div>
+    <InputStructureModal
+      isOpen={showInputModal}
+      onClose={() => setShowInputModal(false)}
+      inputStructure={workflow?.input_structure || { columns: [] }}
+    />
+  </div>
+)}
 
           {/* Parameters */}
 <div className="bg-white border border-gray-300 p-6" style={{ marginBottom: 24 }}>

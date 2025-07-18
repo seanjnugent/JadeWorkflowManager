@@ -31,10 +31,10 @@ const fetchData = async (endpoint) => {
     return {};
   }
 };
+
 const RunStatsChart = ({ data }) => {
   useEffect(() => {
     if (!data.run_stats) return;
-
     const ctx = document.getElementById('runStatsChart').getContext('2d');
     const chart = new Chart(ctx, {
       type: 'line',
@@ -93,7 +93,6 @@ const RunStatsChart = ({ data }) => {
         interaction: { mode: 'nearest', intersect: false },
       },
     });
-
     return () => chart.destroy();
   }, [data]);
 
@@ -123,10 +122,8 @@ const RunStatsChart = ({ data }) => {
 const StatusPieChart = ({ data }) => {
   useEffect(() => {
     if (!data.run_stats) return;
-
     const totalSuccess = data.run_stats.reduce((sum, stat) => sum + stat.successful_runs, 0);
     const totalFailed = data.run_stats.reduce((sum, stat) => sum + stat.failed_runs, 0);
-
     const ctx = document.getElementById('statusPieChart').getContext('2d');
     const chart = new Chart(ctx, {
       type: 'doughnut',
@@ -148,7 +145,6 @@ const StatusPieChart = ({ data }) => {
         },
       },
     });
-
     return () => chart.destroy();
   }, [data]);
 
@@ -171,79 +167,9 @@ const StatusPieChart = ({ data }) => {
   );
 };
 
-const ErrorMessagesChart = ({ data }) => {
-  useEffect(() => {
-    if (!data.failures) return;
-
-    const errorCounts = data.failures.reduce((acc, failure) => {
-      const errorMessage = failure.error_message;
-      acc[errorMessage] = (acc[errorMessage] || 0) + 1;
-      return acc;
-    }, {});
-
-    const groupedErrors = {};
-    Object.entries(errorCounts).forEach(([message, count]) => {
-      const pattern = identifyPattern(message);
-      if (!groupedErrors[pattern]) {
-        groupedErrors[pattern] = { count: 0, messages: [] };
-      }
-      groupedErrors[pattern].count += count;
-      groupedErrors[pattern].messages.push(message);
-    });
-
-    const sortedGroupedErrors = Object.entries(groupedErrors).sort((a, b) => b[1].count - a[1].count);
-    const groupedErrorMessages = sortedGroupedErrors.map(([pattern]) => pattern);
-    const groupedErrorCounts = sortedGroupedErrors.map(([, group]) => group.count);
-
-    const ctx = document.getElementById('errorMessagesChart').getContext('2d');
-    const chart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: groupedErrorMessages,
-        datasets: [{
-          label: 'Frequency',
-          data: groupedErrorCounts,
-          backgroundColor: '#1e3a8a',
-          borderWidth: 0,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          title: { display: false },
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            ticks: { color: '#6B7280', font: { family: "'Inter', sans-serif", size: 12 } },
-          },
-          y: {
-            grid: { color: 'rgba(229, 231, 235, 0.5)' },
-            ticks: { color: '#6B7280', font: { family: "'Inter', sans-serif", size: 12 } },
-            beginAtZero: true,
-          },
-        },
-      },
-    });
-
-    return () => chart.destroy();
-  }, [data]);
-
-  return (
-    <div>
-      <div className="h-64">
-        <canvas id="errorMessagesChart" className="w-full h-full"></canvas>
-      </div>
-    </div>
-  );
-};
-
 const RunAnalysisChart = ({ data }) => {
   useEffect(() => {
     if (!data.analysis) return;
-
     const workflows = [...new Set(data.analysis.map(item => item.workflow_name))];
     const successData = workflows.map(workflow => {
       const success = data.analysis.find(item => item.workflow_name === workflow && item.status === 'SUCCESS');
@@ -284,8 +210,9 @@ const RunAnalysisChart = ({ data }) => {
         scales: {
           x: {
             grid: { display: false },
-            ticks: { 
-              color: '#6B7280', 
+            stacked: true, // Enable stacking for x-axis
+            ticks: {
+              color: '#6B7280',
               font: { family: "'Inter', sans-serif", size: 12 },
               callback: function(value) {
                 return this.getLabelForValue(value).substring(0, 15) + (this.getLabelForValue(value).length > 15 ? '...' : '');
@@ -294,13 +221,13 @@ const RunAnalysisChart = ({ data }) => {
           },
           y: {
             grid: { color: 'rgba(229, 231, 235, 0.5)' },
+            stacked: true, // Enable stacking for y-axis
             ticks: { color: '#6B7280', font: { family: "'Inter', sans-serif", size: 12 } },
             beginAtZero: true,
           },
         },
       },
     });
-
     return () => chart.destroy();
   }, [data]);
 
@@ -403,7 +330,6 @@ const Analytics = () => {
   useEffect(() => {
     const userId = localStorage.getItem('userId');
     const accessToken = localStorage.getItem('access_token');
-
     if (!userId || !accessToken) {
       window.location.href = '/login';
       return;
@@ -426,6 +352,7 @@ const Analytics = () => {
         setIsLoading(false);
       }
     };
+
     loadData();
   }, []);
 
@@ -453,14 +380,13 @@ const Analytics = () => {
             <p className="text-gray-600 text-sm mt-1">Real-time insights into your pipeline performance</p>
           </div>
         </div>
-
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <GridLoader color="#1e3a8a" size={15} margin={2} />
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-0 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-0 sm:grid-cols-3 gap-4">
               <div className="bg-white border border-gray-300 p-4 flex items-center gap-3">
                 <div className="p-2 bg-green-50 border border-green-200">
                   <TrendingUp className="h-6 w-6 text-green-500" />
@@ -489,7 +415,6 @@ const Analytics = () => {
                 </div>
               </div>
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2">
                 <Card title="Workflow Runs Over Time">
@@ -500,17 +425,12 @@ const Analytics = () => {
                 <StatusPieChart data={runStats} />
               </Card>
             </div>
-
-            <Card title="Error Messages Frequency">
-              <ErrorMessagesChart data={failureAnalysis} />
+            <Card title="Workflow Run Analysis">
+              <RunAnalysisChart data={runAnalysis} />
             </Card>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1">
               <Card title="Recent Failures">
                 <FailureTable data={failureAnalysis} />
-              </Card>
-              <Card title="Workflow Run Analysis">
-                <RunAnalysisChart data={runAnalysis} />
               </Card>
             </div>
           </div>
