@@ -285,7 +285,7 @@ const NewRun = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
-        <GridLoader color="#1e3a8a" size={15} margin={2} />
+              <GridLoader color="#0065bd" size={17.5} margin={7.5} />
       </div>
     );
   }

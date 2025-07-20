@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Activity, Github, X } from 'lucide-react';
+import { GridLoader } from 'react-spinners';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://your-api-domain.com';
 
@@ -12,6 +13,7 @@ const capitalizeFirstLetter = (str) => {
 const HealthCheck = () => {
   const [healthStatus, setHealthStatus] = useState(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const userId = localStorage.getItem('userId');
 
@@ -23,6 +25,7 @@ const HealthCheck = () => {
         return;
       }
       try {
+        setLoading(true);
         const response = await fetch(`${API_BASE_URL}/health_check`, {
           headers: {
             Accept: 'application/json',
@@ -42,6 +45,8 @@ const HealthCheck = () => {
         console.error('Error fetching health status:', error);
         setError('Failed to fetch health status. Please try again.');
         setTimeout(() => setError(''), 5000);
+      } finally {
+        setLoading(false);
       }
     };
     fetchHealthStatus();
@@ -84,7 +89,11 @@ const HealthCheck = () => {
         )}
 
         <div className="bg-white border border-gray-300 p-6">
-          {healthStatus ? (
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <GridLoader color="#0065bd" size={17.5} margin={7.5} />
+            </div>
+          ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -146,10 +155,6 @@ const HealthCheck = () => {
                   </div>
                 )}
               </div>
-            </div>
-          ) : (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin h-8 w-8 border-b-2 border-blue-900"></div>
             </div>
           )}
         </div>

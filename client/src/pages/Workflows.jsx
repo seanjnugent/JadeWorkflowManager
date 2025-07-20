@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, ChevronRight, ChevronLeft, Search, FileText, Database, Waypoints, Filter, X } from 'lucide-react';
+import { GridLoader } from 'react-spinners';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
@@ -9,8 +10,13 @@ const Workflows = () => {
   const [workflows, setWorkflows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [filter, setFilter] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [totalItems, setTotalItems] = useState(0);
+
+  const limit = 10;
 
   useEffect(() => {
+    setLoading(true);
     const userId = localStorage.getItem('userId');
     const accessToken = localStorage.getItem('access_token');
 
@@ -19,7 +25,7 @@ const Workflows = () => {
       return;
     }
 
-    fetch(`${API_BASE_URL}/workflows/?page=${currentPage}&limit=10&user_id=${userId}`, {
+    fetch(`${API_BASE_URL}/workflows/?page=${currentPage}&limit=${limit}&user_id=${userId}`, {
       headers: {
         'accept': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
@@ -31,12 +37,24 @@ const Workflows = () => {
       })
       .then(data => {
         setWorkflows(data.workflows || []);
+        setTotalItems(data.pagination?.total || 0);
       })
-      .catch(error => console.error('Error fetching workflows:', error));
+      .catch(error => {
+        console.error('Error fetching workflows:', error);
+        setWorkflows([]);
+        setTotalItems(0);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [navigate, currentPage]);
 
+  const totalPages = Math.ceil(totalItems / limit);
+
   const handlePageChange = (page) => {
-    setCurrentPage(page);
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -72,9 +90,6 @@ const Workflows = () => {
       (workflow.status && workflow.status.toLowerCase().includes(filter.toLowerCase()))
     );
   }, [workflows, filter]);
-
-  const totalPages = Math.ceil(filteredWorkflows.length / 10);
-  const paginatedWorkflows = filteredWorkflows.slice((currentPage - 1) * 10, currentPage * 10);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -122,78 +137,83 @@ const Workflows = () => {
             </button>
           </div>
 
-          <div className="w-full">
-            <table className="w-full text-sm table-fixed">
-              <thead className="bg-gray-50">
-                <tr className="border-b-2 border-gray-200">
-                  <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[10%]">ID</th>
-                  <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[25%]">Pipeline Name</th>
-                  <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[25%]">Description</th>
-                  <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[15%]">Owner</th>
-                  <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[10%]">Destination</th>
-                  <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[10%]">Status</th>
-                  <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[10%]">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedWorkflows.length > 0 ? (
-                  paginatedWorkflows.map((workflow) => {
-                    const { icon } = getDestinationIconAndColor(workflow.destination);
-                    return (
-                      <tr
-                        key={workflow.id}
-                        className="border-b border-gray-200 hover:bg-gray-50 bg-white"
-                        onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <td className="py-3 px-2 w-[10%]">
-                          <div className="text-xs text-gray-900 truncate">{workflow.id}</div>
-                        </td>
-                        <td className="py-3 px-2 w-[25%]">
-                          <div className="flex items-center">
-                            <div className="min-w-0 flex-1">
-                              <div className="text-xs font-medium text-gray-900 truncate">{workflow.name}</div>
-                              <div className="text-xs text-gray-600 mt-1 truncate">{`WF${String(workflow.id).padStart(4, '0')}`}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-2 w-[25%]">
-                          <div className="text-xs text-gray-600 truncate">{workflow.description || 'N/A'}</div>
-                        </td>
-                        <td className="py-3 px-2 w-[15%]">
-                          <div className="text-xs text-gray-900 truncate">{workflow.owner || 'N/A'}</div>
-                        </td>
-                        <td className="py-3 px-2 w-[10%]">
-                          <div className="flex items-center gap-1 text-xs text-gray-600 truncate">{icon}{workflow.destination || 'N/A'}</div>
-                        </td>
-
-                        <td className="py-3 px-2 w-[10%]">
-                          <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border whitespace-nowrap ${getStatusBadge(workflow.status)}`}>
-                            {workflow.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-2 w-[10%]">
-                          <button
-                            className="inline-flex items-center justify-center text-sm font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 px-2 py-1 w-full"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/workflows/workflow/${workflow.id}`);
-                            }}
-                          >
-                            Explore
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan="8" className="text-center py-4 text-sm text-gray-600">No workflows available.</td>
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <GridLoader color="#0065bd" size={17.5} margin={7.5} />
+            </div>
+          ) : (
+            <div className="w-full">
+              <table className="w-full text-sm table-fixed">
+                <thead className="bg-gray-50">
+                  <tr className="border-b-2 border-gray-200">
+                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[10%]">ID</th>
+                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[25%]">Pipeline Name</th>
+                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[25%]">Description</th>
+                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[15%]">Owner</th>
+                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[10%]">Destination</th>
+                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[10%]">Status</th>
+                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[10%]">Actions</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredWorkflows.length > 0 ? (
+                    filteredWorkflows.map((workflow) => {
+                      const { icon } = getDestinationIconAndColor(workflow.destination);
+                      return (
+                        <tr
+                          key={workflow.id}
+                          className="border-b border-gray-200 hover:bg-gray-50 bg-white"
+                          onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td className="py-3 px-2 w-[10%]">
+                            <div className="text-xs text-gray-900 truncate">{workflow.id}</div>
+                          </td>
+                          <td className="py-3 px-2 w-[25%]">
+                            <div className="flex items-center">
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-medium text-gray-900 truncate">{workflow.name}</div>
+                                <div className="text-xs text-gray-600 mt-1 truncate">{`WF${String(workflow.id).padStart(4, '0')}`}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2 w-[25%]">
+                            <div className="text-xs text-gray-600 truncate">{workflow.description || 'N/A'}</div>
+                          </td>
+                          <td className="py-3 px-2 w-[15%]">
+                            <div className="text-xs text-gray-900 truncate">{workflow.owner || 'N/A'}</div>
+                          </td>
+                          <td className="py-3 px-2 w-[10%]">
+                            <div className="flex items-center gap-1 text-xs text-gray-600 truncate">{icon}{workflow.destination || 'N/A'}</div>
+                          </td>
+                          <td className="py-3 px-2 w-[10%]">
+                            <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border whitespace-nowrap ${getStatusBadge(workflow.status)}`}>
+                              {workflow.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-2 w-[10%]">
+                            <button
+                              className="inline-flex items-center justify-center text-sm font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 px-2 py-1 w-full"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/workflows/workflow/${workflow.id}`);
+                              }}
+                            >
+                              Explore
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="8" className="text-center py-4 text-sm text-gray-600">No workflows available.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row justify-between items-center mt-4 space-y-4 sm:space-y-0">
             <button

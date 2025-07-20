@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Search, Edit2, X, Lock, Unlock, Mail, Calendar, Activity, Shield, User, Check, AlertCircle, UserPlus } from 'lucide-react';
+import { GridLoader } from 'react-spinners';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://your-api-domain.com';
 
@@ -250,7 +251,7 @@ const ManageUsers = () => {
 
           {loading ? (
             <div className="flex justify-center items-center h-64">
-              <div className="animate-spin h-8 w-8 border-b-2 border-blue-900"></div>
+              <GridLoader color="#0065bd" size={17.5} margin={7.5} />
             </div>
           ) : filteredUsers.length === 0 ? (
             <div className="text-center py-12">

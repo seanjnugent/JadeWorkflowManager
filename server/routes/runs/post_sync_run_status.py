@@ -23,6 +23,18 @@ RELEVANT_EVENT_TYPES = {
     "ExecutionStepSuccessEvent"
 }
 
+# Status mapping for Dagster to application status
+status_mapping = {
+    "SUCCESS": "Completed",
+    "FAILURE": "Failed",
+    "CANCELED": "Cancelled",
+    "QUEUED": "Queued",
+    "STARTED": "Running",
+    "RUNNING": "Running",
+    "STARTING": "Running",
+    "CANCELING": "Cancelling",
+}
+
 def insert_run_logs_and_steps(db: Session, dagster_run_id: str, logs: List[Dict[str, Any]]) -> int:
     """Insert or update logs into run_log and steps into run_step_status"""
     log_count = 0  # Initialize log_count at the start of the function
@@ -283,7 +295,9 @@ async def sync_run_status_from_dagster(dagster_run_id: str, db: Session = Depend
         if run_data.get("__typename") != "Run":
             raise HTTPException(status_code=500, detail="Unexpected response type")
 
-        status = run_data.get("status")
+        dagster_status = run_data.get("status")
+        # Map Dagster status to application status
+        status = status_mapping.get(dagster_status, dagster_status)  # Fallback to original status if not in mapping
         start_time = run_data.get("startTime")
         end_time = run_data.get("endTime")
         run_config = run_data.get("runConfig")
@@ -295,7 +309,7 @@ async def sync_run_status_from_dagster(dagster_run_id: str, db: Session = Depend
                 pass
 
         output_file_path = None
-        if status == "SUCCESS" and run_config:
+        if dagster_status == "SUCCESS" and run_config:
             try:
                 config_data = json.loads(run_config) if isinstance(run_config, str) else run_config
                 ops = config_data.get("ops", {})

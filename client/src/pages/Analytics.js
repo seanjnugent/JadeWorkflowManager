@@ -172,11 +172,11 @@ const RunAnalysisChart = ({ data }) => {
     if (!data.analysis) return;
     const workflows = [...new Set(data.analysis.map(item => item.workflow_name))];
     const successData = workflows.map(workflow => {
-      const success = data.analysis.find(item => item.workflow_name === workflow && item.status === 'SUCCESS');
+      const success = data.analysis.find(item => item.workflow_name === workflow && item.status === 'Completed');
       return success ? success.run_count : 0;
     });
     const failureData = workflows.map(workflow => {
-      const failure = data.analysis.find(item => item.workflow_name === workflow && item.status === 'FAILURE');
+      const failure = data.analysis.find(item => item.workflow_name === workflow && item.status === 'Failed');
       return failure ? failure.run_count : 0;
     });
 
@@ -382,7 +382,7 @@ const Analytics = () => {
         </div>
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
-            <GridLoader color="#1e3a8a" size={15} margin={2} />
+              <GridLoader color="#0065bd" size={17.5} margin={7.5} />
           </div>
         ) : (
           <div className="space-y-6">

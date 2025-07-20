@@ -14,14 +14,12 @@ from app.file_parser import parser_map
 from ..get_health_check import get_db  
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
-
 router = APIRouter(prefix="/runs", tags=["runs"])
 
 # AWS S3 Configuration
 S3_BUCKET = os.getenv("S3_BUCKET", "workflow-files")
-AWS_REGION = os.getenv("S3_REGION", "us-east-1")  # Changed from AWS_REGION
-S3_ENDPOINT = os.getenv("S3_ENDPOINT")  # Add endpoint support
+AWS_REGION = os.getenv("S3_REGION", "us-east-1")
+S3_ENDPOINT = os.getenv("S3_ENDPOINT")
 DAGSTER_HOST = os.getenv("DAGSTER_HOST", "localhost")
 DAGSTER_PORT = os.getenv("DAGSTER_PORT", "3500")
 
@@ -31,8 +29,6 @@ s3_client_config = {
     'aws_access_key_id': os.getenv("S3_ACCESS_KEY_ID"),
     'aws_secret_access_key': os.getenv("S3_SECRET_ACCESS_KEY"),
 }
-
-# Add endpoint URL if provided (for S3-compatible services like MinIO)
 if S3_ENDPOINT:
     s3_client_config['endpoint_url'] = S3_ENDPOINT
 
@@ -46,7 +42,7 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
                 SELECT id, name, input_file_path, input_structure, destination,
                        config_template, default_parameters, parameters, resources_config,
                        dagster_location_name, dagster_repository_name, requires_file,
-                       output_file_pattern, supported_file_types, destination_config
+                       output_file_pattern, supported_file_types, destination_config, source_config
                 FROM workflow.workflow
                 WHERE id = :workflow_id AND status = 'Active'
             """),
@@ -72,10 +68,12 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
             "requires_file": workflow_row.requires_file,
             "output_file_pattern": workflow_row.output_file_pattern,
             "supported_file_types": workflow_row.supported_file_types,
-            "destination_config": workflow_row.destination_config
+            "destination_config": workflow_row.destination_config,
+            "source_config": workflow_row.source_config
         }
 
-        json_fields = ["input_structure", "config_template", "default_parameters", "parameters", "resources_config", "supported_file_types", "destination_config"]
+        json_fields = ["input_structure", "config_template", "default_parameters", "parameters", 
+                       "resources_config", "supported_file_types", "destination_config", "source_config"]
         for field in json_fields:
             if workflow[field] and isinstance(workflow[field], str):
                 try:
@@ -167,13 +165,11 @@ def validate_file_structure(df: pd.DataFrame, expected_structure: Dict[str, Any]
 def validate_parameters(input_params: Dict[str, Any], parameters: List[Dict[str, Any]]) -> None:
     """Validate input parameters against workflow requirements"""
     try:
-        # Flatten the sectioned parameters structure
         flattened_params = []
         for section in parameters:
             if "parameters" in section:
                 flattened_params.extend(section["parameters"])
             else:
-                # Handle case where it's already flat (backward compatibility)
                 flattened_params.append(section)
         
         logger.info(f"Input parameters: {input_params}")
@@ -197,7 +193,6 @@ def validate_parameters(input_params: Dict[str, Any], parameters: List[Dict[str,
                 expected_type = param["type"]
                 actual_value = input_params[param_name]
                 
-                # Handle select type validation
                 if expected_type == "select":
                     if "options" in param:
                         valid_values = [opt["value"] for opt in param["options"]]
@@ -208,7 +203,6 @@ def validate_parameters(input_params: Dict[str, Any], parameters: List[Dict[str,
                 elif expected_type == "integer" and not isinstance(actual_value, int):
                     errors.append(f"Parameter {param_name} must be an integer")
                     
-                # Check mandatory parameters
                 if param.get("mandatory") and not actual_value:
                     errors.append(f"Parameter {param_name} is mandatory")
 
@@ -218,31 +212,29 @@ def validate_parameters(input_params: Dict[str, Any], parameters: List[Dict[str,
     except Exception as e:
         logger.error(f"Parameter validation failed: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Parameter validation failed: {str(e)}")
-
-def substitute_template_variables(template: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
-    """Replace template variables like {variable} with actual values in a dictionary, preserving types."""
-    def replace_in_dict(obj, vars_dict):
-        if isinstance(obj, dict):
-            return {k: replace_in_dict(v, vars_dict) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [replace_in_dict(item, vars_dict) for item in obj]
-        elif isinstance(obj, str):
-            result = obj
-            for key, value in vars_dict.items():
-                placeholder = f"{{{key}}}"
-                if placeholder in result:
-                    result = result.replace(placeholder, str(value))
-                    if result == str(value) and isinstance(value, (int, float, bool)):
-                        return value
-                placeholder = f"{{{{{key}}}}}"
-                if placeholder in result:
-                    result = result.replace(placeholder, str(value))
-                    if result == str(value) and isinstance(value, (int, float, bool)):
-                        return value
-            return result
-        return obj
-
-    return replace_in_dict(template, variables)
+    
+def substitute_template_variables(obj, vars_dict):
+    """Recursively replace template variables in any part of the object"""
+    if isinstance(obj, dict):
+        return {k: substitute_template_variables(v, vars_dict) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [substitute_template_variables(item, vars_dict) for item in obj]
+    elif isinstance(obj, str):
+        # Handle complete string replacement for patterns like "{variable_name}"
+        if obj.startswith('{') and obj.endswith('}'):
+            var_name = obj[1:-1]  # Remove the curly braces
+            if var_name in vars_dict:
+                return vars_dict[var_name]
+        
+        # Handle string interpolation for patterns within larger strings
+        result = obj
+        for key, value in vars_dict.items():
+            placeholder = f"{{{key}}}"
+            if placeholder in result:
+                result = result.replace(placeholder, str(value))
+        
+        return result
+    return obj
 
 def build_dagster_config(workflow: Dict[str, Any], input_path: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
     """Build Dagster configuration from workflow template"""
@@ -254,61 +246,58 @@ def build_dagster_config(workflow: Dict[str, Any], input_path: str, parameters: 
                                 .replace("{run_uuid}", run_uuid) \
                                 .replace("{output_extension}", output_extension)
 
+    # Base template variables
     template_vars = {
         "workflow_id": int(workflow_id),
         "input_file_path": input_path or "",
         "output_file_path": output_path,
         "run_uuid": run_uuid,
-        "parameters_json": json.dumps(parameters)
+        **parameters  # Include all parameters directly
     }
 
+    # Add source config values - ensure they're properly extracted
+    source_config = workflow.get("source_config", {})
+    if isinstance(source_config, str):
+        try:
+            source_config = json.loads(source_config)
+        except json.JSONDecodeError:
+            logger.warning(f"Failed to parse source_config JSON: {source_config}")
+            source_config = {}
+    
+    # Merge source config directly into template variables
+    if isinstance(source_config, dict):
+        template_vars.update(source_config)
+        logger.info(f"Added source_config to template vars: {source_config}")
+    
+    # Add destination config if needed
     if workflow["destination"] == "API" and workflow.get("destination_config"):
-        template_vars["ckan_api_url"] = workflow["destination_config"].get("api_url", "")
-        template_vars["ckan_api_token"] = workflow["destination_config"].get("api_token", "")
-
-    for key, value in parameters.items():
-        template_vars[key] = value
+        dest_config = workflow["destination_config"]
+        if isinstance(dest_config, dict):
+            template_vars.update({
+                f"ckan_{k}": v for k, v in dest_config.items()
+            })
 
     config_template = workflow.get("config_template", {})
     logger.info(f"Config template before substitution: {json.dumps(config_template, indent=2)}")
-    logger.info(f"Template variables: {json.dumps(template_vars, indent=2)}")
+    logger.info(f"Template variables: {json.dumps(template_vars, indent=2, default=str)}")
 
+    # Perform substitution
     dagster_config = substitute_template_variables(config_template, template_vars)
-    logger.info(f"Config template after substitution: {json.dumps(dagster_config, indent=2)}")
-
-    if "ops" in dagster_config:
-        for op_name, op_config in dagster_config["ops"].items():
-            if "config" in op_config:
-                if "parameters" in op_config["config"]:
-                    op_config["config"]["parameters"] = parameters
-                else:
-                    op_config["config"]["parameters"] = parameters
-
+    
+    # Handle resources
     resources_config = workflow.get("resources_config", {})
-    if resources_config:
-        if "resources" not in dagster_config:
-            dagster_config["resources"] = {}
-        dagster_config["resources"].update(resources_config)
-    else:
-        if "resources" not in dagster_config:
-            dagster_config["resources"] = {}
-        dagster_config["resources"].update({
-            "db_engine": {
-                "config": {
-                    "DATABASE_URL": {"env": "DATABASE_URL"}
-                }
-            },
-            "s3": {  
-                "config": {
-                    "aws_access_key_id": {"env": "AWS_ACCESS_KEY_ID"},
-                    "aws_secret_access_key": {"env": "AWS_SECRET_ACCESS_KEY"},
-                    "region_name": AWS_REGION,
-                    "bucket_name": S3_BUCKET
-                }
+    dagster_config.setdefault("resources", {}).update(resources_config or {
+        "s3": {
+            "config": {
+                "aws_access_key_id": {"env": "S3_ACCESS_KEY_ID"},
+                "aws_secret_access_key": {"env": "S3_SECRET_ACCESS_KEY"},
+                "region_name": os.getenv("S3_REGION", "eu-west-2"),
+                "endpoint_url": {"env": "S3_ENDPOINT"}
             }
-        })
+        }
+    })
 
-    logger.info(f"Final Dagster config: {json.dumps(dagster_config, indent=2)}")
+    logger.info(f"Final Dagster config: {json.dumps(dagster_config, indent=2, default=str)}")
     return dagster_config
 
 def create_run_record(db: Session, workflow_id: int, triggered_by: int, input_path: str,
@@ -353,7 +342,7 @@ def create_run_record(db: Session, workflow_id: int, triggered_by: int, input_pa
         raise HTTPException(status_code=500, detail=f"Failed to create run record: {str(e)}")
 
 async def execute_dagster_workflow_direct(workflow: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, str]:
-    """Execute Dagster workflow via direct GraphQL API call - Updated for newer Dagster versions"""
+    """Execute Dagster workflow via direct GraphQL API call"""
     try:
         workflow_id = workflow["id"]
         job_name = f"workflow_job_{workflow_id}"
@@ -533,17 +522,16 @@ async def trigger_workflow_run(
         output_file_url = None
 
         for op_name, op_config in dagster_config.get("ops", {}).items():
-            if "save_output" in op_name and "config" in op_config:
+            if "save_epc_report" in op_name and "config" in op_config:
                 output_path = op_config["config"].get("output_path")
                 if output_path:
-                    # Generate S3 presigned URL for output file
                     output_file_url = s3_client.generate_presigned_url(
                         'get_object',
                         Params={
                             'Bucket': S3_BUCKET,
                             'Key': output_path.replace(f"{S3_BUCKET}/", "")
                         },
-                        ExpiresIn=3600  # 1 hour validity
+                        ExpiresIn=3600
                     )
                 break
 
