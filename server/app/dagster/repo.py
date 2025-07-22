@@ -337,7 +337,7 @@ def insert_run_logs_and_steps(db, dagster_run_id: str, logs: list, db_run_id: in
     return log_count
 
 @sensor(
-    minimum_interval_seconds=150, # 2.5 minutes
+    minimum_interval_seconds=60, # 2.5 minutes
     required_resource_keys={"db_engine"}
 )
 def workflow_run_status_sensor(context: SensorEvaluationContext):
