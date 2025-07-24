@@ -4,8 +4,8 @@
   "description": "Conduit is a simple data pipeline tool for loading and transforming csv files",
   "main": "index.js",
   "scripts": {
-    "start": "concurrently     \"cd server && python -m uvicorn main:app --host 0.0.0.0 --port 8000\"     \"cd client && npm start\"     \" python -m dagster dev -m server.app.dagster.repo -p 3500 \"",
-    "dev": "concurrently \"cd server && python -m uvicorn main:app --host 0.0.0.0 --port 8000\" \"cd client && npx serve -s build --single -l 3000\" \"python -m dagster dev -m server.app.dagster.repo -p 3500 --host 0.0.0.0\""
+    "start": "concurrently \"cd server && python -m uvicorn main:app --host 0.0.0.0 --port 8000\" \"cd client && npm start\" \"python -m dagster dev -m server.app.dagster.repo -p 3500\"",
+    "dev": "concurrently \"cd server && python -m uvicorn main:app --host 0.0.0.0 --port 8000\" \"cd client && npx serve -s build --single -l 3000\" \"python -m dagster dev -m server.app.dagster.repo -p 3500 --host 0.0.0.0\"",
     "build": "react-scripts build"
   },
   "keywords": [],
