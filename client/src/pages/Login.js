@@ -2,10 +2,9 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import axios from "axios";
-import { Mail, Eye, EyeOff } from "lucide-react";
+import { Mail, Eye, EyeOff, Lock, X } from "lucide-react";
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
-console.log("Login API_BASE_URL:", process.env.REACT_APP_API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -76,7 +75,7 @@ const Login = () => {
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('refresh_token', refresh_token);
       localStorage.setItem('userId', user_id);
-      localStorage.setItem('userRole',role);
+      localStorage.setItem('userRole', role);
       navigate('/home');
     } catch (err) {
       console.error('Login error:', err);
@@ -152,7 +151,7 @@ const Login = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1, delay: 0.5 }}
             >
-              <h1 className="text-5xl font-light tracking-tight">Jade</h1>
+              <h1 className="text-5xl font-bold tracking-tight">Jade</h1>
               <div className="h-px w-32 bg-white/30 my-6"></div>
               <p className="text-lg font-light text-white/90">
                 Data Workflow Manager
@@ -175,28 +174,66 @@ const Login = () => {
 
       {/* Right Side - Login Form */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-16">
-        <div className="w-full max-w-md space-y-8">
-          {/* Header with Scottish Government Logo */}
-          <div className="text-center">
-            <img
-              src="https://upload.wikimedia.org/wikipedia/commons/0/01/Scottish_Government_Logo.svg"
-              alt="Scottish Government"
-              className="h-12 mx-auto mb-6"
-            />
-            <h1 className="text-xl font-semibold text-gray-900">Sign In</h1>
-          </div>
+        <div className="w-full max-w-md">
+          <div className="sg-workflow-card p-8">
+            <style>{`
+              .sg-workflow-card {
+                padding: 24px;
+                background: white;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+                transition: all 0.3s ease;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+                position: relative;
+                overflow: hidden;
+              }
+              .sg-workflow-card::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 3px;
+                background: linear-gradient(90deg, #0065bd, #004a9f);
+                transform: scaleX(0);
+                transition: transform 0.3s ease;
+              }
+              .sg-workflow-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(0, 101, 189, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08);
+                border-color: #0065bd;
+              }
+              .sg-workflow-card:hover::before {
+                transform: scaleX(1);
+              }
+            `}</style>
 
-          {/* Login Form Card */}
-          <div className="bg-white border border-gray-300 p-8">
+            {/* Header with Scottish Government Logo */}
+            <div className="text-center mb-8">
+              <img
+                src="https://upload.wikimedia.org/wikipedia/commons/0/01/Scottish_Government_Logo.svg"
+                alt="Scottish Government"
+                className="h-12 mx-auto mb-6"
+              />
+              <h1 className="text-2xl font-semibold text-gray-900">Sign In</h1>
+              <p className="text-gray-600 text-sm mt-2">Access your Cobalt account</p>
+            </div>
+
+            {/* Login Form */}
             <form onSubmit={handleLogin} className="space-y-6">
               {/* Error Message */}
               {error.message && (
-                <div className={`p-4 text-sm ${
+                <div className={`p-4 text-sm rounded-lg ${
                   error.type === "locked"
                     ? "bg-amber-50 border border-amber-200 text-amber-800"
                     : "bg-red-50 border border-red-200 text-red-800"
                 }`}>
-                  <p className="font-medium">{error.message}</p>
+                  <div className="flex justify-between items-center">
+                    <p className="font-medium">{error.message}</p>
+                    <button onClick={() => setError({ message: "", type: "" })} className="hover:text-red-900">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                   {lockedUntil && (
                     <p className="mt-1 text-xs opacity-80">
                       Locked until: {new Date(lockedUntil).toLocaleString('en-GB', {
@@ -219,10 +256,11 @@ const Login = () => {
 
               {/* Email Field */}
               <div className="space-y-2">
-                <label htmlFor="email" className="block text-sm font-medium text-gray-900">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                   Email Address
                 </label>
                 <div className="relative">
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
                   <input
                     type="email"
                     id="email"
@@ -230,18 +268,18 @@ const Login = () => {
                     placeholder="your.name@gov.scot"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full h-9 px-2 pl-8 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
+                    className="w-full p-2 pl-10 border border-gray-300 text-sm text-gray-900 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
                   />
-                  <Mail className="absolute left-2 top-2.5 h-4 w-4 text-gray-600" />
                 </div>
               </div>
 
               {/* Password Field */}
               <div className="space-y-2">
-                <label htmlFor="password" className="block text-sm font-medium text-gray-900">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                   Password
                 </label>
                 <div className="relative">
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
                   <input
                     type={showPassword ? "text" : "password"}
                     id="password"
@@ -249,12 +287,12 @@ const Login = () => {
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full h-9 px-2 pr-8 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
+                    className="w-full p-2 pl-10 pr-10 border border-gray-300 text-sm text-gray-900 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-2.5 text-gray-600 hover:text-gray-900"
+                    className="absolute right-3 top-2.5 text-gray-600 hover:text-gray-900"
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -270,13 +308,13 @@ const Login = () => {
                 <label className="flex items-center gap-2 text-gray-600">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 border-gray-300 text-blue-900 focus:ring-blue-900"
+                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-600"
                   />
                   Remember me
                 </label>
                 <a
                   href="#"
-                  className="text-blue-900 hover:underline"
+                  className="text-blue-600 hover:underline"
                 >
                   Forgot password?
                 </a>
@@ -286,7 +324,7 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full text-sm font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 py-2 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full text-sm font-medium text-white bg-blue-600 border border-blue-600 hover:bg-blue-700 py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center gap-2">
@@ -305,7 +343,7 @@ const Login = () => {
                 Need access to the platform?{' '}
                 <a
                   href="#"
-                  className="text-blue-900 hover:underline font-medium"
+                  className="text-blue-600 hover:underline font-medium"
                 >
                   Contact your administrator
                 </a>
