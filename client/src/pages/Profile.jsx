@@ -22,7 +22,7 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = "Cobalt | Your Profile";
+    document.title = "Jade | Your Profile";
     const accessToken = localStorage.getItem('access_token');
     if (!userId || !accessToken) {
       navigate('/login', { replace: true });

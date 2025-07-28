@@ -6,7 +6,7 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:800
 
 const Hero = ({ user }) => {
   return (
-    <div className="sg-page-header" style={{ backgroundColor: '#0065bd', color: 'white', padding: '72px 0' }}>
+    <div className="sg-page-header" style={{ backgroundColor: '#0065bd', color: 'white', padding: '48px 0' }}>
       <div className="sg-page-header-container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
         <h1 className="sg-page-header-title" style={{ fontSize: '44px', fontWeight: 'bold', marginBottom: '32px' }}>Hi {user ? `${user.first_name}` : ''},</h1>
 

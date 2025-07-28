@@ -18,7 +18,7 @@ const NewUser = () => {
   const userId = localStorage.getItem('userId');
 
   useEffect(() => {
-    document.title = "Cobalt | Create New User";
+    document.title = "Jade | Create New User";
     if (!userId) {
       navigate('/login', { replace: true });
     }

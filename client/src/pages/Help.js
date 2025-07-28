@@ -188,7 +188,7 @@ const Help = () => {
           <section id="faq" className="sg-workflow-card-simple">
             <h2 className="sg-workflow-title">Frequently Asked Questions</h2>
             <p className="sg-workflow-description mb-6">
-              Answers to common questions about using Cobalt for Dagster workflows
+              Answers to common questions about using Jade for managing your workflows
             </p>
             <div className="space-y-4">
               {[

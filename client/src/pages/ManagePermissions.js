@@ -22,7 +22,7 @@ const ManagePermissions = () => {
   const userId = localStorage.getItem('userId');
 
   useEffect(() => {
-    document.title = "Cobalt | Manage Permissions";
+    document.title = "Jade | Manage Permissions";
     if (!userId) {
       navigate('/login', { replace: true });
     }

@@ -18,7 +18,7 @@ const HealthCheck = () => {
   const userId = localStorage.getItem('userId');
 
   useEffect(() => {
-    document.title = "Cobalt | System Health";
+    document.title = "Jade | System Health";
     if (!userId) {
       navigate('/login', { replace: true });
     }

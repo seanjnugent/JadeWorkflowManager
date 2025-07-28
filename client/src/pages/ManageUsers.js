@@ -21,7 +21,7 @@ const ManageUsers = () => {
   const userId = localStorage.getItem('userId'); // Replaced hardcoded userId
 
   useEffect(() => {
-    document.title = "Cobalt | Manage Users";
+    document.title = "Jade | Manage Users";
     if (!userId) {
       navigate('/login', { replace: true });
     }

@@ -30,7 +30,7 @@ const Connections = () => {
   const userId = localStorage.getItem('userId');
 
   useEffect(() => {
-    document.title = "Cobalt | Database Connections";
+    document.title = "Jade | Database Connections";
     if (!userId) {
       navigate('/login', { replace: true });
     }

@@ -216,7 +216,7 @@ const Login = () => {
                 className="h-12 mx-auto mb-6"
               />
               <h1 className="text-2xl font-semibold text-gray-900">Sign In</h1>
-              <p className="text-gray-600 text-sm mt-2">Access your Cobalt account</p>
+              <p className="text-gray-600 text-sm mt-2">Access your Jade account</p>
             </div>
 
             {/* Login Form */}

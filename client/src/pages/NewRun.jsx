@@ -50,7 +50,7 @@ const NewRun = () => {
   ];
 
   useEffect(() => {
-    document.title = "Cobalt | New Workflow Run";
+    document.title = "Jade | New Workflow Run";
     const storedUserId = localStorage.getItem('userId');
     if (storedUserId) {
       setUserId(storedUserId);

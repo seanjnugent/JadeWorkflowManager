@@ -7,7 +7,7 @@ const Settings = () => {
   const userId = localStorage.getItem('userId');
 
   useEffect(() => {
-    document.title = "Cobalt | Settings";
+    document.title = "Jade | Settings";
     if (!userId) {
       navigate('/login', { replace: true });
     }
