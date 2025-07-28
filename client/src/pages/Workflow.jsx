@@ -805,7 +805,7 @@ const Workflow = () => {
           <section id="summary" className="sg-workflow-card">
             <h2 className="sg-workflow-title">Summary</h2>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-              <div className="space-y-4">
+              <div className="space-y-4 flex-1">
                 <div className="flex items-center gap-3">
                   <span className="inline-flex items-center px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full">
                     {workflow?.destination || 'API'}
@@ -840,46 +840,62 @@ const Workflow = () => {
                   </div>
                 </div>
               </div>
-              <div className="flex flex-col sm:flex-row gap-3 mt-6 md:mt-0">
+              {/* Make Run Workflow button more prominent */}
+              <div className="flex flex-col items-center justify-center gap-4 mt-8 md:mt-0 md:ml-8">
                 <CustomTooltip content={!isDagReady ? 'DAG not ready' : 'Execute this workflow now'}>
                   <button
-                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                      !isDagReady || running 
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                        : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md'
+                    className={`inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all border-2 ${
+                      !isDagReady || running
+                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                        : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700 hover:shadow-xl scale-105'
                     }`}
+                    style={{
+                      minWidth: 220,
+                      minHeight: 56,
+                      fontSize: '1.125rem',
+                      letterSpacing: '0.02em',
+                    }}
                     onClick={handleStartRun}
                     disabled={!isDagReady || running}
                   >
                     {running ? (
-                      <div className="h-4 w-4 animate-spin border-2 border-white border-t-transparent rounded-full"></div>
+                      <div className="h-5 w-5 animate-spin border-2 border-white border-t-transparent rounded-full"></div>
                     ) : (
-                      <Play className="h-4 w-4" />
+                      <Play className="h-5 w-5" />
                     )}
-                    Start Workflow
+                    Run Workflow
                   </button>
                 </CustomTooltip>
+              </div>
+            </div>
+            {/* Split section for Code Details */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between mt-8 pt-6 border-t border-gray-100 gap-6">
+              <div className="flex flex-col gap-2 flex-1">
+                <span className="text-sm font-medium text-gray-900">Current Version:</span>
+                <span className="text-sm text-gray-600">{versionControl?.version || 'N/A'}</span>
+                <span className="text-sm font-medium text-gray-900 mt-2">Last Updated:</span>
+                <span className="text-sm text-gray-600">{workflow?.updated_at ? new Date(workflow.updated_at).toLocaleDateString() : 'N/A'}</span>
+              </div>
+              <div className="flex flex-col gap-2 flex-1">
+                <span className="text-sm font-medium text-gray-900 mb-1">Code Details</span>
                 <GitHubDagLink
                   dagPath={workflow?.dag_path}
                   repoOwner="health-analytics"
                   repoName="workflows"
                   setVersionControl={setVersionControl}
                 />
+                {versionControl?.lastModified && (
+                  <span className="text-xs text-gray-500 mt-1">
+                    Last commit: {versionControl.lastModified}
+                  </span>
+                )}
               </div>
-            </div>
-            <div className="flex justify-between items-center">
-              <div className="flex justify-between">
-                <span className="text-sm font-medium text-gray-900">Current Version:</span>
-                <span className="text-sm text-gray-600">{versionControl?.version || 'N/A'}</span>
+              <div className="flex flex-col gap-2 flex-1 items-end">
+                <button className="inline-flex items-center gap-2 px-4 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium">
+                  <CircleHelp className="h-4 w-4" />
+                  Contact Support
+                </button>
               </div>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium text-gray-900">Last Updated:</span>
-                <span className="text-sm text-gray-600">{new Date(workflow.updated_at).toLocaleDateString()}</span>
-              </div>
-              <button className="inline-flex items-center gap-2 px-4 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium">
-                <CircleHelp className="h-4 w-4" />
-                Contact Support
-              </button>
             </div>
           </section>
 
