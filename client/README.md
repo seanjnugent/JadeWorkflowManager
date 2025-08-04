@@ -1,8 +1,8 @@
-#Jade
+# Jade
 
 Jade is a lightweight, user-friendly data pipeline tool designed to simplify the process of loading, transforming, and automating data workflows in the cloud. It provides a dynamic interface for running code and managing data transformations, enabling users to upload files, transform data, and send it to various destinations such as databases, files, or APIs. Jade supports seamless automation of data journeys, offering an intuitive dashboard for managing workflows, monitoring execution history, and configuring pipeline settings.
 
-##Features
+## Features
 
 - Dynamic Workflow Management: Browse, create, and manage data processing pipelines with an intuitive web interface.
 - Execution History Tracking: Monitor workflow run details, including status, timestamps, and outcomes.
@@ -11,9 +11,9 @@ Jade is a lightweight, user-friendly data pipeline tool designed to simplify the
 - API Key Security: Uses Fernet key encryption for secure API key management.
 - Customizable Workflows: Define and configure workflows with Dagster, synced with GitHub for DAG management.
 
-##Screenshots
+## Screenshots
 
-###Home Page Dashboard
+### Home Page Dashboard
 The dashboard provides quick access to key features:
 - Browse Workflows: Explore and manage your data pipelines.
 - View History: Track execution history with detailed insights.
