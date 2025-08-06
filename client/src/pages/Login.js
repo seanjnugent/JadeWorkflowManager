@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import axios from "axios";
 import { Mail, Eye, EyeOff, Lock, X } from "lucide-react";
+import "../jade.css";
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
@@ -115,9 +116,9 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex font-sans">
+    <div className="login-container">
       {/* Left Side - Animated Gradient Background */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+      <div className="login-left-side">
         <motion.div
           className="absolute inset-0"
           style={{
@@ -173,69 +174,38 @@ const Login = () => {
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-16">
-        <div className="w-full max-w-md">
-          <div className="sg-workflow-card p-8">
-            <style>{`
-              .sg-workflow-card {
-                padding: 24px;
-                background: white;
-                border: 1px solid #e5e7eb;
-                border-radius: 12px;
-                transition: all 0.3s ease;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-                position: relative;
-                overflow: hidden;
-              }
-              .sg-workflow-card::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 3px;
-                background: linear-gradient(90deg, #0065bd, #004a9f);
-                transform: scaleX(0);
-                transition: transform 0.3s ease;
-              }
-              .sg-workflow-card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 8px 25px rgba(0, 101, 189, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08);
-                border-color: #0065bd;
-              }
-              .sg-workflow-card:hover::before {
-                transform: scaleX(1);
-              }
-            `}</style>
-
+      <div className="login-right-side">
+        <div className="login-form-container">
+          <div className="sg-workflow-card">
             {/* Header with Scottish Government Logo */}
-            <div className="text-center mb-8">
+            <div className="login-header">
               <img
                 src="https://upload.wikimedia.org/wikipedia/commons/0/01/Scottish_Government_Logo.svg"
                 alt="Scottish Government"
                 className="h-12 mx-auto mb-6"
               />
-              <h1 className="text-2xl font-semibold text-gray-900">Sign In</h1>
-              <p className="text-gray-600 text-sm mt-2">Access your Jade account</p>
+              <h1 className="login-title">Sign In</h1>
+              <p className="login-subtitle">Access your Jade account</p>
             </div>
 
             {/* Login Form */}
             <form onSubmit={handleLogin} className="space-y-6">
               {/* Error Message */}
               {error.message && (
-                <div className={`p-4 text-sm rounded-lg ${
-                  error.type === "locked"
-                    ? "bg-amber-50 border border-amber-200 text-amber-800"
-                    : "bg-red-50 border border-red-200 text-red-800"
+                <div className={`error-message ${
+                  error.type === "locked" ? "error-locked" : "error-credentials"
                 }`}>
                   <div className="flex justify-between items-center">
                     <p className="font-medium">{error.message}</p>
-                    <button onClick={() => setError({ message: "", type: "" })} className="hover:text-red-900">
+                    <button 
+                      onClick={() => setError({ message: "", type: "" })} 
+                      className="error-close"
+                    >
                       <X className="h-4 w-4" />
                     </button>
                   </div>
                   {lockedUntil && (
-                    <p className="mt-1 text-xs opacity-80">
+                    <p className="error-detail">
                       Locked until: {new Date(lockedUntil).toLocaleString('en-GB', {
                         day: '2-digit',
                         month: 'short',
@@ -247,7 +217,7 @@ const Login = () => {
                     </p>
                   )}
                   {remainingAttempts !== null && remainingAttempts > 0 && (
-                    <p className="mt-1 text-xs opacity-80">
+                    <p className="error-detail">
                       {remainingAttempts} attempt{remainingAttempts !== 1 ? 's' : ''} remaining
                     </p>
                   )}
@@ -255,12 +225,12 @@ const Login = () => {
               )}
 
               {/* Email Field */}
-              <div className="space-y-2">
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <div className="input-container">
+                <label htmlFor="email" className="input-label">
                   Email Address
                 </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                <div className="input-field">
+                  <Mail className="input-icon" />
                   <input
                     type="email"
                     id="email"
@@ -268,18 +238,18 @@ const Login = () => {
                     placeholder="your.name@gov.scot"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full p-2 pl-10 border border-gray-300 text-sm text-gray-900 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
+                    className="input-element"
                   />
                 </div>
               </div>
 
               {/* Password Field */}
-              <div className="space-y-2">
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <div className="input-container">
+                <label htmlFor="password" className="input-label">
                   Password
                 </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                <div className="input-field">
+                  <Lock className="input-icon" />
                   <input
                     type={showPassword ? "text" : "password"}
                     id="password"
@@ -287,12 +257,12 @@ const Login = () => {
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full p-2 pl-10 pr-10 border border-gray-300 text-sm text-gray-900 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
+                    className="input-element"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-gray-600 hover:text-gray-900"
+                    className="password-toggle"
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -304,8 +274,8 @@ const Login = () => {
               </div>
 
               {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between text-sm">
-                <label className="flex items-center gap-2 text-gray-600">
+              <div className="form-footer">
+                <label className="remember-me">
                   <input
                     type="checkbox"
                     className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-600"
@@ -314,7 +284,7 @@ const Login = () => {
                 </label>
                 <a
                   href="#"
-                  className="text-blue-600 hover:underline"
+                  className="forgot-password"
                 >
                   Forgot password?
                 </a>
@@ -324,11 +294,11 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full text-sm font-medium text-white bg-blue-600 border border-blue-600 hover:bg-blue-700 py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="submit-button"
               >
                 {isLoading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <div className="loading-spinner">
+                    <div className="spinner"></div>
                     Signing in...
                   </div>
                 ) : (
@@ -338,12 +308,12 @@ const Login = () => {
             </form>
 
             {/* Contact Admin */}
-            <div className="mt-6 pt-4 border-t border-gray-200 text-center">
-              <p className="text-sm text-gray-600">
+            <div className="contact-admin">
+              <p className="contact-text">
                 Need access to the platform?{' '}
                 <a
                   href="#"
-                  className="text-blue-600 hover:underline font-medium"
+                  className="contact-link"
                 >
                   Contact your administrator
                 </a>
@@ -352,8 +322,8 @@ const Login = () => {
           </div>
 
           {/* Footer */}
-          <div className="text-center mt-6">
-            <p className="text-xs text-gray-600">
+          <div className="login-footer">
+            <p className="footer-text">
               This is a prototype only and contains no real data.
             </p>
           </div>
