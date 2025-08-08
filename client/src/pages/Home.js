@@ -1,18 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Workflow, History, Mail, HelpCircle, Plus, Settings } from 'lucide-react';
-import '../jade.css'; // Import the CSS file
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 const Hero = ({ user }) => {
   return (
-    <div className="sg-page-header">
-      <div className="sg-page-header-container">
-        <h1 className="sg-page-header-title">Hi {user ? `${user.first_name}` : ''},</h1>
+    <div className="sg-page-header" style={{ backgroundColor: '#0065bd', color: 'white', padding: '48px 0' }}>
+      <div className="sg-page-header-container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
+        <h1 className="sg-page-header-title" style={{ fontSize: '44px', fontWeight: 'bold', marginBottom: '32px' }}>Hi {user ? `${user.first_name}` : ''},</h1>
 
         <div className="w-3/4">
-          <p className="sg-page-header-description">
+          <p className="sg-page-header-description" style={{ fontSize: '16px', lineHeight: '24px' }}>
             Welcome to your data pipeline management portal, providing access to tools for creating, monitoring, and managing your workflows and runs.
           </p>
         </div>
@@ -66,10 +65,100 @@ const Home = () => {
   }, [navigate]);
 
   return (
-    <div className="bg-gray-50">
+    <div>
+      <style>{`
+        .sg-tiles-container-2x2 {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 56px 24px;
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 24px;
+        }
+        
+        @media (max-width: 768px) {
+          .sg-tiles-container-2x2 {
+            grid-template-columns: 1fr;
+            padding: 32px 16px;
+          }
+        }
+        
+        .sg-tile {
+          background-color: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          padding: 32px;
+          text-decoration: none;
+          transition: all 0.3s ease;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .sg-tile:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 25px rgba(0, 101, 189, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08);
+          border-color: #0065bd;
+        }
+        
+        .sg-tile:hover::before {
+          transform: scaleX(1);
+        }
+        
+        .sg-tile h2 {
+          font-size: 24px;
+          font-weight: 700;
+          color: #1f2937;
+          margin-bottom: 16px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          transition: color 0.3s ease;
+        }
+        
+        .sg-tile:hover h2 {
+          color: #0065bd;
+        }
+        
+        .sg-tile p {
+          font-size: 16px;
+          color: #6b7280;
+          line-height: 1.6;
+          margin-top: auto;
+          transition: color 0.3s ease;
+        }
+        
+        .sg-tile:hover p {
+          color: #4b5563;
+        }
+        
+        .sg-tile-icon {
+          width: 48px;
+          height: 48px;
+          background: linear-gradient(135deg, #e6f2fa, #dbeafe);
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s ease;
+        }
+        
+        .sg-tile:hover .sg-tile-icon {
+          background: linear-gradient(135deg, #0065bd, #004a9f);
+          transform: scale(1.05);
+        }
+        
+        .sg-tile:hover .sg-tile-icon svg {
+          color: white !important;
+        }
+      `}</style>
+
       <Hero user={user} />
 
-      <section className="bg-gray-50">
+      <section >
         <div className="sg-tiles-container-2x2">
           {/* Browse Workflows Tile */}
           <a href="/workflows" className="sg-tile" onClick={(e) => { e.preventDefault(); navigate('/workflows'); }}>

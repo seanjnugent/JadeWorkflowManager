@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, RefreshCw, Plus, Search, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { GridLoader } from 'react-spinners';
+import '../jade.css';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+
 const Runs = () => {
   const navigate = useNavigate();
   const [allRuns, setAllRuns] = useState([]);
@@ -115,15 +117,15 @@ const Runs = () => {
     switch (normalizedStatus) {
       case 'completed':
       case 'success':
-        return { icon: <CheckCircle className="h-4 w-4 text-green-600" />, badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+        return { icon: <CheckCircle className="h-4 w-4 text-green-600" />, badge: 'sg-badge-success' };
       case 'failed':
-        return { icon: <XCircle className="h-4 w-4 text-red-600" />, badge: 'bg-red-50 text-red-700 border-red-200' };
+        return { icon: <XCircle className="h-4 w-4 text-red-600" />, badge: 'sg-badge-error' };
       case 'running':
-        return { icon: <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />, badge: 'bg-blue-50 text-blue-700 border-blue-200' };
+        return { icon: <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />, badge: 'sg-badge-info' };
       case 'cancelled':
-        return { icon: <XCircle className="h-4 w-4 text-purple-700" />, badge: 'bg-purple-50 text-purple-700 border-purple-200' };
+        return { icon: <XCircle className="h-4 w-4 text-purple-700" />, badge: 'sg-badge-warning' };
       default:
-        return { icon: null, badge: 'bg-gray-50 text-gray-700 border-gray-200' };
+        return { icon: null, badge: 'sg-badge-neutral' };
     }
   };
 
@@ -171,170 +173,33 @@ const Runs = () => {
   }, [allRuns, sortBy, searchValue, filters]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <style>{`
-        .sg-data-search-container {
-          position: relative;
-          display: flex;
-          align-items: center;
-          width: 100%;
-        }
-        .sg-data-search-input {
-          width: 100%;
-          height: 48px;
-          padding: 0 48px 0 16px;
-          border: 1px solid #d1d5db;
-          border-radius: 8px;
-          font-size: 16px;
-          line-height: 24px;
-          color: #333333;
-          transition: all 0.3s ease;
-        }
-        .sg-data-search-input:focus {
-          outline: none;
-          border-color: #0065bd;
-          box-shadow: 0 0 0 3px rgba(0, 101, 189, 0.1);
-        }
-        .sg-data-search-button {
-          position: absolute;
-          right: 0;
-          top: 0;
-          width: 48px;
-          height: 48px;
-          background-color: #0065bd;
-          border-radius: 0 8px 8px 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: background-color 0.3s ease;
-        }
-        .sg-data-search-button:hover {
-          background-color: #004a9f;
-        }
-        .sg-filter-item {
-          padding: 16px 0;
-          border-bottom: 1px solid #f3f4f6;
-        }
-        .sg-filter-item-last {
-          border-bottom: none;
-        }
-        .sg-filter-content {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          cursor: pointer;
-          transition: color 0.3s ease;
-        }
-        .sg-filter-content:hover {
-          color: #0065bd;
-        }
-        .sg-filter-label {
-          font-size: 16px;
-          line-height: 24px;
-          color: #374151;
-          font-weight: 500;
-        }
-        .sg-filter-chevron {
-          width: 20px;
-          height: 20px;
-          color: #6b7280;
-          transition: transform 0.3s ease;
-        }
-        .sg-filter-expanded .sg-filter-chevron {
-          transform: rotate(180deg);
-        }
-        .sg-run-card {
-          display: block;
-          padding: 24px;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          text-decoration: none;
-          transition: all 0.3s ease;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-          position: relative;
-          overflow: hidden;
-        }
-        .sg-run-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-          background: linear-gradient(90deg, #0065bd, #004a9f);
-          transform: scaleX(0);
-          transition: transform 0.3s ease;
-        }
-        .sg-run-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 25px rgba(0, 101, 189, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08);
-          border-color: #0065bd;
-        }
-        .sg-run-card:hover::before {
-          transform: scaleX(1);
-        }
-        .sg-run-title {
-          font-size: 20px;
-          line-height: 28px;
-          font-weight: 600;
-          color: #1f2937;
-          margin-bottom: 12px;
-          transition: color 0.3s ease;
-        }
-        .sg-run-card:hover .sg-run-title {
-          color: #0065bd;
-        }
-        .sg-run-description {
-          font-size: 16px;
-          line-height: 24px;
-          color: #6b7280;
-          transition: color 0.3s ease;
-        }
-        .sg-run-card:hover .sg-run-description {
-          color: #4b5563;
-        }
-        .sg-sidebar {
-          background: white;
-          border-radius: 12px;
-          padding: 24px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-          border: 1px solid #e5e7eb;
-          height: fit-content;
-          position: sticky;
-          top: 24px;
-        }
-      `}</style>
-
-      <div className="max-w-[1200px] mx-auto px-6 py-8">
+    <div className="min-h-screen">
+      <div className="sg-layout-container">
         {/* Breadcrumb */}
-        <nav className="mb-8">
-          <div className="flex items-center gap-2 text-base">
-            <a
-              href="/"
-              className="text-[#0065bd] hover:text-[#004a9f] hover:no-underline underline cursor-pointer transition-colors duration-200"
-              onClick={(e) => { e.preventDefault(); navigate('/'); }}
-            >
-              Home
-            </a>
-            <span className="text-[#6b7280]">></span>
-            <span className="text-[#374151] font-medium">Runs</span>
-          </div>
+        <nav className="sg-breadcrumb">
+          <span 
+            className="sg-breadcrumb-item"
+            onClick={() => navigate('/')}
+          >
+            Home
+          </span>
+          <span className="sg-breadcrumb-separator">/</span>
+          <span className="sg-breadcrumb-current">Runs</span>
         </nav>
 
-        <div className="flex gap-8">
-          {/* Sidebar - 25% width */}
-          <div className="w-1/4 shrink-0">
+        <div className="sg-layout-grid">
+          {/* Sidebar */}
+          <div className="sg-layout-sidebar">
             <div className="sg-sidebar">
               <div className="mb-6">
-                <h1 className="text-[24px] font-bold text-[#1f2937] leading-[42px] tracking-[0.15px]">
+                <h1 className="text-2xl font-bold text-gray-900">
                   {sortedRuns.length} runs found
                 </h1>
               </div>
 
               {/* Search */}
               <div className="mb-8">
-                <h2 className="text-[20px] font-semibold text-[#1f2937] leading-[28px] tracking-[0.15px] mb-3">
+                <h2 className="text-xl font-semibold text-gray-900 mb-3">
                   Search
                 </h2>
                 <div className="sg-data-search-container">
@@ -366,7 +231,7 @@ const Runs = () => {
 
               {/* Filter by */}
               <div>
-                <h2 className="text-[20px] font-semibold text-[#1f2937] leading-[28px] tracking-[0.15px] mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">
                   Filter by
                 </h2>
 
@@ -379,12 +244,12 @@ const Runs = () => {
                   {expandedFilters.status && (
                     <div className="mt-3 space-y-3">
                       {uniqueStatuses.map(status => (
-                        <label key={status} className="flex items-center gap-3 text-sm text-[#374151] cursor-pointer hover:text-[#0065bd] transition-colors">
+                        <label key={status} className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer hover:text-blue-600 transition-colors">
                           <input
                             type="checkbox"
                             checked={filters.status.includes(status)}
                             onChange={() => handleFilterChange('status', status)}
-                            className="h-4 w-4 text-[#0065bd] border-gray-300 rounded focus:ring-[#0065bd] focus:ring-2"
+                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600"
                           />
                           {status}
                         </label>
@@ -402,12 +267,12 @@ const Runs = () => {
                   {expandedFilters.workflow_id && (
                     <div className="mt-3 space-y-3">
                       {uniqueWorkflowIds.map(id => (
-                        <label key={id} className="flex items-center gap-3 text-sm text-[#374151] cursor-pointer hover:text-[#0065bd] transition-colors">
+                        <label key={id} className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer hover:text-blue-600 transition-colors">
                           <input
                             type="checkbox"
                             checked={filters.workflow_id.includes(id)}
                             onChange={() => handleFilterChange('workflow_id', id)}
-                            className="h-4 w-4 text-[#0065bd] border-gray-300 rounded focus:ring-[#0065bd] focus:ring-2"
+                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600"
                           />
                           {id}
                         </label>
@@ -426,12 +291,12 @@ const Runs = () => {
                     <div className="mt-3 space-y-3">
                       {uniqueTriggeredBy.length > 0 ? (
                         uniqueTriggeredBy.map(trigger => (
-                          <label key={trigger} className="flex items-center gap-3 text-sm text-[#374151] cursor-pointer hover:text-[#0065bd] transition-colors">
+                          <label key={trigger} className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer hover:text-blue-600 transition-colors">
                             <input
                               type="checkbox"
                               checked={filters.triggered_by.includes(trigger)}
                               onChange={() => handleFilterChange('triggered_by', trigger)}
-                              className="h-4 w-4 text-[#0065bd] border-gray-300 rounded focus:ring-[#0065bd] focus:ring-2"
+                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600"
                             />
                             User ID: {trigger}
                           </label>
@@ -446,7 +311,7 @@ const Runs = () => {
                 {/* Clear Filters Button */}
                 <button
                   onClick={clearFilters}
-                  className="w-full h-12 bg-[#0065bd] hover:bg-[#004a9f] text-white font-semibold text-base mt-6 rounded-lg transition-colors duration-300"
+                  className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-base mt-6 rounded-lg transition-colors duration-300"
                 >
                   Clear filters
                 </button>
@@ -454,36 +319,34 @@ const Runs = () => {
             </div>
           </div>
 
-          {/* Main Content - 75% width */}
-          <div className="w-3/4">
+          {/* Main Content */}
+          <div className="sg-layout-main">
             {/* Sort by Dropdown */}
-            <div className="flex justify-end mb-8">
-              <div className="flex items-center gap-3">
-                <label className="text-base text-[#374151] font-medium tracking-[0.15px]">
-                  Sort by:
-                </label>
-                <div className="relative">
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="h-11 w-44 px-4 pr-10 bg-white border border-gray-300 rounded-lg text-base appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0065bd] focus:border-[#0065bd] transition-colors"
-                  >
-                    <option>Most relevant</option>
-                    <option>Newest first</option>
-                    <option>Oldest first</option>
-                    <option>A-Z</option>
-                    <option>Z-A</option>
-                  </select>
-                  <div className="absolute right-0 top-0 w-11 h-11 bg-[#0065bd] rounded-r-lg flex items-center justify-center pointer-events-none">
-                    <ChevronDown className="h-4 w-4 text-white" />
-                  </div>
+            <div className="sg-sort-container">
+              <label className="sg-sort-label">
+                Sort by:
+              </label>
+              <div className="sg-sort-select">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="sg-sort-dropdown"
+                >
+                  <option>Most relevant</option>
+                  <option>Newest first</option>
+                  <option>Oldest first</option>
+                  <option>A-Z</option>
+                  <option>Z-A</option>
+                </select>
+                <div className="sg-sort-chevron">
+                  <ChevronDown className="sg-sort-chevron-icon" />
                 </div>
               </div>
             </div>
 
             {/* Run Cards */}
             {loading ? (
-              <div className="flex justify-center items-center h-64">
+              <div className="sg-loading">
                 <GridLoader color="#0065bd" size={17.5} margin={7.5} />
               </div>
             ) : (
@@ -492,84 +355,72 @@ const Runs = () => {
                   sortedRuns.map((run) => {
                     const { icon, badge } = getStatusIconAndColor(run.status);
                     return (
-                      <a
+                      <div
                         key={run.id}
-                        href={`/runs/run/${run.id}`}
-                        className="sg-run-card"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          navigate(`/runs/run/${run.id}`);
-                        }}
+                        className="sg-card"
+                        onClick={() => navigate(`/runs/run/${run.id}`)}
                       >
-                        <h3 className="sg-run-title">
+                        <h3 className="sg-card-title">
                           Run #{run.id}
                         </h3>
-                        <div className="flex items-center gap-6 text-[14px] text-[#6b7280] leading-[20px] tracking-[0.15px] mb-4">
+                        <div className="flex items-center gap-6 text-sm text-gray-500 mb-4">
                           <span className="flex items-center gap-1">
-                            <span className="font-medium text-[#374151]">Workflow ID:</span> {run.workflow_id}
+                            <span className="font-medium text-gray-700">Workflow ID:</span> {run.workflow_id}
                           </span>
                           <span className="flex items-center gap-1">
-                            <span className="font-medium text-[#374151]">Status:</span>
-                            <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full border ${badge}`}>
+                            <span className="font-medium text-gray-700">Status:</span>
+                            <span className={`sg-badge ${badge}`}>
                               {icon} <span className="ml-1">{run.status}</span>
                             </span>
                           </span>
                           <span className="flex items-center gap-1">
-                            <span className="font-medium text-[#374151]">Started:</span> {new Date(run.started_at).toLocaleDateString('en-GB')}
+                            <span className="font-medium text-gray-700">Started:</span> {new Date(run.started_at).toLocaleDateString('en-GB')}
                           </span>
                           <span className="flex items-center gap-1">
-                            <span className="font-medium text-[#374151]">Triggered By:</span> User ID {run.triggered_by}
+                            <span className="font-medium text-gray-700">Triggered By:</span> User ID {run.triggered_by}
                           </span>
                         </div>
-                        <p className="sg-run-description">
+                        <p className="sg-card-description">
                           {run.error_message || 'No error message'}
                         </p>
-                      </a>
+                      </div>
                     );
                   })
                 ) : (
-                  <div className="text-center py-12 bg-white rounded-12 border border-gray-200">
-                    <CheckCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No runs found</h3>
-                    <p className="text-sm text-gray-500">No runs match your current search criteria.</p>
+                  <div className="sg-empty-state">
+                    <CheckCircle className="sg-empty-state-icon" />
+                    <h3 className="sg-empty-state-title">No runs found</h3>
+                    <p className="sg-empty-state-description">No runs match your current search criteria.</p>
                   </div>
                 )}
               </div>
             )}
 
             {/* Pagination */}
-            <div className="flex justify-center pt-8">
-              {totalPages > 1 && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    className="w-10 h-10 bg-white border border-gray-300 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 hover:border-[#0065bd] transition-colors"
-                  >
-                    <ChevronLeft className="h-4 w-4 text-gray-600" />
-                  </button>
-                  {[...Array(totalPages)].map((_, index) => (
-                    <button
-                      key={index + 1}
-                      onClick={() => handlePageChange(index + 1)}
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center font-medium transition-colors ${
-                        currentPage === index + 1
-                          ? 'bg-[#0065bd] text-white border border-[#0065bd]'
-                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-[#0065bd]'
-                      }`}
-                    >
-                      <span className="text-sm">{index + 1}</span>
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    className="w-10 h-10 bg-white border border-gray-300 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 hover:border-[#0065bd] transition-colors"
-                  >
-                    <ChevronRight className="h-4 w-4 text-gray-600" />
-                  </button>
-                </div>
-              )}
+            <div className="sg-pagination">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="sg-pagination-button"
+              >
+                <ChevronLeft className="h-4 w-4 text-gray-600" />
+              </button>
+              {[...Array(totalPages)].map((_, index) => (
+                <button
+                  key={index + 1}
+                  onClick={() => handlePageChange(index + 1)}
+                  className={`sg-pagination-button ${currentPage === index + 1 ? 'sg-pagination-button-active' : ''}`}
+                >
+                  {index + 1}
+                </button>
+              ))}
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="sg-pagination-button"
+              >
+                <ChevronRight className="h-4 w-4 text-gray-600" />
+              </button>
             </div>
           </div>
         </div>
@@ -577,7 +428,7 @@ const Runs = () => {
         {/* Floating New Run Button */}
         <button
           onClick={() => navigate('/runs/new/')}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-[#0065bd] hover:bg-[#004a9f] text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+          className="sg-fab"
         >
           <Plus className="h-6 w-6" />
         </button>
