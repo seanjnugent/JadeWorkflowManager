@@ -116,9 +116,9 @@ const Login = () => {
   };
 
   return (
-    <div className="login-container">
+    <div className="sg-login-container">
       {/* Left Side - Animated Gradient Background */}
-      <div className="login-left-side">
+      <div className="sg-login-left">
         <motion.div
           className="absolute inset-0"
           style={{
@@ -174,38 +174,38 @@ const Login = () => {
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="login-right-side">
-        <div className="login-form-container">
+      <div className="sg-login-right">
+        <div className="sg-login-form-container">
           <div className="sg-workflow-card">
             {/* Header with Scottish Government Logo */}
-            <div className="login-header">
+            <div className="sg-login-header">
               <img
                 src="https://upload.wikimedia.org/wikipedia/commons/0/01/Scottish_Government_Logo.svg"
                 alt="Scottish Government"
                 className="h-12 mx-auto mb-6"
               />
-              <h1 className="login-title">Sign In</h1>
-              <p className="login-subtitle">Access your Jade account</p>
+              <h1 className="sg-login-title">Sign In</h1>
+              <p className="sg-login-subtitle">Access your Jade account</p>
             </div>
 
             {/* Login Form */}
             <form onSubmit={handleLogin} className="space-y-6">
               {/* Error Message */}
               {error.message && (
-                <div className={`error-message ${
-                  error.type === "locked" ? "error-locked" : "error-credentials"
+                <div className={`sg-error-message ${
+                  error.type === "locked" ? "sg-error-locked" : "sg-error-credentials"
                 }`}>
                   <div className="flex justify-between items-center">
                     <p className="font-medium">{error.message}</p>
                     <button 
                       onClick={() => setError({ message: "", type: "" })} 
-                      className="error-close"
+                      className="sg-error-close"
                     >
                       <X className="h-4 w-4" />
                     </button>
                   </div>
                   {lockedUntil && (
-                    <p className="error-detail">
+                    <p className="sg-error-detail">
                       Locked until: {new Date(lockedUntil).toLocaleString('en-GB', {
                         day: '2-digit',
                         month: 'short',
@@ -217,7 +217,7 @@ const Login = () => {
                     </p>
                   )}
                   {remainingAttempts !== null && remainingAttempts > 0 && (
-                    <p className="error-detail">
+                    <p className="sg-error-detail">
                       {remainingAttempts} attempt{remainingAttempts !== 1 ? 's' : ''} remaining
                     </p>
                   )}
@@ -225,12 +225,12 @@ const Login = () => {
               )}
 
               {/* Email Field */}
-              <div className="input-container">
-                <label htmlFor="email" className="input-label">
+              <div className="sg-input-container">
+                <label htmlFor="email" className="sg-input-label">
                   Email Address
                 </label>
-                <div className="input-field">
-                  <Mail className="input-icon" />
+                <div className="sg-input-field">
+                  <Mail className="sg-input-icon" />
                   <input
                     type="email"
                     id="email"
@@ -238,18 +238,18 @@ const Login = () => {
                     placeholder="your.name@gov.scot"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="input-element"
+                    className="sg-input-element"
                   />
                 </div>
               </div>
 
               {/* Password Field */}
-              <div className="input-container">
-                <label htmlFor="password" className="input-label">
+              <div className="sg-input-container">
+                <label htmlFor="password" className="sg-input-label">
                   Password
                 </label>
-                <div className="input-field">
-                  <Lock className="input-icon" />
+                <div className="sg-input-field">
+                  <Lock className="sg-input-icon" />
                   <input
                     type={showPassword ? "text" : "password"}
                     id="password"
@@ -257,12 +257,12 @@ const Login = () => {
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="input-element"
+                    className="sg-input-element"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="password-toggle"
+                    className="sg-password-toggle"
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -274,8 +274,8 @@ const Login = () => {
               </div>
 
               {/* Remember Me & Forgot Password */}
-              <div className="form-footer">
-                <label className="remember-me">
+              <div className="sg-form-footer">
+                <label className="sg-remember-me">
                   <input
                     type="checkbox"
                     className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-600"
@@ -284,7 +284,7 @@ const Login = () => {
                 </label>
                 <a
                   href="#"
-                  className="forgot-password"
+                  className="sg-forgot-password"
                 >
                   Forgot password?
                 </a>
@@ -294,11 +294,11 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="submit-button"
+                className="sg-submit-button"
               >
                 {isLoading ? (
-                  <div className="loading-spinner">
-                    <div className="spinner"></div>
+                  <div className="sg-loading-spinner">
+                    <div className="sg-spinner"></div>
                     Signing in...
                   </div>
                 ) : (
@@ -308,12 +308,12 @@ const Login = () => {
             </form>
 
             {/* Contact Admin */}
-            <div className="contact-admin">
-              <p className="contact-text">
+            <div className="sg-contact-admin">
+              <p className="sg-contact-text">
                 Need access to the platform?{' '}
                 <a
                   href="#"
-                  className="contact-link"
+                  className="sg-contact-link"
                 >
                   Contact your administrator
                 </a>
@@ -322,8 +322,8 @@ const Login = () => {
           </div>
 
           {/* Footer */}
-          <div className="login-footer">
-            <p className="footer-text">
+          <div className="sg-login-footer">
+            <p className="sg-footer-text">
               This is a prototype only and contains no real data.
             </p>
           </div>

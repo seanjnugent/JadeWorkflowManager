@@ -1,6 +1,6 @@
-/* jade.css */
+/* jade.css - Consolidated CSS for all components */
 
-/* Hero styles */
+/* Shared Components */
 .sg-page-header {
   background-color: #0065bd;
   color: white;
@@ -24,118 +24,418 @@
   line-height: 24px;
 }
 
-/* Tile container styles */
-.sg-tiles-container-2x2 {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 56px 24px;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
-}
-
-@media (max-width: 768px) {
-  .sg-tiles-container-2x2 {
-    grid-template-columns: 1fr;
-    padding: 32px 16px;
-  }
-}
-
-/* Tile styles */
-.sg-tile {
-  background-color: white;
+/* Card Styles (Shared by Workflows and Runs) */
+.sg-card {
+  display: block;
+  padding: 24px;
+  background: white;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  padding: 32px;
   text-decoration: none;
   transition: all 0.3s ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
   position: relative;
   overflow: hidden;
 }
 
-.sg-tile:hover {
+.sg-card:hover {
+  transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(0, 101, 189, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08);
+  border-color: #0065bd;
 }
 
-.sg-tile:hover::before {
+.sg-card:hover::before {
   transform: scaleX(1);
 }
 
-.sg-tile h2 {
-  font-size: 24px;
-  font-weight: 700;
+.sg-card-title {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
   color: #1f2937;
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  margin-bottom: 12px;
   transition: color 0.3s ease;
 }
 
-.sg-tile:hover h2 {
+.sg-card:hover .sg-card-title {
   color: #0065bd;
 }
 
-.sg-tile p {
+.sg-card-description {
   font-size: 16px;
+  line-height: 24px;
   color: #6b7280;
-  line-height: 1.6;
-  margin-top: auto;
   transition: color 0.3s ease;
 }
 
-.sg-tile:hover p {
+.sg-card:hover .sg-card-description {
   color: #4b5563;
 }
 
-.sg-tile-icon {
+/* Sidebar (Shared by Workflows and Runs) */
+.sg-sidebar {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e5e7eb;
+  height: fit-content;
+  position: sticky;
+  top: 24px;
+}
+
+/* Search (Shared by Workflows and Runs) */
+.sg-data-search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.sg-data-search-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 48px 0 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 24px;
+  color: #333333;
+  transition: all 0.3s ease;
+}
+
+.sg-data-search-input:focus {
+  outline: none;
+  border-color: #0065bd;
+  box-shadow: 0 0 0 3px rgba(0, 101, 189, 0.1);
+}
+
+.sg-data-search-button {
+  position: absolute;
+  right: 0;
+  top: 0;
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, #e6f2fa, #dbeafe);
-  border-radius: 12px;
+  background-color: #0065bd;
+  border-radius: 0 8px 8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s ease;
+}
+
+.sg-data-search-button:hover {
+  background-color: #004a9f;
+}
+
+/* Filters (Shared by Workflows and Runs) */
+.sg-filter-item {
+  padding: 16px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.sg-filter-item-last {
+  border-bottom: none;
+}
+
+.sg-filter-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.sg-filter-content:hover {
+  color: #0065bd;
+}
+
+.sg-filter-label {
+  font-size: 16px;
+  line-height: 24px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.sg-filter-chevron {
+  width: 20px;
+  height: 20px;
+  color: #6b7280;
+  transition: transform 0.3s ease;
+}
+
+.sg-filter-expanded .sg-filter-chevron {
+  transform: rotate(180deg);
+}
+
+/* Status Badges (Shared by Workflows and Runs) */
+.sg-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 9999px;
+  border-width: 1px;
+}
+
+.sg-badge-success {
+  background-color: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.sg-badge-error {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.sg-badge-warning {
+  background-color: #fffbeb;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+
+.sg-badge-info {
+  background-color: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.sg-badge-neutral {
+  background-color: #f3f4f6;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+/* Pagination (Shared by Workflows and Runs) */
+.sg-pagination {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  padding-top: 2rem;
+}
+
+.sg-pagination-button {
+  width: 2.5rem;
+  height: 2.5rem;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.3s ease;
 }
 
-.sg-tile:hover .sg-tile-icon {
-  background: linear-gradient(135deg, #0065bd, #004a9f);
+.sg-pagination-button:hover:not(:disabled) {
+  background-color: #f9fafb;
+  border-color: #0065bd;
+}
+
+.sg-pagination-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sg-pagination-button-active {
+  background-color: #0065bd;
+  color: white;
+  border-color: #0065bd;
+}
+
+/* Floating Action Button (Shared by Workflows and Runs) */
+.sg-fab {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  background-color: #0065bd;
+  color: white;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+}
+
+.sg-fab:hover {
+  background-color: #004a9f;
   transform: scale(1.05);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-.sg-tile:hover .sg-tile-icon svg {
-  color: white !important;
+/* Empty State (Shared by Workflows and Runs) */
+.sg-empty-state {
+  text-align: center;
+  padding: 3rem 0;
+  background-color: white;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
 }
 
-/* Add these to your existing jade.css file */
+.sg-empty-state-icon {
+  width: 4rem;
+  height: 4rem;
+  color: #d1d5db;
+  margin: 0 auto 1rem;
+}
 
-/* Login Page Layout */
-.login-container {
+.sg-empty-state-title {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 0.5rem;
+}
+
+.sg-empty-state-description {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* Breadcrumb (Shared by Workflows and Runs) */
+.sg-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.sg-breadcrumb-item {
+  font-size: 1rem;
+  color: #0065bd;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.sg-breadcrumb-item:hover {
+  color: #004a9f;
+  text-decoration: none;
+}
+
+.sg-breadcrumb-separator {
+  color: #6b7280;
+}
+
+.sg-breadcrumb-current {
+  color: #374151;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+/* Layout (Shared by Workflows and Runs) */
+.sg-layout-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.sg-layout-grid {
+  display: flex;
+  gap: 2rem;
+}
+
+.sg-layout-sidebar {
+  width: 25%;
+  flex-shrink: 0;
+}
+
+.sg-layout-main {
+  width: 75%;
+}
+
+/* Loading State (Shared by Workflows and Runs) */
+.sg-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 16rem;
+}
+
+/* Sort Dropdown (Shared by Workflows and Runs) */
+.sg-sort-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-bottom: 2rem;
+}
+
+.sg-sort-label {
+  font-size: 1rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.sg-sort-select {
+  position: relative;
+}
+
+.sg-sort-dropdown {
+  height: 2.75rem;
+  width: 11rem;
+  padding: 0 1rem 0 1rem;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  appearance: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.sg-sort-dropdown:focus {
+  outline: none;
+  border-color: #0065bd;
+  box-shadow: 0 0 0 2px rgba(0, 101, 189, 0.1);
+}
+
+.sg-sort-chevron {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  background-color: #0065bd;
+  border-radius: 0 0.5rem 0.5rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.sg-sort-chevron-icon {
+  width: 1rem;
+  height: 1rem;
+  color: white;
+}
+
+/* Login Page Specific Styles */
+.sg-login-container {
   min-height: 100vh;
   background-color: #f9fafb;
   font-family: sans-serif;
   display: flex;
 }
 
-.login-left-side {
+.sg-login-left {
   display: none;
   position: relative;
   overflow: hidden;
 }
 
 @media (min-width: 1024px) {
-  .login-left-side {
+  .sg-login-left {
     display: flex;
     width: 50%;
   }
 }
 
-.login-right-side {
+.sg-login-right {
   flex: 1;
   display: flex;
   align-items: center;
@@ -144,73 +444,53 @@
 }
 
 @media (min-width: 640px) {
-  .login-right-side {
+  .sg-login-right {
     padding: 2rem;
   }
 }
 
 @media (min-width: 1024px) {
-  .login-right-side {
+  .sg-login-right {
     padding: 4rem;
   }
 }
 
-.login-form-container {
+.sg-login-form-container {
   width: 100%;
   max-width: 28rem;
 }
 
-/* Card styles (consolidated with Home component) */
-.sg-workflow-card {
-  padding: 1.5rem;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  transition: all 0.3s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-  position: relative;
-  overflow: hidden;
-}
-
-.sg-workflow-card:hover {
-  box-shadow: 0 8px 25px rgba(0, 101, 189, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08);
-}
-
-.sg-workflow-card:hover::before {
-  transform: scaleX(1);
-}
-
-/* Form styles */
-.login-header {
+/* Login Form Styles */
+.sg-login-header {
   text-align: center;
   margin-bottom: 2rem;
 }
 
-.login-header img {
+.sg-login-header img {
   height: 3rem;
   margin: 0 auto 1.5rem;
 }
 
-.login-title {
+.sg-login-title {
   font-size: 1.5rem;
   line-height: 2rem;
   font-weight: 600;
   color: #111827;
 }
 
-.login-subtitle {
+.sg-login-subtitle {
   color: #4b5563;
   font-size: 0.875rem;
   line-height: 1.25rem;
   margin-top: 0.5rem;
 }
 
-/* Input fields */
-.input-container {
+/* Input Fields */
+.sg-input-container {
   margin-bottom: 1.5rem;
 }
 
-.input-label {
+.sg-input-label {
   display: block;
   margin-bottom: 0.5rem;
   font-size: 0.875rem;
@@ -219,11 +499,11 @@
   color: #374151;
 }
 
-.input-field {
+.sg-input-field {
   position: relative;
 }
 
-.input-icon {
+.sg-input-icon {
   position: absolute;
   left: 0.75rem;
   top: 0.6875rem;
@@ -232,7 +512,7 @@
   color: #6b7280;
 }
 
-.input-element {
+.sg-input-element {
   width: 100%;
   padding: 0.5rem 2.5rem 0.5rem 2.5rem;
   border: 1px solid #d1d5db;
@@ -242,61 +522,61 @@
   border-radius: 0.5rem;
 }
 
-.input-element:focus {
+.sg-input-element:focus {
   outline: 2px solid transparent;
   outline-offset: 2px;
   border-color: #2563eb;
   box-shadow: 0 0 0 2px #bfdbfe;
 }
 
-.password-toggle {
+.sg-password-toggle {
   position: absolute;
   right: 0.75rem;
   top: 0.6875rem;
   color: #4b5563;
 }
 
-.password-toggle:hover {
+.sg-password-toggle:hover {
   color: #1f2937;
 }
 
-/* Error messages */
-.error-message {
+/* Error Messages */
+.sg-error-message {
   padding: 1rem;
   font-size: 0.875rem;
   line-height: 1.25rem;
   border-radius: 0.5rem;
 }
 
-.error-locked {
+.sg-error-locked {
   background-color: #fffbeb;
   border: 1px solid #fcd34d;
   color: #92400e;
 }
 
-.error-credentials {
+.sg-error-credentials {
   background-color: #fef2f2;
   border: 1px solid #fca5a5;
   color: #991b1b;
 }
 
-.error-close {
+.sg-error-close {
   color: inherit;
 }
 
-.error-close:hover {
+.sg-error-close:hover {
   color: #7f1d1d;
 }
 
-.error-detail {
+.sg-error-detail {
   margin-top: 0.25rem;
   font-size: 0.75rem;
   line-height: 1rem;
   opacity: 0.8;
 }
 
-/* Form footer */
-.form-footer {
+/* Form Footer */
+.sg-form-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -304,23 +584,23 @@
   line-height: 1.25rem;
 }
 
-.remember-me {
+.sg-remember-me {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   color: #4b5563;
 }
 
-.forgot-password {
+.sg-forgot-password {
   color: #2563eb;
 }
 
-.forgot-password:hover {
+.sg-forgot-password:hover {
   text-decoration: underline;
 }
 
-/* Submit button */
-.submit-button {
+/* Submit Button */
+.sg-submit-button {
   width: 100%;
   font-size: 0.875rem;
   line-height: 1.25rem;
@@ -332,23 +612,23 @@
   border-radius: 0.5rem;
 }
 
-.submit-button:hover {
+.sg-submit-button:hover {
   background-color: #1d4ed8;
 }
 
-.submit-button:disabled {
+.sg-submit-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.loading-spinner {
+.sg-loading-spinner {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
 }
 
-.spinner {
+.sg-spinner {
   width: 1.25rem;
   height: 1.25rem;
   border: 2px solid rgba(255, 255, 255, 0.3);
@@ -363,36 +643,36 @@
   }
 }
 
-/* Contact admin */
-.contact-admin {
+/* Contact Admin */
+.sg-contact-admin {
   margin-top: 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid #e5e7eb;
   text-align: center;
 }
 
-.contact-text {
+.sg-contact-text {
   font-size: 0.875rem;
   line-height: 1.25rem;
   color: #4b5563;
 }
 
-.contact-link {
+.sg-contact-link {
   color: #2563eb;
   font-weight: 500;
 }
 
-.contact-link:hover {
+.sg-contact-link:hover {
   text-decoration: underline;
 }
 
 /* Footer */
-.login-footer {
+.sg-login-footer {
   text-align: center;
   margin-top: 1.5rem;
 }
 
-.footer-text {
+.sg-footer-text {
   font-size: 0.75rem;
   line-height: 1rem;
   color: #4b5563;
