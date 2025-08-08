@@ -3,11 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@scottish-government/design-system": "^3.1.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^13.5.0",
     "@uiw/react-codemirror": "^4.23.12",
+    "chart.js": "^4.5.0",
     "codemirror": "^5.65.16",
     "env-cmd": "^10.1.0",
     "framer-motion": "^11.0.5",
@@ -17,6 +19,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.3",
     "react-scripts": "5.0.1",
+    "react-spinners": "^0.17.0",
     "tailwindcss": "^3.4.1",
     "web-vitals": "^2.1.4"
   },

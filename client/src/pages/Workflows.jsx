@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ChevronRight, ChevronLeft, Search, FileText, Database, Waypoints, Filter, X } from 'lucide-react';
+import { Plus, ChevronRight, ChevronLeft, Search, FileText, Database, Waypoints, X, ChevronDown } from 'lucide-react';
 import { GridLoader } from 'react-spinners';
+import '../jade.css';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
@@ -9,9 +10,20 @@ const Workflows = () => {
   const navigate = useNavigate();
   const [workflows, setWorkflows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [filter, setFilter] = useState('');
+  const [searchValue, setSearchValue] = useState('');
+  const [sortBy, setSortBy] = useState('Most relevant');
   const [loading, setLoading] = useState(true);
   const [totalItems, setTotalItems] = useState(0);
+  const [filters, setFilters] = useState({
+    destination: [],
+    owner: [],
+    group: []
+  });
+  const [expandedFilters, setExpandedFilters] = useState({
+    destination: false,
+    owner: false,
+    group: false
+  });
 
   const limit = 10;
 
@@ -25,7 +37,13 @@ const Workflows = () => {
       return;
     }
 
-    fetch(`${API_BASE_URL}/workflows/?page=${currentPage}&limit=${limit}&user_id=${userId}`, {
+    const queryParams = new URLSearchParams({
+      page: currentPage.toString(),
+      limit: limit.toString(),
+      user_id: userId
+    });
+
+    fetch(`${API_BASE_URL}/workflows/?${queryParams}`, {
       headers: {
         'accept': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
@@ -57,188 +75,352 @@ const Workflows = () => {
     }
   };
 
+  const handleSearchChange = (e) => {
+    setSearchValue(e.target.value);
+  };
+
+  const clearSearch = () => {
+    setSearchValue('');
+  };
+
+  const toggleFilter = (filterType) => {
+    setExpandedFilters(prev => ({
+      ...prev,
+      [filterType]: !prev[filterType]
+    }));
+  };
+
+  const handleFilterChange = (filterType, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterType]: prev[filterType].includes(value)
+        ? prev[filterType].filter(v => v !== value)
+        : [...prev[filterType], value]
+    }));
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      destination: [],
+      owner: [],
+      group: []
+    });
+  };
+
   const getStatusBadge = (status) => {
     switch (status?.toLowerCase()) {
       case 'active':
-        return 'bg-green-50 text-green-700 border-green-200';
+        return 'sg-badge-success';
       case 'failed':
-        return 'bg-red-50 text-red-700 border-red-200';
+        return 'sg-badge-error';
       case 'scheduled':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
+        return 'sg-badge-info';
       default:
-        return 'bg-gray-50 text-gray-700 border-gray-200';
+        return 'sg-badge-neutral';
     }
   };
 
   const getDestinationIconAndColor = (destination) => {
-    switch (destination?.toLowerCase()) {
-      case 'api':
-        return { icon: <Waypoints className="h-4 w-4 text-blue-600" /> };
-      case 'csv':
-        return { icon: <FileText className="h-4 w-4 text-teal-600" /> };
-      case 'database':
-        return { icon: <Database className="h-4 w-4 text-red-600" /> };
-      default:
-        return { icon: <FileText className="h-4 w-4 text-gray-600" /> };
+    const destinations = destination?.split(',').map(d => d.trim().toLowerCase()) || [];
+    if (destinations.includes('pdf')) {
+      return { icon: <FileText className="h-4 w-4 text-[#0065bd]" /> };
+    } else if (destinations.includes('csv')) {
+      return { icon: <FileText className="h-4 w-4 text-[#0065bd]" /> };
+    } else if (destinations.includes('database')) {
+      return { icon: <Database className="h-4 w-4 text-red-600" /> };
+    } else if (destinations.includes('api')) {
+      return { icon: <Waypoints className="h-4 w-4 text-blue-600" /> };
     }
+    return { icon: <FileText className="h-4 w-4 text-gray-600" /> };
   };
 
+  const uniqueDestinations = Array.from(
+    new Set(
+      workflows
+        .flatMap(w => w.destination?.split(',').map(d => d.trim()) || [])
+        .filter(Boolean)
+    )
+  );
+  const uniqueOwners = Array.from(new Set(workflows.map(w => w.owner).filter(Boolean)));
+  const uniqueGroups = Array.from(new Set(workflows.map(w => w.group_name).filter(Boolean)));
+
   const filteredWorkflows = React.useMemo(() => {
-    return workflows.filter(workflow =>
-      workflow.name.toLowerCase().includes(filter.toLowerCase()) ||
-      (workflow.description && workflow.description.toLowerCase().includes(filter.toLowerCase())) ||
-      (workflow.status && workflow.status.toLowerCase().includes(filter.toLowerCase()))
-    );
-  }, [workflows, filter]);
+    return workflows.filter(workflow => {
+      const matchesSearch = (
+        workflow.name.toLowerCase().includes(searchValue.toLowerCase()) ||
+        (workflow.description && workflow.description.toLowerCase().includes(searchValue.toLowerCase())) ||
+        (workflow.status && workflow.status.toLowerCase().includes(searchValue.toLowerCase()))
+      );
+
+      const matchesDestination = filters.destination.length === 0 ||
+        workflow.destination?.split(',').some(d => filters.destination.includes(d.trim()));
+      const matchesOwner = filters.owner.length === 0 || filters.owner.includes(workflow.owner);
+      const matchesGroup = filters.group.length === 0 || filters.group.includes(workflow.group_name);
+
+      return matchesSearch && matchesDestination && matchesOwner && matchesGroup;
+    });
+  }, [workflows, searchValue, filters]);
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto py-8 px-4">
-        <div className="mb-8">
-          <div className="flex items-center gap-4 mb-6">
-            <button
-              onClick={() => navigate('/')}
-              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2"
-            >
-              <X className="h-4 w-4" />
-              Back to Home
-            </button>
-          </div>
-          <div className="text-center">
-            <h1 className="text-xl font-semibold text-gray-900">Your Workflows</h1>
-            <p className="text-gray-600 text-sm mt-1">Monitor and manage your dataset processing workflows</p>
-          </div>
-        </div>
+    <div className="min-h-screen">
+      <div className="sg-layout-container">
+        {/* Breadcrumb */}
+        <nav className="sg-breadcrumb">
+          <span 
+            className="sg-breadcrumb-item"
+            onClick={() => navigate('/')}
+          >
+            Home
+          </span>
+          <span className="sg-breadcrumb-separator">/</span>
+          <span className="sg-breadcrumb-current">Workflows</span>
+        </nav>
 
-        <div className="bg-white border border-gray-300 p-6">
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="flex-1 relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-600" />
-              <input
-                type="text"
-                placeholder="Search dataset pipelines..."
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="w-full h-9 px-2 pl-8 border border-gray-300 text-gray-700 bg-white text-sm focus:border-blue-900"
-              />
+        <div className="sg-layout-grid">
+          {/* Sidebar */}
+          <div className="sg-layout-sidebar">
+            <div className="sg-sidebar">
+              <div className="mb-6">
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {filteredWorkflows.length} workflows found
+                </h1>
+              </div>
+
+              {/* Search */}
+              <div className="mb-8">
+                <h2 className="text-xl font-semibold text-gray-900 mb-3">
+                  Search
+                </h2>
+                <div className="sg-data-search-container">
+                  <input
+                    type="text"
+                    placeholder="Search workflows..."
+                    value={searchValue}
+                    onChange={handleSearchChange}
+                    className="sg-data-search-input"
+                  />
+                  {searchValue && (
+                    <button
+                      onClick={clearSearch}
+                      className="absolute right-12 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 p-1"
+                      aria-label="Clear search"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    className="sg-data-search-button"
+                    type="submit"
+                    aria-label="Search workflows"
+                  >
+                    <Search className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter by */}
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                  Filter by
+                </h2>
+
+                {/* Destination Filter */}
+                <div className={`sg-filter-item ${expandedFilters.destination ? 'sg-filter-expanded' : ''}`}>
+                  <div className="sg-filter-content" onClick={() => toggleFilter('destination')}>
+                    <span className="sg-filter-label">Destination</span>
+                    <ChevronDown className="sg-filter-chevron" />
+                  </div>
+                  {expandedFilters.destination && (
+                    <div className="mt-3 space-y-3">
+                      {uniqueDestinations.map(dest => (
+                        <label key={dest} className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer hover:text-blue-600 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={filters.destination.includes(dest)}
+                            onChange={() => handleFilterChange('destination', dest)}
+                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600"
+                          />
+                          {dest}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Owner Filter */}
+                <div className={`sg-filter-item ${expandedFilters.owner ? 'sg-filter-expanded' : ''}`}>
+                  <div className="sg-filter-content" onClick={() => toggleFilter('owner')}>
+                    <span className="sg-filter-label">Owner</span>
+                    <ChevronDown className="sg-filter-chevron" />
+                  </div>
+                  {expandedFilters.owner && (
+                    <div className="mt-3 space-y-3">
+                      {uniqueOwners.map(owner => (
+                        <label key={owner} className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer hover:text-blue-600 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={filters.owner.includes(owner)}
+                            onChange={() => handleFilterChange('owner', owner)}
+                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600"
+                          />
+                          {owner}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Group Filter */}
+                <div className={`sg-filter-item sg-filter-item-last ${expandedFilters.group ? 'sg-filter-expanded' : ''}`}>
+                  <div className="sg-filter-content" onClick={() => toggleFilter('group')}>
+                    <span className="sg-filter-label">Group</span>
+                    <ChevronDown className="sg-filter-chevron" />
+                  </div>
+                  {expandedFilters.group && (
+                    <div className="mt-3 space-y-3">
+                      {uniqueGroups.length > 0 ? (
+                        uniqueGroups.map(group => (
+                          <label key={group} className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer hover:text-blue-600 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={filters.group.includes(group)}
+                              onChange={() => handleFilterChange('group', group)}
+                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600"
+                            />
+                            {group}
+                          </label>
+                        ))
+                      ) : (
+                        <p className="text-sm text-gray-500">No groups available</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Clear Filters Button */}
+                <button
+                  onClick={clearFilters}
+                  className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-base mt-6 rounded-lg transition-colors duration-300"
+                >
+                  Clear filters
+                </button>
+              </div>
             </div>
-            <button
-              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2"
-            >
-              <Filter className="h-4 w-4" />
-              Filter
-            </button>
-            <button
-              onClick={() => navigate('/workflows/new/')}
-              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 px-4 py-2"
-            >
-              <Plus className="h-4 w-4" />
-              New Workflow
-            </button>
           </div>
 
-          {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <GridLoader color="#0065bd" size={17.5} margin={7.5} />
+          {/* Main Content */}
+          <div className="sg-layout-main">
+            {/* Sort by Dropdown */}
+            <div className="sg-sort-container">
+              <label className="sg-sort-label">
+                Sort by:
+              </label>
+              <div className="sg-sort-select">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="sg-sort-dropdown"
+                >
+                  <option>Most relevant</option>
+                  <option>Newest first</option>
+                  <option>Oldest first</option>
+                  <option>A-Z</option>
+                  <option>Z-A</option>
+                </select>
+                <div className="sg-sort-chevron">
+                  <ChevronDown className="sg-sort-chevron-icon" />
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="w-full">
-              <table className="w-full text-sm table-fixed">
-                <thead className="bg-gray-50">
-                  <tr className="border-b-2 border-gray-200">
-                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[10%]">ID</th>
-                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[25%]">Pipeline Name</th>
-                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[25%]">Description</th>
-                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[15%]">Owner</th>
-                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[10%]">Destination</th>
-                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[10%]">Status</th>
-                    <th className="text-left text-xs font-medium text-gray-900 py-3 px-2 w-[10%]">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredWorkflows.length > 0 ? (
-                    filteredWorkflows.map((workflow) => {
-                      const { icon } = getDestinationIconAndColor(workflow.destination);
-                      return (
-                        <tr
-                          key={workflow.id}
-                          className="border-b border-gray-200 hover:bg-gray-50 bg-white"
-                          onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <td className="py-3 px-2 w-[10%]">
-                            <div className="text-xs text-gray-900 truncate">{workflow.id}</div>
-                          </td>
-                          <td className="py-3 px-2 w-[25%]">
-                            <div className="flex items-center">
-                              <div className="min-w-0 flex-1">
-                                <div className="text-xs font-medium text-gray-900 truncate">{workflow.name}</div>
-                                <div className="text-xs text-gray-600 mt-1 truncate">{`WF${String(workflow.id).padStart(4, '0')}`}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-2 w-[25%]">
-                            <div className="text-xs text-gray-600 truncate">{workflow.description || 'N/A'}</div>
-                          </td>
-                          <td className="py-3 px-2 w-[15%]">
-                            <div className="text-xs text-gray-900 truncate">{workflow.owner || 'N/A'}</div>
-                          </td>
-                          <td className="py-3 px-2 w-[10%]">
-                            <div className="flex items-center gap-1 text-xs text-gray-600 truncate">{icon}{workflow.destination || 'N/A'}</div>
-                          </td>
-                          <td className="py-3 px-2 w-[10%]">
-                            <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border whitespace-nowrap ${getStatusBadge(workflow.status)}`}>
+
+            {/* Workflow Cards */}
+            {loading ? (
+              <div className="sg-loading">
+                <GridLoader color="#0065bd" size={17.5} margin={7.5} />
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {filteredWorkflows.length > 0 ? (
+                  filteredWorkflows.map((workflow) => {
+                    const { icon } = getDestinationIconAndColor(workflow.destination);
+                    return (
+                      <div
+                        key={workflow.id}
+                        className="sg-card"
+                        onClick={() => navigate(`/workflows/workflow/${workflow.id}`)}
+                      >
+                        <h3 className="sg-card-title">
+                          {workflow.name}
+                        </h3>
+                        <div className="flex items-center gap-6 text-sm text-gray-500 mb-4">
+                          <span className="flex items-center gap-1">
+                            <span className="font-medium text-gray-700">Destination:</span> 
+                            <span className="flex items-center gap-1">{icon} {workflow.destination || 'N/A'}</span>
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <span className="font-medium text-gray-700">Last run:</span> {workflow.last_run ? new Date(workflow.last_run).toLocaleDateString('en-GB') : 'N/A'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <span className="font-medium text-gray-700">Status:</span> 
+                            <span className={`sg-badge ${getStatusBadge(workflow.status)}`}>
                               {workflow.status}
                             </span>
-                          </td>
-                          <td className="py-3 px-2 w-[10%]">
-                            <button
-                              className="inline-flex items-center justify-center text-sm font-medium text-white bg-blue-900 border border-blue-900 hover:bg-blue-800 px-2 py-1 w-full"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/workflows/workflow/${workflow.id}`);
-                              }}
-                            >
-                              Explore
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan="8" className="text-center py-4 text-sm text-gray-600">No workflows available.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                          </span>
+                        </div>
+                        <p className="sg-card-description">
+                          {workflow.description || 'No description available'}
+                        </p>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="sg-empty-state">
+                    <FileText className="sg-empty-state-icon" />
+                    <h3 className="sg-empty-state-title">No workflows found</h3>
+                    <p className="sg-empty-state-description">No workflows match your current search criteria.</p>
+                  </div>
+                )}
+              </div>
+            )}
 
-          <div className="flex flex-col sm:flex-row justify-between items-center mt-4 space-y-4 sm:space-y-0">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2 disabled:opacity-50"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </button>
-            <span className="text-sm text-gray-600">
-              Page {currentPage} of {totalPages}
-            </span>
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2 disabled:opacity-50"
-            >
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </button>
+            {/* Pagination */}
+            <div className="sg-pagination">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="sg-pagination-button"
+              >
+                <ChevronLeft className="h-4 w-4 text-gray-600" />
+              </button>
+              {[...Array(totalPages)].map((_, index) => (
+                <button
+                  key={index + 1}
+                  onClick={() => handlePageChange(index + 1)}
+                  className={`sg-pagination-button ${currentPage === index + 1 ? 'sg-pagination-button-active' : ''}`}
+                >
+                  {index + 1}
+                </button>
+              ))}
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="sg-pagination-button"
+              >
+                <ChevronRight className="h-4 w-4 text-gray-600" />
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Floating New Workflow Button */}
+        <button
+          onClick={() => navigate('/workflows/new/')}
+          className="sg-fab"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
       </div>
-    </main>
+    </div>
   );
 };
 

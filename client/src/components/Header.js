@@ -135,7 +135,52 @@ const Header = () => {
   }
 
   return (
-    <header className="ds_site-header ds_site-header--gradient" role="banner">
+    <header className="ds_site-header bg-white shadow-sm" role="banner">
+      <style>{`
+        .sg-user-action-button {
+          background: white;
+          color: #374151;
+          border: 2px solid #d1d5db;
+          border-radius: 8px;
+          padding: 8px 16px;
+          height: 36px;
+          transition: all 0.3s ease;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .sg-user-action-button:hover {
+          background: #eff6ff;
+          border-color: #0065bd;
+          color: #0065bd;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 8px rgba(0, 101, 189, 0.15);
+        }
+        .sg-avatar-button {
+          background: white;
+          color: #374151;
+          border: 2px solid #d1d5db;
+          border-radius: 8px;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s ease;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+          font-size: 14px;
+          font-weight: 600;
+        }
+        .sg-avatar-button:hover {
+          background: #eff6ff;
+          border-color: #0065bd;
+          color: #0065bd;
+          transform: scale(1.05);
+          box-shadow: 0 4px 8px rgba(0, 101, 189, 0.15);
+        }
+      `}</style>
+
       {/* Skip to main content link */}
       <div className="ds_skip-links" ref={skipLinkRef}>
         <ul className="ds_skip-links__list">
@@ -161,39 +206,31 @@ const Header = () => {
           </div>
 
           {/* User actions positioned at header level */}
-          <div className="ds_site-header__user-actions">
-            <button
-              className="ds_site-header__action-button ds_site-header__action-icon"
-              title="Notifications"
-            >
-              <Bell className="ds_icon" size={18} />
-              <span className="visually-hidden">Notifications</span>
-            </button>
-
+          <div className="ds_site-header__user-actions flex items-center gap-2">
             <button
               onClick={() => navigate(`/profile/${userId}`)}
-              className="ds_site-header__action-button ds_site-header__action-avatar"
+              className="sg-avatar-button"
               title={user ? `${user.first_name} ${user.surname}` : 'Profile'}
             >
-              <span className="ds_site-header__avatar-initials">
+              <span>
                 {user ? getInitials() : '--'}
               </span>
             </button>
 
             <button
               onClick={logout}
-              className="ds_site-header__action-button ds_site-header__action-logout"
+              className="sg-user-action-button"
               title="Logout"
             >
-              <LogOut className="ds_icon" size={18} />
-              <span className="ds_site-header__logout-text">Logout</span>
+              <LogOut className="h-5 w-5" />
+              <span className="text-sm font-bold">Logout</span>
             </button>
           </div>
 
           <div className="ds_site-header__controls">
             <button
               aria-controls="mobile-navigation"
-              className="ds_site-header__control js-toggle-menu"
+              className="ds_site-header__control"
               aria-expanded={isMenuOpen}
               ref={menuButtonRef}
               onClick={toggleMenu}
@@ -246,6 +283,16 @@ const Header = () => {
           </div>
         </div>
       )}
+      <div className="ds_phase-banner">
+        <div className="ds_wrapper">
+          <p className="ds_phase-banner__content">
+            <strong className="ds_tag ds_phase-banner__tag">Alpha</strong>
+            <span className="ds_phase-banner__text">
+              This is a new service. Your <a href="https://jade.sgdatacatalogue.net" target="_blank" rel="noopener noreferrer">feedback</a> will help us to improve it.
+            </span>
+          </p>
+        </div>
+      </div>
     </header>
   );
 };
