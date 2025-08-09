@@ -19,7 +19,9 @@ import {
   HardDriveDownload,
   RefreshCw,
   FileJson,
-  File
+  File,
+  CircleCheckBig,
+  CircleAlert
 } from 'lucide-react';
 import { GridLoader, ClipLoader } from 'react-spinners';
 
@@ -66,22 +68,22 @@ const StatusBadge = ({ status }) => {
     },
     success: {
       color: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-      icon: <CheckCircle className="h-4 w-4 text-emerald-600" />,
+      icon: <CircleCheckBig className="h-4 w-4 text-emerald-600" />,
       text: 'Success'
     },
     completed: {
       color: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-      icon: <CheckCircle className="h-4 w-4 text-emerald-600" />,
+      icon: <CircleCheckBig className="h-4 w-4 text-emerald-600" />,
       text: 'Completed'
     },
     failed: {
       color: 'bg-red-100 text-red-700 border-red-200',
-      icon: <XCircle className="h-4 w-4 text-red-600" />,
+      icon: <CircleAlert className="h-4 w-4 text-red-600" />,
       text: 'Failed'
     },
     failure: {
       color: 'bg-red-100 text-red-700 border-red-200',
-      icon: <XCircle className="h-4 w-4 text-red-600" />,
+      icon: <CircleAlert className="h-4 w-4 text-red-600" />,
       text: 'Failed'
     },
     skipped: {
@@ -132,30 +134,6 @@ const DurationDisplay = ({ start, end }) => {
   );
 };
 
-// CollapsibleSection Component
-const CollapsibleSection = ({ title, icon, children, defaultOpen = true }) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  return (
-    <div className="sg-workflow-card">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex justify-between items-center p-4 hover:bg-gray-50 rounded-lg"
-      >
-        <div className="flex items-center gap-2">
-          {icon}
-          <span className="sg-workflow-title">{title}</span>
-        </div>
-        {isOpen ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
-      </button>
-      {isOpen && (
-        <div className="p-4 pt-0">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-};
-
 // FileDownloadComponent
 const FileDownloadComponent = ({ filePath, fileName, fileType, onDownload, isLoading = false }) => {
   const getFileIcon = (type) => {
@@ -172,25 +150,27 @@ const FileDownloadComponent = ({ filePath, fileName, fileType, onDownload, isLoa
   };
   if (!filePath) return null;
   return (
-    <div className="flex items-center gap-4">
-      <div className="flex items-center justify-center bg-gray-50 w-12 h-12 border border-gray-200 rounded-lg">
-        {getFileIcon(fileType)}
-      </div>
-      <div className="flex-1">
-        <button
-          onClick={() => onDownload(filePath, fileType)}
-          disabled={isLoading}
-          className="text-sm font-medium text-blue-600 hover:underline disabled:opacity-50"
-        >
-          {fileName}
-        </button>
-        <p className="text-xs text-gray-600">{getFileTypeDisplay(fileType)}</p>
-      </div>
-      {isLoading && (
-        <div className="ml-auto">
-          <GridLoader color="#0065bd" size={4} margin={2} />
+    <div className="sg-dataset-tile">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center justify-center bg-gray-50 w-12 h-12 border border-gray-200 rounded-lg">
+          {getFileIcon(fileType)}
         </div>
-      )}
+        <div className="flex-1">
+          <button
+            onClick={() => onDownload(filePath, fileType)}
+            disabled={isLoading}
+            className="sg-dataset-title text-left disabled:opacity-50"
+          >
+            {fileName}
+          </button>
+          <p className="sg-dataset-description text-sm">{getFileTypeDisplay(fileType)}</p>
+        </div>
+        {isLoading && (
+          <div className="ml-auto">
+            <GridLoader color="#0065bd" size={4} margin={2} />
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -468,28 +448,30 @@ const Run = () => {
     }
   };
 
+  const isActiveSection = (sectionId) => activeSection === sectionId;
+
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50 flex justify-center items-center">
+      <div className="min-h-screen bg-white flex justify-center items-center">
         <div className="text-center">
           <div className="flex justify-center items-center">
             <GridLoader color="#0065bd" size={17.5} margin={7.5} />
           </div>
           <p className="text-gray-600 text-sm mt-2">Loading run details...</p>
         </div>
-      </main>
+      </div>
     );
   }
 
   if (error && !runData) {
     return (
-      <main className="min-h-screen bg-gray-50 flex justify-center items-center">
-        <div className="sg-workflow-card max-w-md">
-          <h2 className="sg-workflow-title flex items-center gap-2">
+      <div className="min-h-screen bg-white flex justify-center items-center">
+        <div className="sg-dataset-tile max-w-md">
+          <h2 className="sg-dataset-title flex items-center gap-2">
             <AlertCircle className="h-5 w-5" />
             Error Loading Run
           </h2>
-          <p className="sg-workflow-description mb-4">{error || 'Run data not available'}</p>
+          <p className="sg-dataset-description mb-4">{error || 'Run data not available'}</p>
           <button
             onClick={() => navigate('/runs')}
             className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg transition-colors"
@@ -498,7 +480,7 @@ const Run = () => {
             Back to Runs
           </button>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -507,214 +489,381 @@ const Run = () => {
   const events = eventConnection?.events || [];
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <style>{`
-        .sg-workflow-card {
-          padding: 24px;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          transition: all 0.3s ease;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-          position: relative;
-          overflow: hidden;
+    <div className="min-h-screen bg-white">
+      <style jsx>{`
+        /* Scottish Government Design System CSS variables */
+        :root {
+          --sg-blue: #0065bd;
+          --sg-blue-dark: #005eb8;
+          --sg-blue-darker: #00437d;
+          --sg-blue-light: #d9eeff;
+          --sg-blue-lighter: #f0f8ff;
+          --sg-blue-lightest: #e6f3ff;
+          --sg-blue-border: rgba(0,101,189,0.64);
+          --sg-blue-text: #00437d;
+          --sg-blue-hover: #004a9f;
+          --sg-gray: #5e5e5e;
+          --sg-gray-dark: #333333;
+          --sg-gray-light: #ebebeb;
+          --sg-gray-lighter: #f8f8f8;
+          --sg-gray-border: #b3b3b3;
+          --sg-gray-bg: #f8f8f8;
+          --sg-text-primary: #333333;
+          --sg-text-secondary: #5e5e5e;
+          --sg-text-inverse: #ffffff;
+          --sg-space-xs: 4px;
+          --sg-space-sm: 8px;
+          --sg-space-md: 16px;
+          --sg-space-lg: 24px;
+          --sg-space-xl: 32px;
+          --sg-space-xxl: 48px;
+          --sg-font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+          --radius: 4px;
         }
-        .sg-workflow-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-          background: linear-gradient(90deg, #0065bd, #004a9f);
-          transform: scaleX(0);
-          transition: transform 0.3s ease;
+
+        .sg-page-header {
+          background: var(--sg-blue-dark);
+          color: var(--sg-text-inverse);
+          padding: var(--sg-space-xl) 0;
+          padding-bottom: var(--sg-space-lg);
         }
-        .sg-workflow-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 25px rgba(0, 101, 189, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08);
-          border-color: #0065bd;
+
+        .sg-page-header-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 var(--sg-space-lg);
         }
-        .sg-workflow-card:hover::before {
-          transform: scaleX(1);
+
+        .sg-page-header-breadcrumb {
+          margin-bottom: var(--sg-space-md);
         }
-        .sg-workflow-title {
-          font-size: 20px;
-          line-height: 28px;
-          font-weight: 600;
-          color: #1f2937;
-          margin-bottom: 12px;
-          transition: color 0.3s ease;
+
+        .sg-page-header-title {
+          font-family: var(--sg-font-family);
+          font-size: 2.25rem;
+          font-weight: 700;
+          line-height: 1.25;
+          color: var(--sg-text-inverse);
+          margin-bottom: var(--sg-space-md);
         }
-        .sg-workflow-card:hover .sg-workflow-title {
-          color: #0065bd;
+
+        .sg-page-header-description {
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-inverse);
+          margin-bottom: var(--sg-space-lg);
         }
-        .sg-workflow-description {
-          font-size: 16px;
-          line-height: 24px;
-          color: #6b7280;
-          transition: color 0.3s ease;
-        }
-        .sg-workflow-card:hover .sg-workflow-description {
-          color: #4b5563;
-        }
-        .sg-sidebar {
-          background: white;
-          border-radius: 12px;
-          padding: 24px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-          border: 1px solid #e5e7eb;
-          height: fit-content;
+
+        .sg-contents-sticky {
           position: sticky;
-          top: 24px;
+          top: var(--sg-space-lg);
+          align-self: flex-start;
+          background: white;
+          border-radius: var(--radius);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          padding: var(--sg-space-lg);
+          max-height: calc(100vh - var(--sg-space-xl));
+          overflow-y: auto;
         }
+
+        .sg-contents-nav {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+
+        .sg-contents-item {
+          margin: 0;
+          padding: 0;
+        }
+
+        .sg-contents-link {
+          display: flex;
+          align-items: center;
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          text-decoration: none;
+          color: var(--sg-blue);
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          font-weight: 400;
+          line-height: 1.5;
+          border-left: 4px solid transparent;
+          transition: all 0.2s ease-in-out;
+          cursor: pointer;
+          margin: 2px 0;
+        }
+
+        .sg-contents-link::before {
+          content: '–';
+          margin-right: var(--sg-space-sm);
+          color: var(--sg-blue);
+          font-weight: 400;
+        }
+
+        .sg-contents-link:hover {
+          background-color: var(--sg-blue-light);
+          border-left-color: var(--sg-blue);
+          text-decoration: none;
+        }
+
+        .sg-contents-link-active {
+          background-color: var(--sg-blue-lightest);
+          border-left-color: var(--sg-blue);
+          font-weight: 500;
+          color: var(--sg-blue);
+        }
+
+        .sg-contents-link-active::before {
+          font-weight: 700;
+        }
+
+        .sg-section-separator {
+          border-bottom: 1px solid #b3b3b3;
+          padding-bottom: var(--sg-space-sm);
+          margin-bottom: var(--sg-space-lg);
+        }
+
+        .sg-dataset-tile {
+          background: white;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          border: 1px solid var(--sg-gray-light);
+          border-radius: var(--radius);
+          padding: var(--sg-space-lg);
+          display: block;
+          text-decoration: none;
+          cursor: pointer;
+          transition: box-shadow 0.2s ease-in-out;
+        }
+
+        .sg-dataset-tile:hover {
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .sg-dataset-title {
+          font-family: var(--sg-font-family);
+          font-size: 1.375rem;
+          font-weight: 700;
+          line-height: 2rem;
+          letter-spacing: 0.15px;
+          color: var(--sg-blue);
+          margin-bottom: 8px;
+          text-decoration: none;
+          transition: color 0.2s ease-in-out;
+        }
+
+        .sg-dataset-tile:hover .sg-dataset-title {
+          color: var(--sg-blue-hover);
+          text-decoration: underline;
+        }
+
+        .sg-dataset-description {
+          font-family: var(--sg-font-family);
+          font-size: 1.1875rem;
+          line-height: 2rem;
+          letter-spacing: 0.15px;
+          color: var(--sg-text-primary);
+          margin-bottom: 8px;
+          text-decoration: none;
+        }
+
         .sg-table {
           width: 100%;
           border-collapse: collapse;
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-primary);
+          border: 1px solid var(--sg-gray-border);
         }
-        .sg-table th {
-          text-align: left;
-          font-weight: 600;
-          padding: 12px 16px;
-          background-color: #f9fafb;
-          border-bottom: 1px solid #e5e7eb;
-          color: #374151;
-        }
+
+        .sg-table th,
         .sg-table td {
-          padding: 12px 16px;
-          border-bottom: 1px solid #e5e7eb;
-          color: #374151;
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          text-align: left;
+          border-bottom: 1px solid var(--sg-gray-border);
+          vertical-align: top;
+        }
+
+        .sg-table thead th {
+          background-color: var(--sg-gray-bg);
+          font-weight: 500;
+          color: var(--sg-text-primary);
+        }
+
+        .sg-table tbody th {
+          background-color: transparent;
+          font-weight: 500;
+          color: var(--sg-text-primary);
+        }
+
+        .sg-table tbody tr:hover td,
+        .sg-table tbody tr:hover th {
+          background-color: var(--sg-blue-lightest);
         }
       `}</style>
 
-      {/* Hero Header */}
-      <div className="sg-page-header" style={{ backgroundColor: '#0065bd', color: 'white', padding: '32px 0' }}>
-        <div className="sg-page-header-container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
-          <nav className="mb-4">
-            <div className="flex items-center gap-2 text-blue-100">
-              <button
+      {/* Blue page header section */}
+      <div className="sg-page-header">
+        <div className="sg-page-header-container">
+          {/* Breadcrumb */}
+          <nav className="sg-page-header-breadcrumb">
+            <div className="flex items-center gap-2 text-base">
+              <button 
                 onClick={() => navigate('/runs')}
-                className="text-white hover:text-blue-200 underline transition-colors"
+                className="text-white hover:text-[#d9eeff] hover:no-underline underline cursor-pointer transition-colors duration-200"
               >
                 Runs
               </button>
-              <span>></span>
-              <span className="text-white font-medium">Run #{runId}</span>
+              <span className="text-white">&gt;</span>
+              <span className="text-white">Run #{runId}</span>
             </div>
           </nav>
-          <h1 className="sg-page-header-title" style={{ fontSize: '44px', fontWeight: 'bold', marginBottom: '16px' }}>
+
+          {/* Page title */}
+          <h1 className="sg-page-header-title">
             Run #{runId}: {pipeline?.name || 'Untitled Workflow'}
           </h1>
+
+          {/* Page description - constrained to 75% width */}
           <div className="w-3/4">
-            <p className="sg-page-header-description" style={{ fontSize: '16px', lineHeight: '24px' }}>
+            <p className="sg-page-header-description">
               {pipeline?.description || 'This run executes a data processing workflow with detailed execution logs and file outputs.'}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8 flex gap-8">
-        {/* Sidebar Navigation */}
-        <div className="w-1/4 shrink-0">
-          <div className="sg-sidebar">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Contents</h2>
-            <nav className="space-y-2">
-              {[
-                { id: 'summary', label: 'Run Summary' },
-                { id: 'data-files', label: 'Data Files' },
-                { id: 'steps', label: 'Step Execution' },
-                { id: 'logs', label: 'Execution Logs' },
-                { id: 'config', label: 'Configuration' }
-              ].map(section => (
-                <button
-                  key={section.id}
-                  onClick={() => handleJumpLinkClick(section.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm ${
-                    activeSection === section.id
-                      ? 'bg-blue-50 text-blue-700 border-l-3 border-blue-600 font-bold'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'
-                  }`}
-                >
-                  {section.label}
-                </button>
-              ))}
-            </nav>
+      <div className="max-w-[1200px] mx-auto px-6 py-8">
+        <div className="flex gap-8">
+          {/* Sidebar - 25% width with sticky contents */}
+          <div className="w-1/4 shrink-0">
+            <div className="sg-contents-sticky">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-4">
+                Contents
+              </h2>
+              
+              <nav>
+                <ul className="sg-contents-nav">
+                  <li className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick('summary')}
+                      className={`sg-contents-link w-full text-left ${isActiveSection('summary') ? 'sg-contents-link-active' : ''}`}
+                    >
+                      Overview
+                    </button>
+                  </li>
+                  <li className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick('data-files')}
+                      className={`sg-contents-link w-full text-left ${isActiveSection('data-files') ? 'sg-contents-link-active' : ''}`}
+                    >
+                      Data files
+                    </button>
+                  </li>
+                  <li className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick('steps')}
+                      className={`sg-contents-link w-full text-left ${isActiveSection('steps') ? 'sg-contents-link-active' : ''}`}
+                    >
+                      Step execution
+                    </button>
+                  </li>
+                  <li className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick('logs')}
+                      className={`sg-contents-link w-full text-left ${isActiveSection('logs') ? 'sg-contents-link-active' : ''}`}
+                    >
+                      Execution logs
+                    </button>
+                  </li>
+                  <li className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick('config')}
+                      className={`sg-contents-link w-full text-left ${isActiveSection('config') ? 'sg-contents-link-active' : ''}`}
+                    >
+                      Config template
+                    </button>
+                  </li>
+                </ul>
+              </nav>
+            </div>
           </div>
-        </div>
 
-        {/* Main Content */}
-        <div className="w-3/4 space-y-8">
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-700 text-sm">{error}</p>
-            </div>
-          )}
+          {/* Main content - 75% width */}
+          <div className="w-3/4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
+            )}
 
-          {/* Run Summary Section */}
-          <section id="summary" className="sg-workflow-card">
-            <h2 className="sg-workflow-title">Run Summary</h2>
-            <div className="flex justify-between items-center mb-6">
-              <StatusBadge status={status} />
-              <CustomTooltip content="Refresh the run status and logs">
-                <button
-                  onClick={handleSync}
-                  disabled={syncLoading}
-                  className={`inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors ${syncLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {syncLoading ? (
-                    <ClipLoader color="#ffffff" size={16} />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  Sync Status
-                </button>
-              </CustomTooltip>
-            </div>
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2 flex items-center gap-2">
-                  <FileText className="h-6 w-6 text-blue-600" />
-                  Triggered By
-                </h3>
-                <div className="flex items-center gap-3">
-                  <div className="flex-0 w-8 h-8 bg-gray-100 flex items-center justify-center border border-gray-200 rounded-lg">
-                    <User className="h-4 w-4 text-gray-600" />
-                  </div>
-                  <div className="flex flex-col">
-                    <p className="text-sm font-medium text-gray-900">{runData.triggered_by_username || getFirstNameFromEmail(runData.triggered_by_email)}</p>
-                    <p className="text-sm text-gray-600">{runData.triggered_by_email || 'Unknown user'}</p>
-                  </div>
+            {/* Run Summary Section */}
+            <section id="summary" className="mb-12 pt-6">
+              <div className="sg-section-separator">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px]">
+                    Overview
+                  </h2>
+                  <CustomTooltip content="Refresh the run status and logs">
+                    <button
+                      onClick={handleSync}
+                      disabled={syncLoading}
+                      className={`inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-[#0065bd] border border-[#0065bd] hover:bg-[#004a9f] px-4 py-2 rounded transition-colors ${syncLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      {syncLoading ? (
+                        <ClipLoader color="#ffffff" size={16} />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      Sync Status
+                    </button>
+                  </CustomTooltip>
                 </div>
               </div>
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2 flex items-center gap-2">
-                  <Calendar className="h-6 w-6 text-blue-600" />
-                  Execution Timeline
-                </h3>
-                <table className="sg-table text-sm">
+
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-8">
+                  Overview of this workflow run including execution status, timing, and trigger information.
+                </p>
+                
+                {/* Run information table */}
+                <table className="sg-table mb-8">
                   <tbody>
                     <tr>
-                      <th className="w-1/3">Started</th>
+                      <th className="w-1/2">Run ID</th>
+                      <td>#{runId}</td>
+                    </tr>
+                    <tr>
+                      <th>Workflow Name</th>
+                      <td>{pipeline?.name || 'Untitled Workflow'}</td>
+                    </tr>
+                    <tr>
+                      <th>Workflow ID</th>
+                      <td>{runData.workflow_id || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <th>Dagster Run ID</th>
+                      <td>{dagsterRunId || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <th>Status</th>
+                      <td><StatusBadge status={status} /></td>
+                    </tr>
+                    <tr>
+                      <th>Triggered By</th>
                       <td>
-                        {runData.started_at ? new Date(runData.started_at).toLocaleString('en-GB', {
-                          day: '2-digit',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        }) : 'Not started'}
+                        <div className="flex flex-col">
+<span className="font-medium">
+  {runData.triggered_by_username}{' '}
+  <span className="text-gray-500">{'('}{runData.triggered_by_email}{')'}</span>
+</span>                      </div>
                       </td>
                     </tr>
                     <tr>
-                      <th>Finished</th>
+                      <th>Started At</th>
                       <td>
-                        {runData.finished_at ? new Date(runData.finished_at).toLocaleString('en-GB', {
-                          day: '2-digit',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        }) : status === 'running' ? <StatusBadge status="running" /> : 'Not finished'}
+                        {runData.started_at ? new Date(runData.started_at).toLocaleDateString('en-GB') : 'Not started'}
                       </td>
                     </tr>
                     <tr>
@@ -725,220 +874,264 @@ const Run = () => {
                     </tr>
                   </tbody>
                 </table>
-              </div>
-              {runData.error_message && (
-                <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
-                  <h4 className="text-sm font-medium text-red-700 mb-2">Error Message</h4>
-                  <p className="text-sm text-gray-600">{runData.error_message}</p>
-                </div>
-              )}
-            </div>
-          </section>
 
-          {/* Data Files Section */}
-          <section id="data-files" className="sg-workflow-card">
-            <h2 className="sg-workflow-title">Data Files</h2>
-            <p className="sg-workflow-description mb-6">Input and output files for this run</p>
-            <div className="space-y-4">
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">Input File</h4>
-                {runData.input_file_path ? (
-                  <FileDownloadComponent
-                    filePath={runData.input_file_path}
-                    fileName={getFileNameFromPath(runData.input_file_path)}
-                    fileType={getFileType(runData.input_file_path)}
-                    onDownload={handleDownload}
-                    isLoading={downloadLoading.input}
-                  />
-                ) : (
-                  <p className="text-sm text-gray-600 italic">No input file available</p>
-                )}
-              </div>
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">Output File</h4>
-                {runData.output_file_path ? (
-                  <FileDownloadComponent
-                    filePath={runData.output_file_path}
-                    fileName={getFileNameFromPath(runData.output_file_path)}
-                    fileType={getFileType(runData.output_file_path)}
-                    onDownload={handleDownload}
-                    isLoading={downloadLoading.output}
-                  />
-                ) : (
-                  <p className="text-sm text-gray-600 italic">No output file generated</p>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* Step Execution Section */}
-          <section id="steps" className="sg-workflow-card">
-            <h2 className="sg-workflow-title">Step Execution</h2>
-            <p className="sg-workflow-description mb-6">Timeline of step execution for this run</p>
-
-              {steps.length > 0 ? (
-                <div className="space-y-4">
-                  {steps.map((step, index) => {
-                    const stepStatus = steps.find(s => s.key === step.key) || {};
-                    const statusColor = {
-                      queued: 'bg-gray-400',
-                      pending: 'bg-gray-400',
-                      running: 'bg-blue-600 animate-pulse',
-                      success: 'bg-emerald-600',
-                      completed: 'bg-emerald-600',
-                      failed: 'bg-red-600',
-                      failure: 'bg-red-600',
-                      skipped: 'bg-orange-500',
-                      cancelled: 'bg-purple-500'
-                    }[stepStatus.status?.toLowerCase()] || 'bg-gray-400';
-                    return (
-                      <div key={step.key} className="relative pl-8">
-                        {index < steps.length - 1 && (
-                          <div className="absolute left-3 top-4 w-1 h-full bg-gray-200"></div>
-                        )}
-                        <div className="absolute left-1.5 top-4 w-4 h-4 border-2 border-gray-300 flex items-center justify-center rounded-full">
-                          <div className={`w-2 h-2 rounded-full ${statusColor}`} />
-                        </div>
-                        <div className="sg-workflow-card">
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <h4 className="text-sm font-medium text-gray-900">{stepStatus.step_label || step.key || 'Unnamed Step'}</h4>
-                              {stepStatus.step_description && (
-                                <p className="text-sm text-gray-600 mt-1">{stepStatus.step_description}</p>
-                              )}
-                            </div>
-                            <StatusBadge status={stepStatus.status} />
-                          </div>
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div className="flex items-center gap-2 text-gray-600">
-                              <Calendar className="h-4 w-4" />
-                              <span>
-                                {stepStatus.started_at ? new Date(stepStatus.started_at).toLocaleTimeString('en-GB', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: false,
-                                }) : 'Not started'}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 text-gray-600">
-                              <Gauge className="h-4 w-4" />
-                              <DurationDisplay start={stepStatus.started_at} end={stepStatus.finished_at} />
-                            </div>
-                          </div>
-                          {stepStatus.error_message && (
-                            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-gray-600">
-                              <strong>Error:</strong> {stepStatus.error_message}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-sm text-gray-600">No step execution data available</p>
-                </div>
-              )}
-          </section>
-
-          {/* Execution Logs Section */}
-          <section id="logs" className="sg-workflow-card">
-            <h2 className="sg-workflow-title">Execution Logs</h2>
-            <p className="sg-workflow-description mb-6">Detailed logs for this run</p>
-                {events.length > 0 ? (
-                <div className="space-y-3">
-                  {events.map((event) => {
-                    const levelColor = {
-                      ERROR: 'bg-red-600',
-                      WARNING: 'bg-orange-500',
-                      DEBUG: 'bg-blue-600',
-                      INFO: 'bg-emerald-600'
-                    }[event.level?.toUpperCase()] || 'bg-emerald-600';
-                    const badgeColor = {
-                      ERROR: 'bg-red-100 text-red-700 border-red-200',
-                      WARNING: 'bg-orange-100 text-orange-700 border-orange-200',
-                      DEBUG: 'bg-blue-100 text-blue-700 border-blue-200',
-                      INFO: 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                    }[event.level?.toUpperCase()] || 'bg-emerald-100 text-emerald-700 border-emerald-200';
-                    return (
-                      <div key={event.id} className="sg-workflow-card">
-                        <button
-                          onClick={() => toggleLogExpansion(event.id)}
-                          className="w-full flex justify-between items-center p-4 hover:bg-gray-50 rounded-lg"
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className={`w-3 h-3 rounded-full ${levelColor}`} />
-                            <span className="text-sm font-medium text-gray-900">{event.stepKey || 'System'}</span>
-                            <span className={`text-xs px-2 py-0.5 font-medium border rounded-full ${badgeColor}`}>
-                              {event.__typename || event.level?.toUpperCase() || 'INFO'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs text-gray-600">
-                              {event.timestamp ? new Date(parseInt(event.timestamp)).toLocaleTimeString('en-GB', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: false,
-                              }) : 'Unknown time'}
-                            </span>
-                            {expandedLogs[event.id] ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
-                          </div>
-                        </button>
-                        {expandedLogs[event.id] && (
-                          <div className="p-4 bg-gray-50 border-t border-gray-200 rounded-b-lg">
-                            <pre className="text-sm text-gray-600 whitespace-pre-wrap font-mono">
-                              {event.message || 'No message'}
-                            </pre>
-                            <LogEventDetails event={event} />
-                            {event.dagster_run_id && (
-                              <p className="text-xs text-gray-600 mt-2 font-mono">Run ID: {event.dagster_run_id}</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Code className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-sm text-gray-600">No execution logs available for this run</p>
-                </div>
-              )}
-          </section>
-
-          {/* Configuration Section */}
-          <section id="config" className="sg-workflow-card">
-            <h2 className="sg-workflow-title">Configuration</h2>
-            <p className="sg-workflow-description mb-6">Configuration details for this run</p>
-                      <div className="space-y-4">
-                <table className="sg-table text-sm">
-                  <tbody>
-                    <tr>
-                      <th className="w-1/3">Workflow ID</th>
-                      <td>{runData.workflow_id || 'N/A'}</td>
-                    </tr>
-                    <tr>
-                      <th>Dagster Run ID</th>
-                      <td>{dagsterRunId || 'N/A'}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                {runData.config_used && (
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Operations Config</h3>
-                    <pre className="text-xs bg-gray-50 p-3 border border-gray-200 rounded-lg text-gray-600 overflow-x-auto">
-                      {JSON.stringify(runData.config_used?.ops, null, 2)}
-                    </pre>
+                {runData.error_message && (
+                  <div className="sg-dataset-tile bg-red-50 border-red-200">
+                    <h3 className="sg-dataset-title text-red-700 mb-2">Error Details</h3>
+                    <p className="sg-dataset-description text-red-600">{runData.error_message}</p>
                   </div>
                 )}
               </div>
-          </section>
+            </section>
+
+            {/* Data Files Section */}
+            <section id="data-files" className="mb-12">
+              <div className="sg-section-separator">
+                <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+                  Data files
+                </h2>
+              </div>
+              
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Input and output files associated with this workflow run. Click to download available files.
+                </p>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="sg-dataset-title flex-1 mr-4 mb-3">
+                      Input file
+                    </h3>
+                    {runData.input_file_path ? (
+                      <FileDownloadComponent
+                        filePath={runData.input_file_path}
+                        fileName={getFileNameFromPath(runData.input_file_path)}
+                        fileType={getFileType(runData.input_file_path)}
+                        onDownload={handleDownload}
+                        isLoading={downloadLoading.input}
+                      />
+                    ) : (
+                      <div className="sg-dataset-tile">
+                        <p className="sg-dataset-description italic">No input file available</p>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="sg-dataset-title flex-1 mr-4 mb-3">
+                      Output file
+                    </h3>
+                    {runData.output_file_path ? (
+                      <FileDownloadComponent
+                        filePath={runData.output_file_path}
+                        fileName={getFileNameFromPath(runData.output_file_path)}
+                        fileType={getFileType(runData.output_file_path)}
+                        onDownload={handleDownload}
+                        isLoading={downloadLoading.output}
+                      />
+                    ) : (
+                      <div className="sg-dataset-tile">
+                        <p className="sg-dataset-description italic">No output file generated</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Step Execution Section */}
+            <section id="steps" className="mb-12">
+              <div className="sg-section-separator">
+                <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+                  Step execution
+                </h2>
+              </div>
+              
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Timeline of workflow step execution showing the progression and status of each processing stage.
+                </p>
+
+                {steps.length > 0 ? (
+                  <div className="space-y-4">
+                    {steps.map((step, index) => {
+                      const stepStatus = steps.find(s => s.key === step.key) || {};
+                      const statusColor = {
+                        queued: 'bg-gray-400',
+                        pending: 'bg-gray-400',
+                        running: 'bg-blue-600 animate-pulse',
+                        success: 'bg-emerald-600',
+                        completed: 'bg-emerald-600',
+                        failed: 'bg-red-600',
+                        failure: 'bg-red-600',
+                        skipped: 'bg-orange-500',
+                        cancelled: 'bg-purple-500'
+                      }[stepStatus.status?.toLowerCase()] || 'bg-gray-400';
+                      
+                      return (
+                        <div key={step.key} className="relative pl-8">
+                          {index < steps.length - 1 && (
+                            <div className="absolute left-3 top-4 w-1 h-full bg-gray-200"></div>
+                          )}
+                          <div className="absolute left-1.5 top-4 w-4 h-4 border-2 border-gray-300 flex items-center justify-center rounded-full bg-white">
+                            <div className={`w-2 h-2 rounded-full ${statusColor}`} />
+                          </div>
+                          <div className="sg-dataset-tile">
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <h3 className="sg-dataset-title">{stepStatus.step_label || step.key || 'Unnamed Step'}</h3>
+                                {stepStatus.step_description && (
+                                  <p className="sg-dataset-description text-sm mt-1">{stepStatus.step_description}</p>
+                                )}
+                              </div>
+                              <StatusBadge status={stepStatus.status} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div className="flex items-center gap-2 text-gray-600">
+                                <Calendar className="h-4 w-4" />
+                                <span>
+                                  {stepStatus.started_at ? new Date(stepStatus.started_at).toLocaleDateString('en-GB') : 'Not started'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-gray-600">
+                                <Gauge className="h-4 w-4" />
+                                <DurationDisplay start={stepStatus.started_at} end={stepStatus.finished_at} />
+                              </div>
+                            </div>
+                            {stepStatus.error_message && (
+                              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-gray-600">
+                                <strong>Error:</strong> {stepStatus.error_message}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="sg-dataset-tile text-center py-12">
+                    <AlertCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="sg-dataset-title text-gray-500 mb-2">No step execution data available</h3>
+                    <p className="sg-dataset-description">No execution steps found for this run.</p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Execution Logs Section */}
+            <section id="logs" className="mb-12">
+              <div className="sg-section-separator">
+                <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+                  Execution logs
+                </h2>
+              </div>
+              
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Detailed execution logs from the workflow run. Click on any log entry to view additional details.
+                </p>
+                {events.length > 0 ? (
+                  <div className="space-y-3">
+                    {events.map((event) => {
+                      const levelColor = {
+                        ERROR: 'bg-red-600',
+                        WARNING: 'bg-orange-500',
+                        DEBUG: 'bg-blue-600',
+                        INFO: 'bg-emerald-600'
+                      }[event.level?.toUpperCase()] || 'bg-emerald-600';
+                      const badgeColor = {
+                        ERROR: 'bg-red-100 text-red-700 border-red-200',
+                        WARNING: 'bg-orange-100 text-orange-700 border-orange-200',
+                        DEBUG: 'bg-blue-100 text-blue-700 border-blue-200',
+                        INFO: 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                      }[event.level?.toUpperCase()] || 'bg-emerald-100 text-emerald-700 border-emerald-200';
+                      
+                      return (
+                        <div key={event.id} className="sg-dataset-tile p-0">
+                          <button
+                            onClick={() => toggleLogExpansion(event.id)}
+                            className="w-full flex justify-between items-center p-6 hover:bg-gray-50 rounded transition-colors text-left"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className={`w-3 h-3 rounded-full ${levelColor}`} />
+                              <span className="text-sm font-medium text-gray-900">{event.stepKey || 'System'}</span>
+                              <span className={`text-xs px-2 py-0.5 font-medium border rounded-full ${badgeColor}`}>
+                                {event.__typename || event.level?.toUpperCase() || 'INFO'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-gray-600">
+                                {event.timestamp ? new Date(parseInt(event.timestamp)).toLocaleDateString('en-GB') : 'Unknown time'}
+                              </span>
+                              {expandedLogs[event.id] ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                            </div>
+                          </button>
+                          {expandedLogs[event.id] && (
+  
+                              <LogEventDetails event={event} />
+        
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="sg-dataset-tile text-center py-12">
+                    <Code className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="sg-dataset-title text-gray-500 mb-2">No execution logs available</h3>
+                    <p className="sg-dataset-description">No logs found for this workflow run.</p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Configuration Section */}
+            <section id="config" className="mb-12">
+              <div className="sg-section-separator">
+                <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+                  Config template
+                </h2>
+              </div>
+              
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Configuration details and parameters used for this specific workflow run.
+                </p>
+                <div className="space-y-6">
+                  <table className="sg-table">
+                    <tbody>
+                      <tr>
+                        <th className="w-1/3">Workflow ID</th>
+                        <td>{runData.workflow_id || 'N/A'}</td>
+                      </tr>
+                      <tr>
+                        <th>Dagster Run ID</th>
+                        <td>{dagsterRunId || 'N/A'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {runData.config_used && (
+                    <div className="sg-dataset-tile">
+                      <div className="flex items-start justify-between mb-3">
+                        <h3 className="sg-dataset-title flex-1 mr-4">
+                          Operations configuration
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3">
+                        <span>Format: JSON</span>
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 overflow-x-auto">
+                        <pre className="text-sm text-gray-900 font-mono mb-0">
+                          <code>{JSON.stringify(runData.config_used?.ops || {}, null, 2)}</code>
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 };
 

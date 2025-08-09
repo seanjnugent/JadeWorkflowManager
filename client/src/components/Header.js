@@ -206,26 +206,60 @@ const Header = () => {
           </div>
 
           {/* User actions positioned at header level */}
-          <div className="ds_site-header__user-actions flex items-center gap-2">
-            <button
-              onClick={() => navigate(`/profile/${userId}`)}
-              className="sg-avatar-button"
-              title={user ? `${user.first_name} ${user.surname}` : 'Profile'}
-            >
-              <span>
-                {user ? getInitials() : '--'}
-              </span>
-            </button>
+<div className="flex items-center gap-3">
+  <button
+    onClick={() => navigate(`/profile/${userId}`)}
+    aria-label="Profile"
+    title={user ? `${user.first_name} ${user.surname}` : 'Profile'}
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '8px 16px',
+      border: '2px solid #5e5e5e',
+      backgroundColor: '#ffffff',
+      color: '#5e5e5e',
+      fontFamily: "'Roboto','Helvetica Neue',Arial,sans-serif",
+      fontSize: '0.875rem',
+      fontWeight: 600,
+      lineHeight: 1.5,
+      borderRadius: '4px',
+      transition: 'background-color 0.2s ease-in-out',
+    }}
+    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8f8f8')}
+    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#ffffff')}
+  >
 
-            <button
-              onClick={logout}
-              className="sg-user-action-button"
-              title="Logout"
-            >
-              <LogOut className="h-5 w-5" />
-              <span className="text-sm font-bold">Logout</span>
-            </button>
-          </div>
+      {user ? getInitials() : '--'}
+  </button>
+
+  <button
+    onClick={logout}
+    aria-label="Logout"
+    title="Logout"
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '8px 16px',
+      border: '2px solid #5e5e5e',
+      backgroundColor: '#ffffff',
+      color: '#5e5e5e',
+      fontFamily: "'Roboto','Helvetica Neue',Arial,sans-serif",
+      fontSize: '0.875rem',
+      fontWeight: 600,
+      lineHeight: 1.5,
+      borderRadius: '4px',
+      transition: 'background-color 0.2s ease-in-out',
+    }}
+    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8f8f8')}
+    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#ffffff')}
+  >
+<LogOut style={{ width: '16px', height: '16px' }} weight="bold" />
+    <span>Logout</span>
+  </button>
+</div>
+
 
           <div className="ds_site-header__controls">
             <button

@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, FileInput, File, Settings2, Database, Waypoints, FileSpreadsheet, FileX, CheckCircle2, GitBranch } from 'lucide-react';
+import { ChevronLeft, FileInput, File, Settings2, Database, Waypoints, FileSpreadsheet, FileX, CheckCircle2, GitBranch, ChevronRight, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { GridLoader } from 'react-spinners';
 import axios from 'axios';
 
@@ -55,16 +55,43 @@ const NewWorkflow = () => {
   const [dagPath, setDagPath] = useState('');
   const [successMessage, setSuccessMessage] = useState(null);
   const [skipFileUpload, setSkipFileUpload] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({});
+  const [isScrolledIntoView, setIsScrolledIntoView] = useState(false);
+
+  const sectionRefs = {
+    'workflow-details': useRef(null),
+    'input-file': useRef(null),
+    'structure-preview': useRef(null),
+    'parameters': useRef(null),
+    'dag-configuration': useRef(null),
+    'destination': useRef(null),
+    'review': useRef(null),
+  };
 
   const steps = [
-    { id: 1, title: 'Workflow Details', icon: FileInput },
-    { id: 2, title: 'Input File', icon: File },
-    { id: 3, title: 'Structure Preview', icon: File },
-    { id: 4, title: 'Parameters', icon: Settings2 },
-    { id: 5, title: 'DAG Configuration', icon: GitBranch },
-    { id: 6, title: 'Destination', icon: Database },
-    { id: 7, title: 'Review', icon: CheckCircle2 },
+    { id: 'workflow-details', title: 'Workflow Details', icon: <FileInput className="h-4 w-4" /> },
+    { id: 'input-file', title: 'Input File', icon: <File className="h-4 w-4" /> },
+    { id: 'structure-preview', title: 'Structure Preview', icon: <File className="h-4 w-4" /> },
+    { id: 'parameters', title: 'Parameters', icon: <Settings2 className="h-4 w-4" /> },
+    { id: 'dag-configuration', title: 'DAG Configuration', icon: <GitBranch className="h-4 w-4" /> },
+    { id: 'destination', title: 'Destination', icon: <Database className="h-4 w-4" /> },
+    { id: 'review', title: 'Review', icon: <CheckCircle2 className="h-4 w-4" /> },
   ];
+
+  useEffect(() => {
+    document.title = "Jade | New Workflow";
+    const initialExpanded = {};
+    parameterSections.forEach(section => {
+      initialExpanded[section.name] = true;
+    });
+    setExpandedSections(initialExpanded);
+  }, [parameterSections]);
+
+  useEffect(() => {
+    if (isScrolledIntoView && sectionRefs[steps[currentStep - 1].id]?.current) {
+      sectionRefs[steps[currentStep - 1].id].current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [currentStep, isScrolledIntoView]);
 
   const handleFileUpload = useCallback(
     async (file) => {
@@ -251,6 +278,13 @@ const NewWorkflow = () => {
     });
   };
 
+  const toggleSection = (sectionName) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName],
+    }));
+  };
+
   const validateCurrentStep = () => {
     switch (currentStep) {
       case 1:
@@ -320,135 +354,456 @@ const NewWorkflow = () => {
     } else {
       setCurrentStep(currentStep + 1);
       setUploadError('');
+      setIsScrolledIntoView(true);
     }
   };
 
-  if (isUploading) {
+  const handleJumpLinkClick = (sectionId) => {
+    const currentIndex = steps.findIndex(step => step.id === steps[currentStep - 1].id);
+    const targetIndex = steps.findIndex(step => step.id === sectionId);
+    if (targetIndex <= currentIndex) {
+      setCurrentStep(targetIndex + 1);
+      setIsScrolledIntoView(true);
+    }
+  };
+
+  if (isUploading || successMessage) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <GridLoader color="#1e3a8a" size={15} margin={2} />
+      <div className="min-h-screen bg-white flex justify-center items-center">
+        <div className="text-center">
+          <GridLoader color="#0065bd" size={17.5} margin={7.5} />
+          {successMessage && (
+            <p className="mt-4 text-sm text-gray-700">{successMessage}</p>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      {successMessage && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white border border-gray-300 p-6 flex flex-col items-center">
-            <GridLoader color="#1e3a8a" size={15} margin={2} />
-            <p className="mt-4 text-gray-700 text-sm">{successMessage}</p>
-          </div>
-        </div>
-      )}
+    <div className="min-h-screen bg-white">
+      <style jsx>{`
+        :root {
+          --sg-blue: #0065bd;
+          --sg-blue-dark: #005eb8;
+          --sg-blue-darker: #00437d;
+          --sg-blue-light: #d9eeff;
+          --sg-blue-lighter: #f0f8ff;
+          --sg-blue-lightest: #e6f3ff;
+          --sg-blue-border: rgba(0,101,189,0.64);
+          --sg-blue-text: #00437d;
+          --sg-blue-hover: #004a9f;
+          --sg-gray: #5e5e5e;
+          --sg-gray-dark: #333333;
+          --sg-gray-light: #ebebeb;
+          --sg-gray-lighter: #f8f8f8;
+          --sg-gray-border: #b3b3b3;
+          --sg-gray-bg: #f8f8f8;
+          --sg-text-primary: #333333;
+          --sg-text-secondary: #5e5e5e;
+          --sg-text-inverse: #ffffff;
+          --sg-space-xs: 4px;
+          --sg-space-sm: 8px;
+          --sg-space-md: 16px;
+          --sg-space-lg: 24px;
+          --sg-space-xl: 32px;
+          --sg-space-xxl: 48px;
+          --sg-font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+          --radius: 4px;
+        }
 
-      <div className="max-w-4xl mx-auto py-8 px-4">
-        <div className="mb-8">
-          <div className="flex items-center gap-4 mb-6">
-            <button
-              onClick={() => navigate('/workflows')}
-              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Back to Workflows
-            </button>
-          </div>
+        .sg-page-header {
+          background: var(--sg-blue-dark);
+          color: var(--sg-text-inverse);
+          padding: var(--sg-space-xl) 0;
+          padding-bottom: var(--sg-space-lg);
+        }
 
-          <div className="mb-6 text-center">
-            <h1 className="text-xl font-semibold text-gray-900">{steps[currentStep - 1].title}</h1>
-            <p className="text-gray-600 text-sm mt-1">
-              {currentStep === 1 && 'Enter the basic details for the new workflow'}
-              {currentStep === 2 && 'Upload an input file or skip for flexible structure'}
-              {currentStep === 3 && 'Review and adjust the file structure'}
-              {currentStep === 4 && 'Define parameters for the workflow'}
-              {currentStep === 5 && 'Configure the DAG location in GitHub'}
-              {currentStep === 6 && 'Configure the output destination'}
-              {currentStep === 7 && 'Review your workflow configuration'}
+        .sg-page-header-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 var(--sg-space-lg);
+        }
+
+        .sg-page-header-breadcrumb {
+          margin-bottom: var(--sg-space-md);
+        }
+
+        .sg-page-header-title {
+          font-family: var(--sg-font-family);
+          font-size: 2.25rem;
+          font-weight: 700;
+          line-height: 1.25;
+          color: var(--sg-text-inverse);
+          margin-bottom: var(--sg-space-md);
+        }
+
+        .sg-page-header-description {
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-inverse);
+          margin-bottom: var(--sg-space-lg);
+        }
+
+        .sg-contents-sticky {
+          position: sticky;
+          top: var(--sg-space-lg);
+          align-self: flex-start;
+          background: white;
+          border-radius: var(--radius);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          padding: var(--sg-space-lg);
+          max-height: calc(100vh - var(--sg-space-xl));
+          overflow-y: auto;
+        }
+
+        .sg-contents-nav {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+
+        .sg-contents-item {
+          margin: 0;
+          padding: 0;
+        }
+
+        .sg-contents-link {
+          display: flex;
+          align-items: center;
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          text-decoration: none;
+          color: var(--sg-blue);
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          font-weight: 400;
+          line-height: 1.5;
+          border-left: 4px solid transparent;
+          transition: all 0.2s ease-in-out;
+          cursor: pointer;
+          margin: 2px 0;
+        }
+
+        .sg-contents-link::before {
+          content: '–';
+          margin-right: var(--sg-space-sm);
+          color: var(--sg-blue);
+          font-weight: 400;
+        }
+
+        .sg-contents-link:hover {
+          background-color: var(--sg-blue-light);
+          border-left-color: var(--sg-blue);
+          text-decoration: none;
+        }
+
+        .sg-contents-link-active {
+          background-color: var(--sg-blue-lightest);
+          border-left-color: var(--sg-blue);
+          font-weight: 500;
+          color: var(--sg-blue);
+        }
+
+        .sg-contents-link-active::before {
+          font-weight: 700;
+        }
+
+        .sg-contents-link-disabled {
+          color: var(--sg-gray);
+          cursor: not-allowed;
+        }
+
+        .sg-dataset-tile {
+          background: white;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          border: 1px solid var(--sg-gray-light);
+          border-radius: var(--radius);
+          padding: var(--sg-space-lg);
+          transition: box-shadow 0.2s ease-in-out;
+        }
+
+        .sg-dataset-tile:hover {
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .sg-dataset-title {
+          font-family: var(--sg-font-family);
+          font-size: 1.375rem;
+          font-weight: 700;
+          line-height: 2rem;
+          letter-spacing: 0.15px;
+          color: var(--sg-blue);
+          margin-bottom: 8px;
+          transition: color 0.2s ease-in-out;
+        }
+
+        .sg-dataset-tile:hover .sg-dataset-title {
+          color: var(--sg-blue-hover);
+        }
+
+        .sg-dataset-description {
+          font-family: var(--sg-font-family);
+          font-size: 1.1875rem;
+          line-height: 2rem;
+          letter-spacing: 0.15px;
+          color: var(--sg-text-primary);
+          margin-bottom: 8px;
+        }
+
+        .sg-section-separator {
+          border-bottom: 1px solid var(--sg-gray-border);
+          padding-bottom: var(--sg-space-sm);
+          margin-bottom: var(--sg-space-lg);
+        }
+
+        .sg-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-primary);
+          border: 1px solid var(--sg-gray-border);
+        }
+
+        .sg-table th,
+        .sg-table td {
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          text-align: left;
+          border-bottom: 1px solid var(--sg-gray-border);
+          vertical-align: top;
+        }
+
+        .sg-table thead th {
+          background-color: var(--sg-gray-bg);
+          font-weight: 500;
+          color: var(--sg-text-primary);
+        }
+
+        .sg-table tbody tr:hover td,
+        .sg-table tbody tr:hover th {
+          background-color: var(--sg-blue-lightest);
+        }
+
+        .sg-hidden {
+          display: none;
+        }
+
+        input, select, textarea {
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-primary);
+          border: 1px solid var(--sg-gray-border);
+          border-radius: var(--radius);
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          transition: all 0.2s ease-in-out;
+        }
+
+        input:focus, select:focus, textarea:focus {
+          outline: none;
+          border-color: var(--sg-blue);
+          box-shadow: 0 0 0 2px var(--sg-blue-light);
+        }
+
+        textarea {
+          resize: vertical;
+        }
+
+        button {
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          border-radius: var(--radius);
+          transition: all 0.2s ease-in-out;
+        }
+
+        .sg-error {
+          background: #fef2f2;
+          border: 1px solid #fecdca;
+          border-radius: var(--radius);
+          padding: var(--sg-space-md);
+        }
+
+        .sg-error-text {
+          color: #dc2626;
+          font-size: 0.875rem;
+          line-height: 1.25rem;
+        }
+      `}</style>
+
+      <div className="sg-page-header">
+        <div className="sg-page-header-container">
+          <nav className="sg-page-header-breadcrumb">
+            <div className="flex items-center gap-2 text-base">
+              <button
+                onClick={() => navigate('/workflows')}
+                className="text-white hover:text-[#d9eeff] underline hover:no-underline transition-colors duration-200"
+              >
+                Workflows
+              </button>
+              <span className="text-white">&gt;</span>
+              <span className="text-white">New Workflow</span>
+            </div>
+          </nav>
+          <h1 className="sg-page-header-title">
+            New Workflow
+          </h1>
+          <div className="w-3/4">
+            <p className="sg-page-header-description">
+              Create a new workflow by defining its details, inputs, parameters, and destination
             </p>
           </div>
+        </div>
+      </div>
 
-          <div className="max-w-3xl mx-auto">
-            <div className="w-full h-1 bg-gray-200">
-              <div
-                className="h-1 bg-blue-900"
-                style={{ width: `${(currentStep / steps.length) * 100}%` }}
-              />
-            </div>
-            <div className="flex justify-between text-xs text-gray-500 mt-2">
-              {steps.map((step, index) => (
-                <span
-                  key={step.id}
-                  className={`font-medium ${currentStep > index ? 'text-blue-900' : ''}`}
-                >
-                  {step.title}
-                </span>
-              ))}
-            </div>
+      <div className="max-w-[1200px] mx-auto px-6 py-8 flex gap-8">
+        <div className="w-1/4 shrink-0">
+          <div className="sg-contents-sticky">
+            <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-4">Contents</h2>
+            <nav>
+              <ul className="sg-contents-nav">
+                {steps.map((step, index) => (
+                  <li key={step.id} className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick(step.id)}
+                      disabled={index > currentStep - 1}
+                      className={`sg-contents-link w-full text-left flex items-center gap-2 ${
+                        currentStep === index + 1
+                          ? 'sg-contents-link-active'
+                          : index < currentStep
+                            ? ''
+                            : 'sg-contents-link-disabled'
+                      }`}
+                    >
+                      {step.icon}
+                      {step.title}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </nav>
           </div>
         </div>
 
-        <div className="bg-white border border-gray-300 p-6">
-          {uploadError && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 flex justify-between items-center">
-              <span className="text-red-700 text-sm">{uploadError}</span>
-              <button onClick={() => setUploadError('')} className="text-red-700 hover:text-red-900">
-                ✕
-              </button>
+        <div className="w-3/4 space-y-8">
+          <section
+            id="workflow-details"
+            ref={sectionRefs['workflow-details']}
+            className={`sg-dataset-tile ${currentStep !== 1 ? 'sg-hidden' : ''}`}
+          >
+            <div className="sg-section-separator">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
+                <FileInput className="h-5 w-5 text-[#0065bd]" />
+                Workflow Details
+              </h2>
             </div>
-          )}
-
-          <div className="space-y-6">
-            {currentStep === 1 && (
+            <p className="sg-dataset-description mb-6">
+              Enter the basic details for the new workflow
+            </p>
+            {uploadError && (
+              <div className="sg-error mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="sg-error-text">{uploadError}</span>
+                  <button onClick={() => setUploadError('')} className="text-red-700 hover:text-red-900">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="space-y-6">
               <div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-1">Workflow Name</label>
+                <label className="block text-sm font-medium text-gray-900 mb-2">Workflow Name</label>
+                <div className="relative">
+                  <FileInput className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
                   <input
                     type="text"
                     value={workflowName}
                     onChange={(e) => setWorkflowName(e.target.value)}
                     placeholder="e.g., Monthly Sales Report"
-                    className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
+                    className="w-full pl-10"
                   />
                 </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-900 mb-1">Description</label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">Description</label>
+                <div className="relative">
+                  <FileInput className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
                   <textarea
                     value={workflowDescription}
                     onChange={(e) => setWorkflowDescription(e.target.value)}
                     placeholder="e.g., Processes monthly sales data for reporting"
-                    className="w-full h-24 p-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
+                    className="w-full pl-10 min-h-[100px]"
                   />
                 </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-900 mb-1">User ID</label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">User ID</label>
+                <div className="relative">
+                  <FileInput className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
                   <input
                     type="text"
                     value={userId}
                     onChange={(e) => setUserId(e.target.value)}
                     placeholder="e.g., 1001"
-                    className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
+                    className="w-full pl-10"
                   />
                 </div>
               </div>
-            )}
+            </div>
+            <div className="flex justify-end mt-8">
+              <button
+                onClick={handleNextStep}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors duration-200"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </section>
 
-            {currentStep === 2 && (
+          <section
+            id="input-file"
+            ref={sectionRefs['input-file']}
+            className={`sg-dataset-tile ${currentStep !== 2 ? 'sg-hidden' : ''}`}
+          >
+            <div className="sg-section-separator">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
+                <File className="h-5 w-5 text-[#0065bd]" />
+                Input File
+              </h2>
+            </div>
+            <p className="sg-dataset-description mb-6">
+              Upload an input file or skip for flexible structure
+            </p>
+            {uploadError && (
+              <div className="sg-error mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="sg-error-text">{uploadError}</span>
+                  <button onClick={() => setUploadError('')} className="text-red-700 hover:text-red-900">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="space-y-6">
               <div>
-                <div className="flex items-center gap-3 mb-4 p-4 bg-blue-50 border border-blue-200">
-                  <input
-                    type="checkbox"
-                    id="skipFileUpload"
-                    checked={skipFileUpload}
-                    onChange={(e) => setSkipFileUpload(e.target.checked)}
-                    className="h-4 w-4 border-gray-300 text-blue-900 focus:ring-blue-900"
-                  />
-                  <label htmlFor="skipFileUpload" className="flex items-center gap-2 text-gray-700 text-sm">
-                    <FileX className="w-4 h-4 text-gray-500" />
+                <div className="sg-dataset-tile p-4">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                    <input
+                      type="checkbox"
+                      id="skipFileUpload"
+                      checked={skipFileUpload}
+                      onChange={(e) => setSkipFileUpload(e.target.checked)}
+                      className="h-4 w-4 border-gray-300 text-[#0065bd] focus:ring-[#0065bd]"
+                    />
+                    <FileX className="h-4 w-4 text-gray-500" />
                     No fixed file structure (skip file upload)
                   </label>
                 </div>
                 {!skipFileUpload && (
-                  <div className="border border-gray-300 p-6 text-center">
+                  <div className="sg-dataset-tile p-6 text-center">
                     <input
                       type="file"
                       accept=".csv,.xlsx,.json"
@@ -466,36 +821,82 @@ const NewWorkflow = () => {
                   </div>
                 )}
               </div>
-            )}
+            </div>
+            <div className="flex justify-between items-center mt-8">
+              <button
+                onClick={() => {
+                  setCurrentStep(1);
+                  setUploadError('');
+                  setIsScrolledIntoView(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </button>
+              <button
+                onClick={handleNextStep}
+                disabled={isUploading}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors duration-200 disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </section>
 
-            {currentStep === 3 && (
+          <section
+            id="structure-preview"
+            ref={sectionRefs['structure-preview']}
+            className={`sg-dataset-tile ${currentStep !== 3 ? 'sg-hidden' : ''}`}
+          >
+            <div className="sg-section-separator">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
+                <File className="h-5 w-5 text-[#0065bd]" />
+                Structure Preview
+              </h2>
+            </div>
+            <p className="sg-dataset-description mb-6">
+              Review and adjust the file structure
+            </p>
+            {uploadError && (
+              <div className="sg-error mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="sg-error-text">{uploadError}</span>
+                  <button onClick={() => setUploadError('')} className="text-red-700 hover:text-red-900">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1">File Structure Preview</label>
+                <label className="block text-sm font-medium text-gray-900 mb-2">File Structure Preview</label>
                 {skipFileUpload ? (
-                  <div className="p-6 text-center bg-gray-50 border border-gray-200">
+                  <div className="sg-dataset-tile p-6 text-center">
                     <FileX className="mx-auto h-8 w-8 text-gray-400" />
-                    <p className="mt-2 text-sm font-medium text-gray-700">No file structure preview</p>
-                    <p className="mt-1 text-sm text-gray-600">This workflow doesn't require a fixed file structure.</p>
+                    <h3 className="sg-dataset-title mt-2">No file structure preview</h3>
+                    <p className="text-sm text-gray-600 mt-1">This workflow doesn't require a fixed file structure.</p>
                   </div>
                 ) : parsedFileStructure.length > 0 ? (
-                  <div className="border border-gray-300">
-                    <table className="w-full table-fixed">
-                      <thead className="bg-gray-50">
+                  <div className="sg-table">
+                    <table className="w-full">
+                      <thead>
                         <tr>
-                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-900">Column</th>
-                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-900">Type</th>
-                          <th className="px-4 py-2 text-left text-sm font-medium text-gray-900">Sample Values</th>
+                          <th className="px-4 py-2">Column</th>
+                          <th className="px-4 py-2">Type</th>
+                          <th className="px-4 py-2">Sample Values</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-200">
+                      <tbody>
                         {parsedFileStructure.map((col) => (
                           <tr key={col.column}>
-                            <td className="px-4 py-2 text-sm text-gray-900 truncate">{col.column}</td>
-                            <td className="px-4 py-2 text-sm text-gray-900">
+                            <td className="px-4 py-2 truncate">{col.column}</td>
+                            <td className="px-4 py-2">
                               <select
                                 value={col.type}
                                 onChange={(e) => handleTypeChange(col.column, e.target.value)}
-                                className="h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
+                                className="w-full"
                               >
                                 <option value="string">String</option>
                                 <option value="integer">Integer</option>
@@ -504,141 +905,276 @@ const NewWorkflow = () => {
                                 <option value="date">Date</option>
                               </select>
                             </td>
-                            <td className="px-4 py-2 text-sm text-gray-900 truncate">{col.samples?.join(', ') || 'N/A'}</td>
+                            <td className="px-4 py-2 truncate">{col.samples?.join(', ') || 'N/A'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 ) : (
-                  <div className="p-6 text-center bg-gray-50 border border-gray-200">
+                  <div className="sg-dataset-tile p-6 text-center">
                     <File className="mx-auto h-8 w-8 text-gray-400" />
-                    <p className="mt-2 text-sm font-medium text-gray-900">No file uploaded</p>
-                    <p className="mt-1 text-sm text-gray-600">Upload a file to preview its structure.</p>
+                    <h3 className="sg-dataset-title mt-2">No file uploaded</h3>
+                    <p className="text-sm text-gray-600 mt-1">Upload a file to preview its structure.</p>
                   </div>
                 )}
               </div>
-            )}
+            </div>
+            <div className="flex justify-between items-center mt-8">
+              <button
+                onClick={() => {
+                  setCurrentStep(2);
+                  setUploadError('');
+                  setIsScrolledIntoView(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </button>
+              <button
+                onClick={handleNextStep}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors duration-200"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </section>
 
-            {currentStep === 4 && (
+          <section
+            id="parameters"
+            ref={sectionRefs['parameters']}
+            className={`sg-dataset-tile ${currentStep !== 4 ? 'sg-hidden' : ''}`}
+          >
+            <div className="sg-section-separator">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
+                <Settings2 className="h-5 w-5 text-[#0065bd]" />
+                Parameters
+              </h2>
+            </div>
+            <p className="sg-dataset-description mb-6">
+              Define parameters for the workflow
+            </p>
+            {uploadError && (
+              <div className="sg-error mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="sg-error-text">{uploadError}</span>
+                  <button onClick={() => setUploadError('')} className="text-red-700 hover:text-red-900">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1">Workflow Parameters</label>
-                {parameterSections.map((section, sectionIndex) => (
-                  <div key={sectionIndex} className="p-4 bg-gray-50 border border-gray-200 mb-4">
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-900 mb-1">Section Name</label>
-                      <input
-                        type="text"
-                        value={section.name}
-                        onChange={(e) => handleSectionNameChange(sectionIndex, e.target.value)}
-                        placeholder="e.g., Report Metadata"
-                        className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
-                      />
-                    </div>
-                    {section.parameters.map((param, paramIndex) => (
-                      <div key={paramIndex} className="grid grid-cols-12 gap-4 p-4 bg-white border border-gray-200">
-                        <div className="col-span-3">
-                          <label className="block text-sm font-medium text-gray-900 mb-1">Name</label>
-                          <input
-                            type="text"
-                            value={param.name}
-                            onChange={(e) => handleParameterChange(sectionIndex, paramIndex, 'name', e.target.value)}
-                            placeholder="e.g., Report Type"
-                            className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
-                          />
-                        </div>
-                        <div className="col-span-3">
-                          <label className="block text-sm font-medium text-gray-900 mb-1">Type</label>
-                          <select
-                            value={param.type}
-                            onChange={(e) => handleParameterChange(sectionIndex, paramIndex, 'type', e.target.value)}
-                            className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
-                          >
-                            <option value="text">Text</option>
-                            <option value="textbox">Textbox</option>
-                            <option value="numeric">Numeric</option>
-                            <option value="integer">Integer</option>
-                            <option value="date">Date</option>
-                            <option value="select">Select</option>
-                          </select>
-                        </div>
-                        <div className="col-span-4">
-                          <label className="block text-sm font-medium text-gray-900 mb-1">Description</label>
-                          <input
-                            type="text"
-                            value={param.description}
-                            onChange={(e) => handleParameterChange(sectionIndex, paramIndex, 'description', e.target.value)}
-                            placeholder="e.g., Type of the report"
-                            className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
-                          />
-                        </div>
-                        <div className="col-span-2 flex items-center justify-center mt-6">
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={param.mandatory}
-                              onChange={(e) => handleParameterChange(sectionIndex, paramIndex, 'mandatory', e.target.checked)}
-                              className="h-4 w-4 border-gray-300 text-blue-900 focus:ring-blue-900"
-                            />
-                            <span className="text-sm text-gray-900">Req.</span>
-                          </label>
-                        </div>
-                        {param.type === 'select' && (
-                          <div className="col-span-12 space-y-2">
-                            <label className="block text-sm font-medium text-gray-900">Options</label>
-                            {param.options?.map((option, optIndex) => (
-                              <div key={optIndex} className="grid grid-cols-12 gap-4">
-                                <div className="col-span-5">
-                                  <input
-                                    type="text"
-                                    value={option.label}
-                                    onChange={(e) => handleOptionChange(sectionIndex, paramIndex, optIndex, 'label', e.target.value)}
-                                    placeholder="Option label"
-                                    className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
-                                  />
+                <label className="block text-sm font-medium text-gray-900 mb-2">Workflow Parameters</label>
+                {parameterSections.length === 0 ? (
+                  <div className="sg-dataset-tile p-6 text-center">
+                    <Settings2 className="mx-auto h-8 w-8 text-gray-400" />
+                    <h3 className="sg-dataset-title mt-2">No parameters configured</h3>
+                    <p className="text-sm text-gray-600 mt-1">Add a section to start configuring parameters.</p>
+                  </div>
+                ) : (
+                  parameterSections.map((section, sectionIndex) => (
+                    <div key={sectionIndex} className="sg-dataset-tile">
+                      <button
+                        className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                        onClick={() => toggleSection(section.name || `Section ${sectionIndex + 1}`)}
+                      >
+                        <h5 className="text-sm font-medium text-gray-900">
+                          {section.name || `Section ${sectionIndex + 1}`}
+                        </h5>
+                        {expandedSections[section.name || `Section ${sectionIndex + 1}`] ? (
+                          <ChevronUp className="h-4 w-4 text-gray-600" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-gray-600" />
+                        )}
+                      </button>
+                      {expandedSections[section.name || `Section ${sectionIndex + 1}`] && (
+                        <div className="p-4 space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2">Section Name</label>
+                            <div className="relative">
+                              <Settings2 className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                              <input
+                                type="text"
+                                value={section.name}
+                                onChange={(e) => handleSectionNameChange(sectionIndex, e.target.value)}
+                                placeholder="e.g., Report Metadata"
+                                className="w-full pl-10"
+                              />
+                            </div>
+                          </div>
+                          {section.parameters.map((param, paramIndex) => (
+                            <div key={paramIndex} className="space-y-4 p-4 bg-white border border-gray-200 rounded-lg">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-900 mb-2">Name</label>
+                                  <div className="relative">
+                                    <Settings2 className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                                    <input
+                                      type="text"
+                                      value={param.name}
+                                      onChange={(e) => handleParameterChange(sectionIndex, paramIndex, 'name', e.target.value)}
+                                      placeholder="e.g., Report Type"
+                                      className="w-full pl-10"
+                                    />
+                                  </div>
                                 </div>
-                                <div className="col-span-5">
-                                  <input
-                                    type="text"
-                                    value={option.value}
-                                    onChange={(e) => handleOptionChange(sectionIndex, paramIndex, optIndex, 'value', e.target.value)}
-                                    placeholder="Option value"
-                                    className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
-                                  />
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-900 mb-2">Type</label>
+                                  <div className="relative">
+                                    <Settings2 className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                                    <select
+                                      value={param.type}
+                                      onChange={(e) => handleParameterChange(sectionIndex, paramIndex, 'type', e.target.value)}
+                                      className="w-full pl-10"
+                                    >
+                                      <option value="text">Text</option>
+                                      <option value="textbox">Textbox</option>
+                                      <option value="numeric">Numeric</option>
+                                      <option value="integer">Integer</option>
+                                      <option value="date">Date</option>
+                                      <option value="select">Select</option>
+                                    </select>
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-900 mb-2">Description</label>
+                                  <div className="relative">
+                                    <Settings2 className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                                    <input
+                                      type="text"
+                                      value={param.description}
+                                      onChange={(e) => handleParameterChange(sectionIndex, paramIndex, 'description', e.target.value)}
+                                      placeholder="e.g., Type of the report"
+                                      className="w-full pl-10"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex items-center mt-6">
+                                  <label className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                                    <input
+                                      type="checkbox"
+                                      checked={param.mandatory}
+                                      onChange={(e) => handleParameterChange(sectionIndex, paramIndex, 'mandatory', e.target.checked)}
+                                      className="h-4 w-4 border-gray-300 text-[#0065bd] focus:ring-[#0065bd]"
+                                    />
+                                    Required
+                                  </label>
                                 </div>
                               </div>
-                            ))}
-                            <button
-                              onClick={() => handleAddOption(sectionIndex, paramIndex)}
-                              className="mt-2 text-sm text-blue-900 hover:underline"
-                            >
-                              Add Option
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => handleAddParameter(sectionIndex)}
-                      className="mt-4 px-4 py-2 bg-blue-900 text-white border border-blue-900 hover:bg-blue-800 text-sm font-medium"
-                    >
-                      Add Parameter
-                    </button>
-                  </div>
-                ))}
+                              {param.type === 'select' && (
+                                <div className="space-y-2">
+                                  <label className="block text-sm font-medium text-gray-900">Options</label>
+                                  {param.options?.map((option, optIndex) => (
+                                    <div key={optIndex} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div>
+                                        <div className="relative">
+                                          <Settings2 className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                                          <input
+                                            type="text"
+                                            value={option.label}
+                                            onChange={(e) => handleOptionChange(sectionIndex, paramIndex, optIndex, 'label', e.target.value)}
+                                            placeholder="Option label"
+                                            className="w-full pl-10"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <div className="relative">
+                                          <Settings2 className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                                          <input
+                                            type="text"
+                                            value={option.value}
+                                            onChange={(e) => handleOptionChange(sectionIndex, paramIndex, optIndex, 'value', e.target.value)}
+                                            placeholder="Option value"
+                                            className="w-full pl-10"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  <button
+                                    onClick={() => handleAddOption(sectionIndex, paramIndex)}
+                                    className="text-sm text-[#0065bd] hover:text-[#004a9f] underline hover:no-underline"
+                                  >
+                                    Add Option
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => handleAddParameter(sectionIndex)}
+                            className="mt-4 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors"
+                          >
+                            Add Parameter
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
                 <button
                   onClick={handleAddSection}
-                  className="mt-4 px-4 py-2 bg-blue-900 text-white border border-blue-900 hover:bg-blue-800 text-sm font-medium"
+                  className="mt-4 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors"
                 >
                   Add Section
                 </button>
               </div>
-            )}
+            </div>
+            <div className="flex justify-between items-center mt-8">
+              <button
+                onClick={() => {
+                  setCurrentStep(3);
+                  setUploadError('');
+                  setIsScrolledIntoView(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </button>
+              <button
+                onClick={handleNextStep}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </section>
 
-            {currentStep === 5 && (
+          <section
+            id="dag-configuration"
+            ref={sectionRefs['dag-configuration']}
+            className={`sg-dataset-tile ${currentStep !== 5 ? 'sg-hidden' : ''}`}
+          >
+            <div className="sg-section-separator">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
+                <GitBranch className="h-5 w-5 text-[#0065bd]" />
+                DAG Configuration
+              </h2>
+            </div>
+            <p className="sg-dataset-description mb-6">
+              Configure the DAG location in GitHub
+            </p>
+            {uploadError && (
+              <div className="sg-error mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="sg-error-text">{uploadError}</span>
+                  <button onClick={() => setUploadError('')} className="text-red-700 hover:text-red-900">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1">DAG Configuration</label>
-                <div className="p-4 bg-gray-50 border border-gray-200">
+                <label className="block text-sm font-medium text-gray-900 mb-2">DAG Configuration</label>
+                <div className="sg-dataset-tile">
                   <p className="text-sm text-gray-600 mb-2">
                     A default DAG will be created in the GitHub repository at:
                   </p>
@@ -649,217 +1185,414 @@ const NewWorkflow = () => {
                   </p>
                 </div>
               </div>
-            )}
+            </div>
+            <div className="flex justify-between items-center mt-8">
+              <button
+                onClick={() => {
+                  setCurrentStep(4);
+                  setUploadError('');
+                  setIsScrolledIntoView(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </button>
+              <button
+                onClick={handleNextStep}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </section>
 
-            {currentStep === 6 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1">Output Destination</label>
-                <div className="grid grid-cols-3 gap-4">
-                  <button
-                    onClick={() => setDestinationType('csv')}
-                    className={`p-4 border border-gray-300 flex flex-col items-center text-center ${
-                      destinationType === 'csv' ? 'border-blue-900 bg-blue-50' : 'hover:bg-gray-100'
-                    }`}
-                  >
-                    <FileSpreadsheet className="w-6 h-6 mb-2 text-gray-600" />
-                    <span className="text-sm text-gray-900">CSV File</span>
-                  </button>
-                  <button
-                    onClick={() => setDestinationType('database')}
-                    className={`p-4 border border-gray-300 flex flex-col items-center text-center ${
-                      destinationType === 'database' ? 'border-blue-900 bg-blue-50' : 'hover:bg-gray-100'
-                    }`}
-                  >
-                    <Database className="w-6 h-6 mb-2 text-gray-600" />
-                    <span className="text-sm text-gray-900">Database</span>
-                  </button>
-                  <button
-                    onClick={() => setDestinationType('api')}
-                    className={`p-4 border border-gray-300 flex flex-col items-center text-center ${
-                      destinationType === 'api' ? 'border-blue-900 bg-blue-50' : 'hover:bg-gray-100'
-                    }`}
-                  >
-                    <Waypoints className="w-6 h-6 mb-2 text-gray-600" />
-                    <span className="text-sm text-gray-900">API</span>
+          <section
+            id="destination"
+            ref={sectionRefs['destination']}
+            className={`sg-dataset-tile ${currentStep !== 6 ? 'sg-hidden' : ''}`}
+          >
+            <div className="sg-section-separator">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
+                <Database className="h-5 w-5 text-[#0065bd]" />
+                Destination
+              </h2>
+            </div>
+            <p className="sg-dataset-description mb-6">
+              Configure the output destination
+            </p>
+            {uploadError && (
+              <div className="sg-error mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="sg-error-text">{uploadError}</span>
+                  <button onClick={() => setUploadError('')} className="text-red-700 hover:text-red-900">
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
-
+              </div>
+            )}
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">Output Destination</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div
+                    onClick={() => setDestinationType('csv')}
+                    className={`sg-dataset-tile p-4 text-center cursor-pointer transition-colors ${
+                      destinationType === 'csv' ? 'border-[#0065bd] bg-[#e6f3ff]' : 'border-gray-300'
+                    }`}
+                  >
+                    <FileSpreadsheet className="w-6 h-6 mb-2 text-gray-600 mx-auto" />
+                    <span className="text-sm font-medium text-gray-900">CSV File</span>
+                  </div>
+                  <div
+                    onClick={() => setDestinationType('database')}
+                    className={`sg-dataset-tile p-4 text-center cursor-pointer transition-colors ${
+                      destinationType === 'database' ? 'border-[#0065bd] bg-[#e6f3ff]' : 'border-gray-300'
+                    }`}
+                  >
+                    <Database className="w-6 h-6 mb-2 text-gray-600 mx-auto" />
+                    <span className="text-sm font-medium text-gray-900">Database</span>
+                  </div>
+                  <div
+                    onClick={() => setDestinationType('api')}
+                    className={`sg-dataset-tile p-4 text-center cursor-pointer transition-colors ${
+                      destinationType === 'api' ? 'border-[#0065bd] bg-[#e6f3ff]' : 'border-gray-300'
+                    }`}
+                  >
+                    <Waypoints className="w-6 h-6 mb-2 text-gray-600 mx-auto" />
+                    <span className="text-sm font-medium text-gray-900">API</span>
+                  </div>
+                </div>
                 {destinationType === 'database' && (
-                  <div className="space-y-4 mt-4 p-4 bg-gray-50 border border-gray-200">
-                    <label className="block text-sm font-medium text-gray-900 mb-1">Database Configuration</label>
+                  <div className="sg-dataset-tile mt-4 space-y-4">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">Database Configuration</label>
                     <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-1">Database Connection</label>
-                      <select
-                        value={databaseConfig.connectionId}
-                        onChange={(e) => setDatabaseConfig((prev) => ({ ...prev, connectionId: e.target.value }))}
-                        className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
-                      >
-                        <option value="">Select a connection</option>
-                        {DATABASE_CONNECTIONS.map((conn) => (
-                          <option key={conn.id} value={conn.id}>{conn.name}</option>
-                        ))}
-                      </select>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">Database Connection</label>
+                      <div className="relative">
+                        <Database className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                        <select
+                          value={databaseConfig.connectionId}
+                          onChange={(e) => setDatabaseConfig((prev) => ({ ...prev, connectionId: e.target.value }))}
+                          className="w-full pl-10"
+                        >
+                          <option value="">Select a connection</option>
+                          {DATABASE_CONNECTIONS.map((conn) => (
+                            <option key={conn.id} value={conn.id}>{conn.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-1">Schema</label>
-                      <input
-                        type="text"
-                        value={databaseConfig.schema}
-                        onChange={(e) => setDatabaseConfig((prev) => ({ ...prev, schema: e.target.value }))}
-                        placeholder="e.g., public"
-                        className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
-                      />
+                      <label className="block text-sm font-medium text-gray-900 mb-2">Schema</label>
+                      <div className="relative">
+                        <Database className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                        <input
+                          type="text"
+                          value={databaseConfig.schema}
+                          onChange={(e) => setDatabaseConfig((prev) => ({ ...prev, schema: e.target.value }))}
+                          placeholder="e.g., public"
+                          className="w-full pl-10"
+                        />
+                      </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-1">Table Name</label>
-                      <input
-                        type="text"
-                        value={databaseConfig.tableName}
-                        onChange={(e) => setDatabaseConfig((prev) => ({ ...prev, tableName: e.target.value }))}
-                        placeholder="e.g., sales_data"
-                        className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
-                      />
+                      <label className="block text-sm font-medium text-gray-900 mb-2">Table Name</label>
+                      <div className="relative">
+                        <Database className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                        <input
+                          type="text"
+                          value={databaseConfig.tableName}
+                          onChange={(e) => setDatabaseConfig((prev) => ({ ...prev, tableName: e.target.value }))}
+                          placeholder="e.g., sales_data"
+                          className="w-full pl-10"
+                        />
+                      </div>
                     </div>
-                    <label className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-900">
                       <input
                         type="checkbox"
                         checked={databaseConfig.createIfNotExists}
                         onChange={(e) => setDatabaseConfig((prev) => ({ ...prev, createIfNotExists: e.target.checked }))}
-                        className="h-4 w-4 border-gray-300 text-blue-900 focus:ring-blue-900"
+                        className="h-4 w-4 border-gray-300 text-[#0065bd] focus:ring-[#0065bd]"
                       />
-                      <span className="text-sm text-gray-900">Create table if it doesn't exist</span>
+                      Create table if it doesn't exist
                     </label>
                     <p className="text-sm text-gray-600">Note: If the table exists, records will be appended.</p>
                   </div>
                 )}
-
                 {destinationType === 'api' && (
-                  <div className="space-y-4 mt-4 p-4 bg-gray-50 border border-gray-200">
-                    <label className="block text-sm font-medium text-gray-900 mb-1">API Configuration</label>
+                  <div className="sg-dataset-tile mt-4 space-y-4">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">API Configuration</label>
                     <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-1">API Endpoint</label>
-                      <input
-                        type="text"
-                        value={apiConfig.endpoint}
-                        onChange={(e) => setApiConfig((prev) => ({ ...prev, endpoint: e.target.value }))}
-                        placeholder="e.g., https://api.example.com/endpoint"
-                        className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
-                      />
+                      <label className="block text-sm font-medium text-gray-900 mb-2">API Endpoint</label>
+                      <div className="relative">
+                        <Waypoints className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                        <input
+                          type="text"
+                          value={apiConfig.endpoint}
+                          onChange={(e) => setApiConfig((prev) => ({ ...prev, endpoint: e.target.value }))}
+                          placeholder="e.g., https://api.example.com/endpoint"
+                          className="w-full pl-10"
+                        />
+                      </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-1">Authorization Token</label>
-                      <input
-                        type="text"
-                        value={apiConfig.authToken}
-                        onChange={(e) => setApiConfig((prev) => ({ ...prev, authToken: e.target.value }))}
-                        placeholder="e.g., Bearer xyz123..."
-                        className="w-full h-9 px-2 border border-gray-300 text-sm text-gray-900 focus:border-blue-900"
-                      />
+                      <label className="block text-sm font-medium text-gray-900 mb-2">Authorization Token</label>
+                      <div className="relative">
+                        <Waypoints className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
+                        <input
+                          type="text"
+                          value={apiConfig.authToken}
+                          onChange={(e) => setApiConfig((prev) => ({ ...prev, authToken: e.target.value }))}
+                          placeholder="e.g., Bearer xyz123..."
+                          className="w-full pl-10"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
-            )}
+            </div>
+            <div className="flex justify-between items-center mt-8">
+              <button
+                onClick={() => {
+                  setCurrentStep(5);
+                  setUploadError('');
+                  setIsScrolledIntoView(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </button>
+              <button
+                onClick={handleNextStep}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </section>
 
-            {currentStep === 7 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1">Review</label>
-                <div className="bg-gray-50 p-4 border border-gray-200 space-y-4">
+          <section
+            id="review"
+            ref={sectionRefs['review']}
+            className={`sg-dataset-tile ${currentStep !== 7 ? 'sg-hidden' : ''}`}
+          >
+            <div className="sg-section-separator">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-[#0065bd]" />
+                Review
+              </h2>
+            </div>
+            <p className="sg-dataset-description mb-6">
+              Review your workflow configuration
+            </p>
+            {uploadError && (
+              <div className="sg-error mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="sg-error-text">{uploadError}</span>
+                  <button onClick={() => setUploadError('')} className="text-red-700 hover:text-red-900">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="space-y-6">
+              <div className="sg-dataset-tile">
+                <div className="flex justify-between items-center mb-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">Workflow Name</p>
-                    <p className="text-sm text-gray-600">{workflowName}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Description</p>
-                    <p className="text-sm text-gray-600">{workflowDescription}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">User ID</p>
-                    <p className="text-sm text-gray-600">{userId}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Input File</p>
-                    <p className="text-sm text-gray-600">
-                      {skipFileUpload ? 'Skipped (no fixed structure)' : isFileUploaded ? 'File uploaded' : 'No file uploaded'}
+                    <h3 className="sg-dataset-title">Workflow Name</h3>
+                    <p className="text-base text-gray-700 mt-1">
+                      {workflowName || <span className="text-red-600 font-medium">Not set</span>}
                     </p>
                   </div>
+                  <button
+                    onClick={() => handleJumpLinkClick('workflow-details')}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    Edit
+                  </button>
+                </div>
+              </div>
+              <div className="sg-dataset-tile">
+                <div className="flex justify-between items-center mb-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">Parameters</p>
-                    {parameterSections.length === 0 ? (
-                      <p className="text-sm text-gray-600">No parameters set</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {parameterSections.map((section, sectionIndex) => (
+                    <h3 className="sg-dataset-title">Description</h3>
+                    <p className="text-base text-gray-700 mt-1">
+                      {workflowDescription || <span className="text-red-600 font-medium">Not set</span>}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleJumpLinkClick('workflow-details')}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    Edit
+                  </button>
+                </div>
+              </div>
+              <div className="sg-dataset-tile">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="sg-dataset-title">User ID</h3>
+                    <p className="text-base text-gray-700 mt-1">
+                      {userId || <span className="text-red-600 font-medium">Not set</span>}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleJumpLinkClick('workflow-details')}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    Edit
+                  </button>
+                </div>
+              </div>
+              <div className="sg-dataset-tile">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="sg-dataset-title">Input File</h3>
+                    <p className="text-base text-gray-700 mt-1">
+                      {skipFileUpload ? 'Skipped (no fixed structure)' : isFileUploaded ? 'File uploaded' : <span className="text-red-600 font-medium">No file uploaded</span>}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleJumpLinkClick('input-file')}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    Edit
+                  </button>
+                </div>
+              </div>
+              <div className="sg-dataset-tile">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="sg-dataset-title">Parameters</h3>
+                    <div className="mt-4 space-y-5">
+                      {parameterSections.length === 0 ? (
+                        <p className="text-base text-gray-700 mt-1">No parameters set</p>
+                      ) : (
+                        parameterSections.map((section, sectionIndex) => (
                           <div key={sectionIndex}>
-                            <p className="text-sm font-medium text-gray-900">{section.name}</p>
-                            {section.parameters.map((param, paramIndex) => (
-                              <p key={paramIndex} className="text-sm text-gray-600">
-                                {param.name} ({param.type}, {param.mandatory ? 'Required' : 'Optional'}): {param.description}
-                                {param.type === 'select' && param.options?.length > 0 && (
-                                  <span> [Options: {param.options.map(opt => `${opt.label} (${opt.value})`).join(', ')}]</span>
-                                )}
-                              </p>
-                            ))}
+                            <h4 className="text-md font-medium text-gray-800 mb-2 border-b border-gray-200 pb-1">
+                              {section.name || `Section ${sectionIndex + 1}`}
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                              {section.parameters.map((param, paramIndex) => (
+                                <div key={paramIndex}>
+                                  <p className="text-sm font-medium text-gray-600">{param.description || param.name}</p>
+                                  <p className="text-base text-gray-800 mt-0.5">
+                                    {param.name} ({param.type}, {param.mandatory ? 'Required' : 'Optional'})
+                                    {param.type === 'select' && param.options?.length > 0 && (
+                                      <span> [Options: {param.options.map(opt => `${opt.label} (${opt.value})`).join(', ')}]</span>
+                                    )}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        ))
+                      )}
+                    </div>
                   </div>
+                  <button
+                    onClick={() => handleJumpLinkClick('parameters')}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    Edit
+                  </button>
+                </div>
+              </div>
+              <div className="sg-dataset-tile">
+                <div className="flex justify-between items-center mb-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">DAG Path</p>
-                    <p className="text-sm text-gray-600">{dagPath || 'Not set'}</p>
+                    <h3 className="sg-dataset-title">DAG Path</h3>
+                    <p className="text-base text-gray-700 mt-1">
+                      {dagPath || <span className="text-red-600 font-medium">Not set</span>}
+                    </p>
                   </div>
+                  <button
+                    onClick={() => handleJumpLinkClick('dag-configuration')}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    Edit
+                  </button>
+                </div>
+              </div>
+              <div className="sg-dataset-tile">
+                <div className="flex justify-between items-center mb-4">
                   <div>
-                    <p className="text-sm font-medium text-gray-900">Output Destination</p>
-                    <p className="text-sm text-gray-600 capitalize">{destinationType}</p>
+                    <h3 className="sg-dataset-title">Output Destination</h3>
+                    <p className="text-base text-gray-700 mt-1 capitalize">{destinationType}</p>
                     {destinationType === 'database' && (
                       <div className="space-y-2 mt-2">
-                        <p className="text-sm text-gray-600">
-                          Connection: {DATABASE_CONNECTIONS.find((conn) => conn.id === databaseConfig.connectionId)?.name || 'None'}
+                        <p className="text-base text-gray-700">
+                          Connection: {DATABASE_CONNECTIONS.find((conn) => conn.id === databaseConfig.connectionId)?.name || <span className="text-red-600 font-medium">Not set</span>}
                         </p>
-                        <p className="text-sm text-gray-600">Schema: {databaseConfig.schema}</p>
-                        <p className="text-sm text-gray-600">Table: {databaseConfig.tableName}</p>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-base text-gray-700">
+                          Schema: {databaseConfig.schema || <span className="text-red-600 font-medium">Not set</span>}
+                        </p>
+                        <p className="text-base text-gray-700">
+                          Table: {databaseConfig.tableName || <span className="text-red-600 font-medium">Not set</span>}
+                        </p>
+                        <p className="text-base text-gray-700">
                           Create if not exists: {databaseConfig.createIfNotExists ? 'Yes' : 'No'}
                         </p>
                       </div>
                     )}
                     {destinationType === 'api' && (
                       <div className="space-y-2 mt-2">
-                        <p className="text-sm text-gray-600">Endpoint: {apiConfig.endpoint}</p>
-                        <p className="text-sm text-gray-600">Token: {apiConfig.authToken ? 'Set' : 'Not set'}</p>
+                        <p className="text-base text-gray-700">
+                          Endpoint: {apiConfig.endpoint || <span className="text-red-600 font-medium">Not set</span>}
+                        </p>
+                        <p className="text-base text-gray-700">
+                          Token: {apiConfig.authToken ? 'Set' : <span className="text-red-600 font-medium">Not set</span>}
+                        </p>
                       </div>
                     )}
                   </div>
+                  <button
+                    onClick={() => handleJumpLinkClick('destination')}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    Edit
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
-
-          <div className="flex justify-between items-center mt-8">
-            <button
-              onClick={() => {
-                setCurrentStep(Math.max(1, currentStep - 1));
-                setUploadError('');
-              }}
-              disabled={currentStep === 1}
-              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </button>
-            <button
-              onClick={handleNextStep}
-              disabled={isUploading}
-              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-900 hover:bg-blue-800 border border-blue-900 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {currentStep === steps.length ? 'Save Workflow' : 'Next Step'}
-              {currentStep < steps.length && <ChevronLeft className="h-4 w-4 transform rotate-180" />}
-            </button>
-          </div>
+            </div>
+            <div className="flex justify-between items-center mt-8">
+              <button
+                onClick={() => {
+                  setCurrentStep(6);
+                  setUploadError('');
+                  setIsScrolledIntoView(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </button>
+              <button
+                onClick={handleSaveWorkflow}
+                disabled={isUploading}
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded transition-colors ${
+                  isUploading
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-[#0065bd] hover:bg-[#004a9f]'
+                }`}
+              >
+                {isUploading ? (
+                  <div className="h-5 w-5 animate-spin border-2 border-white border-t-transparent rounded-full"></div>
+                ) : (
+                  'Save Workflow'
+                )}
+              </button>
+            </div>
+          </section>
         </div>
       </div>
-    </main>
+    </div>
   );
 };
 

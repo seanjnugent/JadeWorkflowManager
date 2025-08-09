@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp, RefreshCw, Clock, ChevronLeft, Play, FileText, CircleCheckBig, CircleAlert, GitBranch, CircleHelp, Github, X, Pencil, FileSpreadsheet, Download, Eye, Settings } from 'lucide-react';
+import { ChevronDown, ChevronUp, RefreshCw, Clock, ChevronLeft, Play, FileText, CircleCheckBig, CircleAlert, GitBranch, CircleHelp, Github, X, Pencil, FileSpreadsheet, Download, Eye, Settings, ArrowRight } from 'lucide-react';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
@@ -39,26 +39,26 @@ const InputStructureModal = ({ isOpen, onClose, inputStructure }) => {
         </div>
         <div className="p-6 overflow-auto flex-grow">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="sg-table">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left font-semibold py-3 px-4 text-gray-900">Column Name</th>
-                  <th className="text-left font-semibold py-3 px-4 text-gray-900">Type</th>
-                  <th className="text-left font-semibold py-3 px-4 text-gray-900">Required</th>
-                  <th className="text-left font-semibold py-3 px-4 text-gray-900">Description</th>
+                <tr>
+                  <th>Column Name</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
                 </tr>
               </thead>
               <tbody>
                 {inputStructure.columns.map((col, index) => (
-                  <tr key={col.name} className={`${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'} hover:bg-blue-50 transition-colors`}>
-                    <td className="py-3 px-4 font-medium text-gray-900">{col.name}</td>
-                    <td className="py-3 px-4 text-gray-600">{col.type}</td>
-                    <td className="py-3 px-4">
+                  <tr key={col.name}>
+                    <td className="font-medium">{col.name}</td>
+                    <td>{col.type}</td>
+                    <td>
                       <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${col.required ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
                         {col.required ? 'Yes' : 'No'}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-gray-600">{col.description}</td>
+                    <td>{col.description}</td>
                   </tr>
                 ))}
               </tbody>
@@ -267,7 +267,7 @@ const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
   if (loading) {
     return (
       <div className="flex justify-center items-center">
-        <div className="h-8 w-8 border-2 border-gray-200 border-t-blue-600 animate-spin rounded-full"></div>
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -289,7 +289,7 @@ const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
         href={dagInfo.authorized ? githubUrl : '#'}
         target={dagInfo.authorized ? '_blank' : undefined}
         rel={dagInfo.authorized ? 'noopener noreferrer' : undefined}
-        className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors ${!dagInfo.authorized ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors duration-200 ${!dagInfo.authorized ? 'opacity-50 cursor-not-allowed' : ''}`}
         onClick={(e) => {
           if (!dagInfo.authorized) e.preventDefault();
         }}
@@ -380,10 +380,10 @@ const Workflow = () => {
   const [isConfigExpanded, setIsConfigExpanded] = useState(false);
   const [versionControl, setVersionControl] = useState(null);
   const [error, setError] = useState(null);
-  const [activeSection, setActiveSection] = useState(null);
+  const [activeSection, setActiveSection] = useState('overview');
 
   useEffect(() => {
-    const sections = ['summary', 'recent-activity', 'input-structure', 'parameters', 'destination-config', 'config-template'];
+    const sections = ['overview', 'run-history', 'input-structure', 'parameters', 'destination-config', 'config-template'];
     const observerOptions = {
       root: null,
       rootMargin: '-45px 0px -60% 0px',
@@ -547,15 +547,15 @@ const Workflow = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
-        <div className="h-8 w-8 border-2 border-gray-200 border-t-blue-600 animate-spin rounded-full"></div>
+      <div className="min-h-screen bg-white flex justify-center items-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   if (!workflowDetails) {
     return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
+      <div className="min-h-screen bg-white flex justify-center items-center">
         <div className="text-center">
           <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-600">No workflow details available.</p>
@@ -569,554 +569,764 @@ const Workflow = () => {
   const isActiveSection = (sectionId) => activeSection === sectionId;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <style>{`
-        .sg-workflow-card {
-          padding: 24px;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          transition: all 0.3s ease;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-          position: relative;
-          overflow: hidden;
+    <div className="min-h-screen bg-white">
+      <style jsx>{`
+        /* Scottish Government Design System CSS variables */
+        :root {
+          --sg-blue: #0065bd;
+          --sg-blue-dark: #005eb8;
+          --sg-blue-darker: #00437d;
+          --sg-blue-light: #d9eeff;
+          --sg-blue-lighter: #f0f8ff;
+          --sg-blue-lightest: #e6f3ff;
+          --sg-blue-border: rgba(0,101,189,0.64);
+          --sg-blue-text: #00437d;
+          --sg-blue-hover: #004a9f;
+          --sg-gray: #5e5e5e;
+          --sg-gray-dark: #333333;
+          --sg-gray-light: #ebebeb;
+          --sg-gray-lighter: #f8f8f8;
+          --sg-gray-border: #b3b3b3;
+          --sg-gray-bg: #f8f8f8;
+          --sg-text-primary: #333333;
+          --sg-text-secondary: #5e5e5e;
+          --sg-text-inverse: #ffffff;
+          --sg-space-xs: 4px;
+          --sg-space-sm: 8px;
+          --sg-space-md: 16px;
+          --sg-space-lg: 24px;
+          --sg-space-xl: 32px;
+          --sg-space-xxl: 48px;
+          --sg-font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+          --radius: 4px;
         }
-        .sg-workflow-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-          background: linear-gradient(90deg, #0065bd, #004a9f);
-          transform: scaleX(0);
-          transition: transform 0.3s ease;
+
+        .sg-page-header {
+          background: var(--sg-blue-dark);
+          color: var(--sg-text-inverse);
+          padding: var(--sg-space-xl) 0;
+          padding-bottom: var(--sg-space-lg);
         }
-        .sg-workflow-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 25px rgba(0, 101, 189, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08);
-          border-color: #0065bd;
+
+        .sg-page-header-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 var(--sg-space-lg);
         }
-        .sg-workflow-card:hover::before {
-          transform: scaleX(1);
+
+        .sg-page-header-breadcrumb {
+          margin-bottom: var(--sg-space-md);
         }
-        .sg-workflow-title {
-          font-size: 20px;
-          line-height: 28px;
-          font-weight: 600;
-          color: #1f2937;
-          margin-bottom: 12px;
-          transition: color 0.3s ease;
+
+        .sg-page-header-title {
+          font-family: var(--sg-font-family);
+          font-size: 2.25rem;
+          font-weight: 700;
+          line-height: 1.25;
+          color: var(--sg-text-inverse);
+          margin-bottom: var(--sg-space-md);
         }
-        .sg-workflow-card:hover .sg-workflow-title {
-          color: #0065bd;
+
+        .sg-page-header-description {
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-inverse);
+          margin-bottom: var(--sg-space-lg);
         }
-        .sg-workflow-description {
-          font-size: 16px;
-          line-height: 24px;
-          color: #6b7280;
-          transition: color 0.3s ease;
-        }
-        .sg-workflow-card:hover .sg-workflow-description {
-          color: #4b5563;
-        }
-        .sg-sidebar {
-          background: white;
-          border-radius: 12px;
-          padding: 24px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-          border: 1px solid #e5e7eb;
-          height: fit-content;
+
+        .sg-contents-sticky {
           position: sticky;
-          top: 24px;
+          top: var(--sg-space-lg);
+          align-self: flex-start;
+          background: white;
+          border-radius: var(--radius);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          padding: var(--sg-space-lg);
+          max-height: calc(100vh - var(--sg-space-xl));
+          overflow-y: auto;
         }
+
+        .sg-contents-nav {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+
+        .sg-contents-item {
+          margin: 0;
+          padding: 0;
+        }
+
+        .sg-contents-link {
+          display: flex;
+          align-items: center;
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          text-decoration: none;
+          color: var(--sg-blue);
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          font-weight: 400;
+          line-height: 1.5;
+          border-left: 4px solid transparent;
+          transition: all 0.2s ease-in-out;
+          cursor: pointer;
+          margin: 2px 0;
+        }
+
+        .sg-contents-link::before {
+          content: '–';
+          margin-right: var(--sg-space-sm);
+          color: var(--sg-blue);
+          font-weight: 400;
+        }
+
+        .sg-contents-link:hover {
+          background-color: var(--sg-blue-light);
+          border-left-color: var(--sg-blue);
+          text-decoration: none;
+        }
+
+        .sg-contents-link-active {
+          background-color: var(--sg-blue-lightest);
+          border-left-color: var(--sg-blue);
+          font-weight: 500;
+          color: var(--sg-blue);
+        }
+
+        .sg-contents-link-active::before {
+          font-weight: 700;
+        }
+
+        .sg-section-separator {
+          border-bottom: 1px solid #b3b3b3;
+          padding-bottom: var(--sg-space-sm);
+          margin-bottom: var(--sg-space-lg);
+        }
+
+        .sg-dataset-tile {
+          background: white;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          border: 1px solid var(--sg-gray-light);
+          border-radius: var(--radius);
+          padding: var(--sg-space-lg);
+          display: block;
+          text-decoration: none;
+          cursor: pointer;
+          transition: box-shadow 0.2s ease-in-out;
+        }
+
+        .sg-dataset-tile:hover {
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .sg-dataset-title {
+          font-family: var(--sg-font-family);
+          font-size: 1.375rem;
+          font-weight: 700;
+          line-height: 2rem;
+          letter-spacing: 0.15px;
+          color: var(--sg-blue);
+          margin-bottom: 8px;
+          text-decoration: none;
+          transition: color 0.2s ease-in-out;
+        }
+
+        .sg-dataset-tile:hover .sg-dataset-title {
+          color: var(--sg-blue-hover);
+          text-decoration: underline;
+        }
+
+        .sg-dataset-description {
+          font-family: var(--sg-font-family);
+          font-size: 1.1875rem;
+          line-height: 2rem;
+          letter-spacing: 0.15px;
+          color: var(--sg-text-primary);
+          margin-bottom: 8px;
+          text-decoration: none;
+        }
+
         .sg-table {
           width: 100%;
           border-collapse: collapse;
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-primary);
+          border: 1px solid var(--sg-gray-border);
         }
-        .sg-table th {
-          text-align: left;
-          font-weight: 600;
-          padding: 12px 16px;
-          background-color: #f9fafb;
-          border-bottom: 1px solid #e5e7eb;
-          color: #374151;
-        }
+
+        .sg-table th,
         .sg-table td {
-          padding: 12px 16px;
-          border-bottom: 1px solid #e5e7eb;
-          color: #374151;
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          text-align: left;
+          border-bottom: 1px solid var(--sg-gray-border);
+          vertical-align: top;
         }
-        .sg-json-preview-container {
-          position: relative;
-          max-height: 160px;
-          overflow: hidden;
-          transition: max-height 0.3s ease;
+
+        .sg-table thead th {
+          background-color: var(--sg-gray-bg);
+          font-weight: 500;
+          color: var(--sg-text-primary);
         }
-        .sg-json-preview-container.expanded {
-          max-height: none;
+
+        .sg-table tbody th {
+          background-color: transparent;
+          font-weight: 500;
+          color: var(--sg-text-primary);
         }
-        .sg-json-preview-container .fade-out {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          height: 40px;
-          background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1));
-        }
-        .sg-json-preview-container.expanded .fade-out {
-          display: none;
-        }
-        .sg-show-more-btn {
-          position: absolute;
-          right: 10px;
-          bottom: 10px;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 4px;
-          padding: 4px 12px;
-          font-size: 12px;
-          cursor: pointer;
-          z-index: 10;
-          color: #374151;
-          transition: background-color 0.3s ease;
-        }
-        .sg-show-more-btn:hover {
-          background: #f3f4f6;
-        }
-        .sg-run-card {
-          padding: 24px;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          transition: all 0.3s ease;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-          position: relative;
-          overflow: hidden;
-          display: block;
-          text-decoration: none;
-        }
-        .sg-run-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-          background: linear-gradient(90deg, #0065bd, #004a9f);
-          transform: scaleX(0);
-          transition: transform 0.3s ease;
-        }
-        .sg-run-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 25px rgba(0, 101, 189, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08);
-          border-color: #0065bd;
-        }
-        .sg-run-card:hover::before {
-          transform: scaleX(1);
-        }
-        .sg-run-title {
-          font-size: 18px;
-          line-height: 26px;
-          font-weight: 600;
-          color: #1f2937;
-          margin-bottom: 12px;
-          transition: color 0.3s ease;
-        }
-        .sg-run-card:hover .sg-run-title {
-          color: #0065bd;
-        }
-        .sg-run-description {
-          font-size: 14px;
-          line-height: 20px;
-          color: #6b7280;
-          transition: color 0.3s ease;
-        }
-        .sg-run-card:hover .sg-run-description {
-          color: #4b5563;
+
+        .sg-table tbody tr:hover td,
+        .sg-table tbody tr:hover th {
+          background-color: var(--sg-blue-lightest);
         }
       `}</style>
 
-      {/* Hero Header */}
-      <div className="sg-page-header" style={{ backgroundColor: '#0065bd', color: 'white', padding: '32px 0' }}>
-        <div className="sg-page-header-container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
-          <nav className="mb-4">
-            <div className="flex items-center gap-2 text-blue-100">
+      {/* Blue page header section */}
+      <div className="sg-page-header">
+        <div className="sg-page-header-container">
+          {/* Breadcrumb */}
+          <nav className="sg-page-header-breadcrumb">
+            <div className="flex items-center gap-2 text-base">
               <button 
                 onClick={() => navigate('/workflows')}
-                className="text-white hover:text-blue-200 underline transition-colors"
+                className="text-white hover:text-[#d9eeff] hover:no-underline underline cursor-pointer transition-colors duration-200"
               >
                 Workflows
               </button>
-              <span>></span>
-              <span className="text-white font-medium">{workflow?.name}</span>
+              <span className="text-white">&gt;</span>
+              <span className="text-white">{workflow?.name}</span>
             </div>
           </nav>
-          <h1 className="sg-page-header-title" style={{ fontSize: '44px', fontWeight: 'bold', marginBottom: '16px' }}>
+
+          {/* Page title */}
+          <h1 className="sg-page-header-title">
             {workflow?.name}
           </h1>
+
+          {/* Page description - constrained to 75% width */}
           <div className="w-3/4">
-            <p className="sg-page-header-description" style={{ fontSize: '16px', lineHeight: '24px' }}>
+            <p className="sg-page-header-description">
               {workflow?.description || 'This workflow manages data processing tasks with configurable parameters and API integration.'}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8 flex gap-8">
-        {/* Sidebar Navigation */}
-        <div className="w-1/4 shrink-0">
-          <div className="sg-sidebar">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Contents</h2>
-            <nav className="space-y-2">
-              {[
-                { id: 'summary', label: 'Summary' },
-                { id: 'recent-activity', label: 'Recent Activity' },
-                ...(workflow.requires_file ? [{ id: 'input-structure', label: 'Input Structure' }] : []),
-                { id: 'parameters', label: 'Parameters' },
-                { id: 'destination-config', label: 'Destination Config' },
-                { id: 'config-template', label: 'Config Template' }
-              ].map(section => (
-                <button
-                  key={section.id}
-                  onClick={() => handleJumpLinkClick(section.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm ${
-                    isActiveSection(section.id) 
-                      ? 'bg-blue-50 text-blue-700 border-l-3 border-blue-600 font-bold' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'
-                  }`}
-                >
-                  {section.label}
-                </button>
-              ))}
-            </nav>
+      <div className="max-w-[1200px] mx-auto px-6 py-8">
+        <div className="flex gap-8">
+          {/* Sidebar - 25% width with sticky contents */}
+          <div className="w-1/4 shrink-0">
+            <div className="sg-contents-sticky">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-4">
+                Contents
+              </h2>
+              
+              <nav>
+                <ul className="sg-contents-nav">
+                  <li className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick('overview')}
+                      className={`sg-contents-link w-full text-left ${isActiveSection('overview') ? 'sg-contents-link-active' : ''}`}
+                    >
+                      Overview
+                    </button>
+                  </li>
+                  <li className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick('run-history')}
+                      className={`sg-contents-link w-full text-left ${isActiveSection('run-history') ? 'sg-contents-link-active' : ''}`}
+                    >
+                      Run history
+                    </button>
+                  </li>
+                  {workflow?.requires_file && (
+                    <li className="sg-contents-item">
+                      <button
+                        onClick={() => handleJumpLinkClick('input-structure')}
+                        className={`sg-contents-link w-full text-left ${isActiveSection('input-structure') ? 'sg-contents-link-active' : ''}`}
+                      >
+                        Input structure
+                      </button>
+                    </li>
+                  )}
+                  <li className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick('parameters')}
+                      className={`sg-contents-link w-full text-left ${isActiveSection('parameters') ? 'sg-contents-link-active' : ''}`}
+                    >
+                      Parameters
+                    </button>
+                  </li>
+                  <li className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick('destination-config')}
+                      className={`sg-contents-link w-full text-left ${isActiveSection('destination-config') ? 'sg-contents-link-active' : ''}`}
+                    >
+                      Destination config
+                    </button>
+                  </li>
+                  <li className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick('config-template')}
+                      className={`sg-contents-link w-full text-left ${isActiveSection('config-template') ? 'sg-contents-link-active' : ''}`}
+                    >
+                      Config template
+                    </button>
+                  </li>
+                </ul>
+              </nav>
+            </div>
           </div>
-        </div>
 
-        {/* Main Content */}
-        <div className="w-3/4 space-y-8">
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-700 text-sm">{error}</p>
-            </div>
-          )}
+          {/* Main content - 75% width */}
+          <div className="w-3/4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
+            )}
 
-          {/* Summary Section */}
-          <section id="summary" className="sg-workflow-card">
-            <h2 className="sg-workflow-title">Summary</h2>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-              <div className="space-y-4 flex-1">
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full">
-                    {workflow?.destination || 'API'}
-                  </span>
-                  <span className="text-sm text-gray-600 flex items-center gap-1">
-                    <GitBranch className="h-4 w-4" />
-                    {versionControl?.modifiedBy || 'Health Analytics Team'}
-                  </span>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium text-gray-900">Latest Status:</span>
-                    <StatusBadge status={recent_runs?.[0]?.status || 'Unknown'} />
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium text-gray-900">Duration:</span>
-                    <span className="text-sm text-gray-600">
-                      {recent_runs?.[0]?.duration_ms != null ? formatDuration(recent_runs[0].duration_ms) : 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium text-gray-900">Last Run:</span>
-                    <span className="text-sm text-gray-600">
-                      {recent_runs?.[0]?.started_at ? new Date(recent_runs[0].started_at).toLocaleString('en-GB', {
-                        day: '2-digit',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false,
-                      }) : 'N/A'}
-                    </span>
-                  </div>
+            {/* Overview Section */}
+            <section id="overview" className="mb-12 pt-6">
+              <div className="sg-section-separator">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px]">
+                    Overview
+                  </h2>
+                  <CustomTooltip content={!isDagReady ? 'DAG not ready' : 'Execute this workflow now'}>
+                    <button
+                      className={`inline-flex items-center gap-2 px-5 py-3 text-[18px] leading-[24px] font-medium rounded transition-colors duration-200 ${
+                        !isDagReady || running
+                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          : 'bg-[#0065bd] text-white hover:bg-[#004a9f]'
+                      }`}
+                      onClick={handleStartRun}
+                      disabled={!isDagReady || running}
+                    >
+                      {running ? (
+                        <div className="h-5 w-5 animate-spin border-2 border-white border-t-transparent rounded-full"></div>
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                      Run workflow
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </CustomTooltip>
                 </div>
               </div>
-              {/* Make Run Workflow button more prominent */}
-              <div className="flex flex-col items-center justify-center gap-4 mt-8 md:mt-0 md:ml-8">
-                <CustomTooltip content={!isDagReady ? 'DAG not ready' : 'Execute this workflow now'}>
-                  <button
-                    className={`inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all border-2 ${
-                      !isDagReady || running
-                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                        : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700 hover:shadow-xl scale-105'
-                    }`}
-                    style={{
-                      minWidth: 220,
-                      minHeight: 56,
-                      fontSize: '1.125rem',
-                      letterSpacing: '0.02em',
-                    }}
-                    onClick={handleStartRun}
-                    disabled={!isDagReady || running}
-                  >
-                    {running ? (
-                      <div className="h-5 w-5 animate-spin border-2 border-white border-t-transparent rounded-full"></div>
-                    ) : (
-                      <Play className="h-5 w-5" />
-                    )}
-                    Run Workflow
-                  </button>
-                </CustomTooltip>
-              </div>
-            </div>
-            {/* Split section for Code Details */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between mt-8 pt-6 border-t border-gray-100 gap-6">
-              <div className="flex flex-col gap-2 flex-1">
-                <span className="text-sm font-medium text-gray-900">Current Version:</span>
-                <span className="text-sm text-gray-600">{versionControl?.version || 'N/A'}</span>
-                <span className="text-sm font-medium text-gray-900 mt-2">Last Updated:</span>
-                <span className="text-sm text-gray-600">{workflow?.updated_at ? new Date(workflow.updated_at).toLocaleDateString() : 'N/A'}</span>
-              </div>
-              <div className="flex flex-col gap-2 flex-1">
-                <span className="text-sm font-medium text-gray-900 mb-1">Code Details</span>
-                <GitHubDagLink
-                  dagPath={workflow?.dag_path}
-                  repoOwner="health-analytics"
-                  repoName="workflows"
-                  setVersionControl={setVersionControl}
-                />
-                {versionControl?.lastModified && (
-                  <span className="text-xs text-gray-500 mt-1">
-                    Last commit: {versionControl.lastModified}
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-col gap-2 flex-1 items-end">
-                <button className="inline-flex items-center gap-2 px-4 py-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium">
-                  <CircleHelp className="h-4 w-4" />
-                  Contact Support
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* Recent Activity Section */}
-          <section id="recent-activity" className="sg-workflow-card">
-            <h2 className="sg-workflow-title">Recent Activity</h2>
-            <p className="sg-workflow-description mb-6">Last 5 executions of this workflow</p>
-            <div className="space-y-6">
-              {recent_runs?.length > 0 ? (
-                recent_runs.slice(0, 5).map((run) => (
-                  <a
-                    key={run.id}
-                    href={`/runs/run/${run.id}`}
-                    className="sg-run-card"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      navigate(`/runs/run/${run.id}`);
-                    }}
-                  >
-                    <h3 className="sg-run-title">Run #{run.id}</h3>
-                    <div className="flex items-center gap-6 text-[14px] text-[#6b7280] leading-[20px] tracking-[0.15px] mb-4 flex-wrap">
-                      <span className="flex items-center gap-1">
-                        <span className="font-medium text-[#374151]">Workflow ID:</span> {run.workflow_id}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span className="font-medium text-[#374151]">Status:</span>
-                        <StatusBadge status={run.status} />
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span className="font-medium text-[#374151]">Started:</span> 
-                        {new Date(run.started_at).toLocaleString('en-GB', {
-                          day: '2-digit',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        })}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span className="font-medium text-[#374151]">Triggered By:</span> {run.triggered_by_name || 'User ID ' + run.triggered_by}
-                      </span>
-                    </div>
-                    <p className="sg-run-description">
-                      {run.error_message || 'No error message'}
-                    </p>
-                  </a>
-                ))
-              ) : (
-                <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                  <CircleCheckBig className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No runs found</h3>
-                  <p className="text-sm text-gray-500">No recent runs for this workflow.</p>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* Input File Structure Section */}
-          {workflow.requires_file && (
-            <section id="input-structure" className="sg-workflow-card">
-              <h2 className="sg-workflow-title">Input File Structure</h2>
-              <p className="sg-workflow-description mb-6">Required input format for this workflow</p>
-              <div className="space-y-3">
-                <button
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 w-full transition-colors"
-                  onClick={() => setShowInputModal(true)}
-                >
-                  <Eye className="h-4 w-4" />
-                  View Input Structure
-                </button>
-                <button
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 w-full transition-colors"
-                  onClick={handleDownloadTemplate}
-                >
-                  <Download className="h-4 w-4" />
-                  Download Template
-                </button>
-              </div>
-              <InputStructureModal
-                isOpen={showInputModal}
-                onClose={() => setShowInputModal(false)}
-                inputStructure={workflow?.input_structure || { columns: [] }}
-              />
-            </section>
-          )}
-
-          {/* Parameters Section */}
-          <section id="parameters" className="sg-workflow-card">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="sg-workflow-title">Parameters</h2>
-              <button className="text-gray-600 hover:text-gray-900 transition-colors" onClick={() => setShowParamsModal(true)}>
-                <Pencil className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="sg-workflow-description mb-6">Configuration parameters for this workflow</p>
-            {workflow?.parameters?.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="sg-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Type</th>
-                      <th>Requirement</th>
-                      <th>Description</th>
-                    </tr>
-                  </thead>
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-8">
+                  {workflow?.description || 'This workflow manages data processing tasks with configurable parameters and API integration. To begin, click the \'Run workflow\' button.'}
+                </p>
+                
+                {/* Workflow information table */}
+                <table className="sg-table mb-8">
                   <tbody>
-                    {workflow.parameters.map((param) => (
-                      <tr key={param.name} className="hover:bg-blue-50 transition-colors">
-                        <td className="font-medium">{param.name}</td>
-                        <td>{param.type}</td>
-                        <td>
-                          <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${param.mandatory ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {param.mandatory ? 'Required' : 'Optional'}
-                          </span>
-                        </td>
-                        <td>
-                          {param.description || 'No description'}
-                          {param.options && (
-                            <p className="text-sm text-gray-600 mt-1">
-                              Options: {param.options.map(opt => opt.label).join(', ')}
-                            </p>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    <tr>
+                      <th className="w-1/2">Workflow name</th>
+                      <td>{workflow?.name}</td>
+                    </tr>
+                    <tr>
+                      <th>Workflow ID</th>
+                      <td>{workflow?.id || workflowId}</td>
+                    </tr>
+                    <tr>
+                      <th>Workflow maintainer</th>
+                      <td>{versionControl?.modifiedBy || 'Health Analytics Team'}</td>
+                    </tr>
+                    <tr>
+                      <th>Workflow created</th>
+                      <td>{workflow?.created_at ? new Date(workflow.created_at).toLocaleDateString('en-GB') : 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <th>Last run</th>
+                      <td>{recent_runs?.[0]?.started_at ? new Date(recent_runs[0].started_at).toLocaleDateString('en-GB') : 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <th>Current workflow GitHub version</th>
+                      <td>{versionControl?.version || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <th>Status</th>
+                      <td><StatusBadge status={recent_runs?.[0]?.status || 'Unknown'} /></td>
+                    </tr>
+                    <tr>
+                      <th>Destination</th>
+                      <td>{workflow?.destination || 'API'}</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
-            ) : (
-              <p className="text-gray-600">No parameters for this workflow</p>
+            </section>
+
+            {/* Run History Section */}
+            <section id="run-history" className="mb-12">
+              <div className="sg-section-separator">
+                <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+                  Run history
+                </h2>
+              </div>
+              
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Here are the latest runs of this workflow. Click on a run for more information.
+                </p>
+                <div className="space-y-6">
+                  {recent_runs?.length > 0 ? (
+                    recent_runs.slice(0, 5).map((run) => (
+                      <button
+                        key={run.id}
+                        onClick={() => navigate(`/runs/run/${run.id}`)}
+                        className="sg-dataset-tile block w-full text-left"
+                      >
+                        <h3 className="sg-dataset-title">
+                          Run ID #{run.id}
+                        </h3>
+                        
+                        <div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3 flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <span className="font-medium text-[#374151]">Status:</span>
+                            <StatusBadge status={run.status} />
+                          </span>
+                          <span>Date: {new Date(run.started_at).toLocaleDateString('en-GB')}</span>
+                          <span>Run by: {run.triggered_by_name || 'User ID ' + run.triggered_by}</span>
+                          <span>Workflow ID: {run.workflow_id}</span>
+                          {run.duration_ms != null && (
+                            <span>Duration: {formatDuration(run.duration_ms)}</span>
+                          )}
+                        </div>
+
+                        <p className="sg-dataset-description">
+                          {run.error_message || 'Run completed successfully.'}
+                        </p>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+                      <CircleCheckBig className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No runs found</h3>
+                      <p className="text-sm text-gray-500">No recent runs for this workflow.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* Input Structure Section */}
+            {workflow?.requires_file && (
+              <section id="input-structure" className="mb-12">
+                <div className="sg-section-separator">
+                  <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+                    Input structure
+                  </h2>
+                </div>
+                
+                <div className="prose prose-lg max-w-none">
+                  <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                    Required input format for this workflow. You can view the structure details or download a template file.
+                  </p>
+                  <div className="space-y-6">
+                    <div className="sg-dataset-tile">
+                      <div className="flex items-start justify-between mb-3">
+                        <h3 className="sg-dataset-title flex-1 mr-4">
+                          Input file structure
+                        </h3>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => setShowInputModal(true)}
+                            className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Structure
+                          </button>
+                          <button
+                            onClick={handleDownloadTemplate}
+                            className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download Template
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3">
+                        <span>Format: CSV</span>
+                        <span>Columns: {workflow?.input_structure?.columns?.length || 0}</span>
+                        <span>Required fields: {workflow?.input_structure?.columns?.filter(col => col.required)?.length || 0}</span>
+                      </div>
+
+                      <p className="sg-dataset-description">
+                        View the detailed structure of required input columns or download a CSV template with the correct headers.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <InputStructureModal
+                  isOpen={showInputModal}
+                  onClose={() => setShowInputModal(false)}
+                  inputStructure={workflow?.input_structure || { columns: [] }}
+                />
+              </section>
             )}
-            <JsonEditModal
-              isOpen={showParamsModal}
-              onClose={() => setShowParamsModal(false)}
-              title="Edit Workflow Parameters"
-              jsonData={workflow?.parameters || []}
-              onSave={handleSaveParameters}
-            />
-          </section>
 
-          {/* Destination Config Section */}
-          <section id="destination-config" className="sg-workflow-card">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="sg-workflow-title">Destination Config</h2>
-              <button className="text-gray-600 hover:text-gray-900 transition-colors" onClick={() => setShowConfigModal(true)}>
-                <Pencil className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="sg-workflow-description mb-6">Configuration for the API destination</p>
-            <div className="overflow-x-auto">
-              <table className="sg-table">
-                <tbody>
-                  <tr>
-                    <th className="w-1/3">API URL</th>
-                    <td>{workflow?.destination_config?.api_url || 'N/A'}</td>
-                  </tr>
-                  <tr>
-                    <th>API Token</th>
-                    <td>
-                      <CustomTooltip content="The API token is encrypted at the database level with a Fernet key and is decrypted only at runtime.">
-                        <span className="text-sm text-gray-500">Encrypted</span>
-                      </CustomTooltip>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <DestinationConfigModal
-              isOpen={showConfigModal}
-              onClose={() => setShowConfigModal(false)}
-              initialConfig={workflow?.destination_config || {}}
-              onSave={handleSaveDestinationConfig}
-            />
-          </section>
-
-          {/* Configuration Template Section */}
-          <section id="config-template" className="sg-workflow-card">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="sg-workflow-title">Configuration Template</h2>
-              <button className="text-gray-600 hover:text-gray-900 transition-colors" onClick={() => setShowConfigTemplateModal(true)}>
-                <Pencil className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="sg-workflow-description mb-6">Dagster configuration template for this workflow</p>
-            <div className={`sg-json-preview-container bg-gray-50 p-4 rounded-lg border border-gray-200 ${isConfigExpanded ? 'expanded' : ''}`}>
-              <pre className="text-sm text-gray-900 font-mono overflow-x-auto mb-0">
-                <code>{isConfigExpanded ? JSON.stringify(workflow?.config_template || {}, null, 2) : getLimitedJsonLines(workflow?.config_template || {})}</code>
-              </pre>
-              {!isConfigExpanded && (
-                <>
-                  <div className="fade-out"></div>
-                  <button className="sg-show-more-btn" onClick={() => setIsConfigExpanded(true)}>
-                    Show More
+            {/* Parameters Section */}
+            <section id="parameters" className="mb-12">
+              <div className="sg-section-separator">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px]">
+                    Parameters
+                  </h2>
+                  <button 
+                    onClick={() => setShowParamsModal(true)}
+                    className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit
                   </button>
-                </>
-              )}
-              {isConfigExpanded && (
-                <button className="sg-show-more-btn" onClick={() => setIsConfigExpanded(false)}>
-                  Show Less
-                </button>
-              )}
-            </div>
-            <JsonEditModal
-              isOpen={showConfigTemplateModal}
-              onClose={() => setShowConfigTemplateModal(false)}
-              title="Edit Configuration Template"
-              jsonData={workflow?.config_template || {}}
-              onSave={handleSaveConfigTemplate}
-            />
-          </section>
+                </div>
+              </div>
+              
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Configuration parameters for this workflow. These parameters control the workflow execution behavior.
+                </p>
+                {workflow?.parameters?.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="sg-table">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Type</th>
+                          <th>Requirement</th>
+                          <th>Description</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {workflow.parameters.map((param) => (
+                          <tr key={param.name}>
+                            <td className="font-medium">{param.name}</td>
+                            <td>{param.type}</td>
+                            <td>
+                              <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${param.mandatory ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {param.mandatory ? 'Required' : 'Optional'}
+                              </span>
+                            </td>
+                            <td>
+                              {param.description || 'No description'}
+                              {param.options && (
+                                <p className="text-sm text-gray-600 mt-1">
+                                  Options: {param.options.map(opt => opt.label).join(', ')}
+                                </p>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+                    <Settings className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No parameters configured</h3>
+                    <p className="text-sm text-gray-500">This workflow does not have any configurable parameters.</p>
+                  </div>
+                )}
+              </div>
+              <JsonEditModal
+                isOpen={showParamsModal}
+                onClose={() => setShowParamsModal(false)}
+                title="Edit Workflow Parameters"
+                jsonData={workflow?.parameters || []}
+                onSave={handleSaveParameters}
+              />
+            </section>
+
+            {/* Destination Config Section */}
+            <section id="destination-config" className="mb-12">
+              <div className="sg-section-separator">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px]">
+                    Destination config
+                  </h2>
+                  <button 
+                    onClick={() => setShowConfigModal(true)}
+                    className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit
+                  </button>
+                </div>
+              </div>
+              
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Configuration for the API destination. This defines where workflow results are sent.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="sg-table">
+                    <tbody>
+                      <tr>
+                        <th className="w-1/3">API URL</th>
+                        <td>{workflow?.destination_config?.api_url || 'Not configured'}</td>
+                      </tr>
+                      <tr>
+                        <th>API Token</th>
+                        <td>
+                          <CustomTooltip content="The API token is encrypted at the database level with a Fernet key and is decrypted only at runtime.">
+                            <span className="text-sm text-gray-500">
+                              {workflow?.destination_config?.api_token ? 'Configured (encrypted)' : 'Not configured'}
+                            </span>
+                          </CustomTooltip>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <DestinationConfigModal
+                isOpen={showConfigModal}
+                onClose={() => setShowConfigModal(false)}
+                initialConfig={workflow?.destination_config || {}}
+                onSave={handleSaveDestinationConfig}
+              />
+            </section>
+
+            {/* Configuration Template Section */}
+            <section id="config-template" className="mb-12">
+              <div className="sg-section-separator">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px]">
+                    Config template
+                  </h2>
+                  <button 
+                    onClick={() => setShowConfigTemplateModal(true)}
+                    className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit
+                  </button>
+                </div>
+              </div>
+              
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Dagster configuration template for this workflow. This JSON configuration defines the workflow's execution parameters.
+                </p>
+                <div className="space-y-6">
+                  <div className="sg-dataset-tile">
+                    <div className="flex items-start justify-between mb-3">
+                      <h3 className="sg-dataset-title flex-1 mr-4">
+                        Workflow configuration template
+                      </h3>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setIsConfigExpanded(!isConfigExpanded)}
+                          className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+                        >
+                          {isConfigExpanded ? <ChevronUp className="h-4 w-4 mr-2" /> : <ChevronDown className="h-4 w-4 mr-2" />}
+                          {isConfigExpanded ? 'Show Less' : 'Show More'}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3">
+                      <span>Format: JSON</span>
+                      <span>Last updated: {workflow?.updated_at ? new Date(workflow.updated_at).toLocaleDateString('en-GB') : 'N/A'}</span>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 overflow-x-auto">
+                      <pre className="text-sm text-gray-900 font-mono mb-0">
+                        <code>{isConfigExpanded ? JSON.stringify(workflow?.config_template || {}, null, 2) : getLimitedJsonLines(workflow?.config_template || {})}</code>
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <JsonEditModal
+                isOpen={showConfigTemplateModal}
+                onClose={() => setShowConfigTemplateModal(false)}
+                title="Edit Configuration Template"
+                jsonData={workflow?.config_template || {}}
+                onSave={handleSaveConfigTemplate}
+              />
+            </section>
+
+            {/* Version Control Section */}
+            <section id="version-control" className="mb-12">
+              <div className="sg-section-separator">
+                <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+                  Version control
+                </h2>
+              </div>
+              
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-4">
+                  We use GitHub to manage, share, and maintain our workflows and platform. This allows us to share what we build, knowing things are consistent, version controlled and transparent.
+                </p>
+                
+                <div className="space-y-6">
+                  <div className="sg-dataset-tile">
+                    <div className="flex items-start justify-between mb-3">
+                      <h3 className="sg-dataset-title flex-1 mr-4">
+                        GitHub repository access
+                      </h3>
+                      <GitHubDagLink
+                        dagPath={workflow?.dag_path}
+                        repoOwner="health-analytics"
+                        repoName="workflows"
+                        setVersionControl={setVersionControl}
+                      />
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3">
+                      <span>Version: {versionControl?.version || 'N/A'}</span>
+                      <span>Last modified: {versionControl?.lastModified || 'N/A'}</span>
+                      <span>Modified by: {versionControl?.modifiedBy || 'N/A'}</span>
+                    </div>
+
+                    <p className="sg-dataset-description">
+                      Access the source code and version history for this workflow on GitHub. View commits, changes, and collaborate with the development team.
+                    </p>
+                    <div className="mt-4">
+                <ul className="list-disc list-inside space-y-2 mb-8 ml-4 text-[19px] leading-[32px] tracking-[0.15px] text-[#333333]">
+                  <li>
+                    <a 
+                      href="#/github-workflow" 
+                      className="text-[#0065bd] hover:text-[#004a9f] underline hover:no-underline transition-colors duration-200"
+                    >
+                      GitHub repository: {workflow?.name} workflow
+                    </a>
+                  </li>
+                  <li>
+                    <a 
+                      href="#/github-platform" 
+                      className="text-[#0065bd] hover:text-[#004a9f] underline hover:no-underline transition-colors duration-200"
+                    >
+                      GitHub repository: Workflow manager platform
+                    </a>
+                  </li>
+                  <li>
+                    <a 
+                      href="#/github-guide" 
+                      className="text-[#0065bd] hover:text-[#004a9f] underline hover:no-underline transition-colors duration-200"
+                    >
+                      GitHub user guide
+                    </a>
+                  </li>
+                </ul>
+                                  </div>
+
+                  </div>
+                </div>
+
+
+              </div>
+            </section>
+          </div>
         </div>
       </div>
-
-      {/* Floating Action Button */}
-      <button
-        onClick={() => navigate('/workflows/new')}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-300 hover:scale-105"
-      >
-        <Settings className="h-6 w-6" />
-      </button>
     </div>
   );
 };

@@ -1,19 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Play, UploadCloud, Plug, Clock, CheckCircle, Download, ChevronDown, ChevronUp, X, ChevronRight, ChevronFirst, ChevronLast, ChevronDownCircle } from 'lucide-react';
+import { ChevronLeft, Play, UploadCloud, Plug, Clock, CheckCircle, Download, ChevronDown, ChevronUp, X, ChevronRight, Settings } from 'lucide-react';
 import { GridLoader } from 'react-spinners';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
-
-const Card = ({ children, title, icon }) => (
-  <div className="sg-workflow-card">
-    <h2 className="sg-workflow-title flex items-center gap-2">
-      {icon}
-      {title}
-    </h2>
-    {children}
-  </div>
-);
 
 const NewRun = () => {
   const navigate = useNavigate();
@@ -29,7 +19,7 @@ const NewRun = () => {
   const [userId, setUserId] = useState(null);
   const [expandedSections, setExpandedSections] = useState({});
   const [activeSection, setActiveSection] = useState('run-configuration');
-  const [isScrolledIntoView, setIsScrolledIntoView] = useState(false); // Prevent auto scroll on load
+  const [isScrolledIntoView, setIsScrolledIntoView] = useState(false);
 
   const sectionRefs = {
     'run-configuration': useRef(null),
@@ -42,11 +32,11 @@ const NewRun = () => {
   const scheduleOptions = ['none', 'daily', 'weekly', 'monthly'];
 
   const steps = [
-    { id: 'run-configuration', label: 'Run Configuration', icon: <Play /> },
-    ...(workflowDetails?.workflow?.requires_file ? [{ id: 'input-file', label: 'Input File', icon: <UploadCloud /> }] : []),
-    { id: 'parameters', label: 'Parameters', icon: <Plug /> },
-    { id: 'schedule', label: 'Schedule', icon: <Clock /> },
-    { id: 'review', label: 'Review', icon: <CheckCircle /> },
+    { id: 'run-configuration', label: 'Run Configuration', icon: <Play className="h-4 w-4" /> },
+    ...(workflowDetails?.workflow?.requires_file ? [{ id: 'input-file', label: 'Input File', icon: <UploadCloud className="h-4 w-4" /> }] : []),
+    { id: 'parameters', label: 'Parameters', icon: <Plug className="h-4 w-4" /> },
+    { id: 'schedule', label: 'Schedule', icon: <Clock className="h-4 w-4" /> },
+    { id: 'review', label: 'Review', icon: <CheckCircle className="h-4 w-4" /> },
   ];
 
   useEffect(() => {
@@ -108,7 +98,6 @@ const NewRun = () => {
     fetchWorkflowDetails();
   }, [workflowId, navigate]);
 
-  // Scroll to active section when it changes (after initial load)
   useEffect(() => {
     if (isScrolledIntoView && sectionRefs[activeSection]?.current) {
       sectionRefs[activeSection].current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -193,7 +182,7 @@ const NewRun = () => {
     if (currentIndex < steps.length - 1) {
       const nextSection = steps[currentIndex + 1].id;
       setActiveSection(nextSection);
-      setIsScrolledIntoView(true); // Enable scrolling after first interaction
+      setIsScrolledIntoView(true);
     }
   };
 
@@ -235,7 +224,7 @@ const NewRun = () => {
         method: 'POST',
         body: formData,
         headers: {
-           'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
       });
 
@@ -258,7 +247,7 @@ const NewRun = () => {
     const targetIndex = steps.findIndex(step => step.id === sectionId);
     if (targetIndex <= currentIndex) {
       setActiveSection(sectionId);
-      setIsScrolledIntoView(true); // Enable scrolling after first interaction
+      setIsScrolledIntoView(true);
     }
   };
 
@@ -266,15 +255,17 @@ const NewRun = () => {
     const workflowParams = workflowDetails?.workflow?.parameters || [];
     if (!Array.isArray(workflowParams) || workflowParams.length === 0) {
       return (
-        <div className="bg-red-50 p-4 border border-red-200 rounded-lg">
-          <p className="text-red-700 text-sm">Error: No parameters available for this workflow.</p>
+        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+          <Settings className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No parameters configured</h3>
+          <p className="text-sm text-gray-500">This workflow does not have any configurable parameters.</p>
         </div>
       );
     }
     return (
       <div className="space-y-4">
         {workflowParams.map(section => (
-          <div key={section.section} className="sg-workflow-card p-4">
+          <div key={section.section} className="sg-dataset-tile">
             <button
               className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
               onClick={() => toggleSection(section.section)}
@@ -290,7 +281,7 @@ const NewRun = () => {
               <div className="p-4 space-y-4">
                 {section.parameters.map(param => (
                   <div key={param.name} className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
                       {param.description || param.name}
                       {param.mandatory && <span className="text-red-500 ml-1">*</span>}
                     </label>
@@ -300,7 +291,7 @@ const NewRun = () => {
                         <select
                           value={parameters[param.name] ?? ''}
                           onChange={(e) => handleParameterChange(param.name, e.target.value)}
-                          className="w-full p-2 pl-10 border border-gray-300 text-gray-700 bg-white text-sm rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-colors"
+                          className="w-full pl-10"
                         >
                           <option value="" disabled>
                             Select an option
@@ -320,7 +311,7 @@ const NewRun = () => {
                           value={parameters[param.name] ?? ''}
                           onChange={(e) => handleParameterChange(param.name, e.target.value)}
                           placeholder={param.placeholder || `Enter ${param.description || param.name}`}
-                          className="w-full p-2 pl-10 border border-gray-300 text-gray-700 bg-white text-sm rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-colors"
+                          className="w-full pl-10"
                         />
                       </div>
                     )}
@@ -339,111 +330,274 @@ const NewRun = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
+      <div className="min-h-screen bg-white flex justify-center items-center">
         <GridLoader color="#0065bd" size={17.5} margin={7.5} />
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <style>{`
-        .sg-workflow-card {
-          padding: 24px;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          transition: all 0.3s ease;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-          position: relative;
-          overflow: hidden;
+    <div className="min-h-screen bg-white">
+      <style jsx>{`
+        /* Scottish Government Design System CSS variables */
+        :root {
+          --sg-blue: #0065bd;
+          --sg-blue-dark: #005eb8;
+          --sg-blue-darker: #00437d;
+          --sg-blue-light: #d9eeff;
+          --sg-blue-lighter: #f0f8ff;
+          --sg-blue-lightest: #e6f3ff;
+          --sg-blue-border: rgba(0,101,189,0.64);
+          --sg-blue-text: #00437d;
+          --sg-blue-hover: #004a9f;
+          --sg-gray: #5e5e5e;
+          --sg-gray-dark: #333333;
+          --sg-gray-light: #ebebeb;
+          --sg-gray-lighter: #f8f8f8;
+          --sg-gray-border: #b3b3b3;
+          --sg-gray-bg: #f8f8f8;
+          --sg-text-primary: #333333;
+          --sg-text-secondary: #5e5e5e;
+          --sg-text-inverse: #ffffff;
+          --sg-space-xs: 4px;
+          --sg-space-sm: 8px;
+          --sg-space-md: 16px;
+          --sg-space-lg: 24px;
+          --sg-space-xl: 32px;
+          --sg-space-xxl: 48px;
+          --sg-font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+          --radius: 4px;
         }
-        .sg-workflow-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-          background: linear-gradient(90deg, #0065bd, #004a9f);
-          transform: scaleX(0);
-          transition: transform 0.3s ease;
-        }
-        .sg-workflow-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 25px rgba(0, 101, 189, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08);
-          border-color: #0065bd;
-        }
-        .sg-workflow-card:hover::before {
-          transform: scaleX(1);
-        }
-        .sg-workflow-title {
-          font-size: 20px;
-          line-height: 28px;
-          font-weight: 600;
-          color: #1f2937;
-          margin-bottom: 12px;
-          transition: color 0.3s ease;
-        }
-        .sg-workflow-card:hover .sg-workflow-title {
-          color: #0065bd;
-        }
-        .sg-workflow-description {
-          font-size: 16px;
-          line-height: 24px;
-          color: #6b7280;
-          transition: color 0.3s ease;
-        }
-        .sg-workflow-card:hover .sg-workflow-description {
-          color: #4b5563;
-        }
-        .sg-sidebar {
-          background: white;
-          border-radius: 12px;
-          padding: 24px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-          border: 1px solid #e5e7eb;
-          height: fit-content;
-          position: sticky;
-          top: 24px;
-        }
+
         .sg-page-header {
-          background-color: #0065bd;
-          color: white;
-          padding: 32px 0;
+          background: var(--sg-blue-dark);
+          color: var(--sg-text-inverse);
+          padding: var(--sg-space-xl) 0;
+          padding-bottom: var(--sg-space-lg);
         }
+
         .sg-page-header-container {
           max-width: 1200px;
           margin: 0 auto;
-          padding: 0 24px;
+          padding: 0 var(--sg-space-lg);
         }
+
+        .sg-page-header-breadcrumb {
+          margin-bottom: var(--sg-space-md);
+        }
+
         .sg-page-header-title {
-          font-size: 44px;
-          font-weight: bold;
-          margin-bottom: 16px;
+          font-family: var(--sg-font-family);
+          font-size: 2.25rem;
+          font-weight: 700;
+          line-height: 1.25;
+          color: var(--sg-text-inverse);
+          margin-bottom: var(--sg-space-md);
         }
+
         .sg-page-header-description {
-          font-size: 16px;
-          line-height: 24px;
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-inverse);
+          margin-bottom: var(--sg-space-lg);
         }
+
+        .sg-contents-sticky {
+          position: sticky;
+          top: var(--sg-space-lg);
+          align-self: flex-start;
+          background: white;
+          border-radius: var(--radius);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          padding: var(--sg-space-lg);
+          max-height: calc(100vh - var(--sg-space-xl));
+          overflow-y: auto;
+        }
+
+        .sg-contents-nav {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+
+        .sg-contents-item {
+          margin: 0;
+          padding: 0;
+        }
+
+        .sg-contents-link {
+          display: flex;
+          align-items: center;
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          text-decoration: none;
+          color: var(--sg-blue);
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          font-weight: 400;
+          line-height: 1.5;
+          border-left: 4px solid transparent;
+          transition: all 0.2s ease-in-out;
+          cursor: pointer;
+          margin: 2px 0;
+        }
+
+        .sg-contents-link::before {
+          content: '–';
+          margin-right: var(--sg-space-sm);
+          color: var(--sg-blue);
+          font-weight: 400;
+        }
+
+        .sg-contents-link:hover {
+          background-color: var(--sg-blue-light);
+          border-left-color: var(--sg-blue);
+          text-decoration: none;
+        }
+
+        .sg-contents-link-active {
+          background-color: var(--sg-blue-lightest);
+          border-left-color: var(--sg-blue);
+          font-weight: 500;
+          color: var(--sg-blue);
+        }
+
+        .sg-contents-link-active::before {
+          font-weight: 700;
+        }
+
+        .sg-contents-link-disabled {
+          color: var(--sg-gray);
+          cursor: not-allowed;
+        }
+
+        .sg-dataset-tile {
+          background: white;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          border: 1px solid var(--sg-gray-light);
+          border-radius: var(--radius);
+          padding: var(--sg-space-lg);
+          transition: box-shadow 0.2s ease-in-out;
+        }
+
+        .sg-dataset-tile:hover {
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .sg-dataset-title {
+          font-family: var(--sg-font-family);
+          font-size: 1.375rem;
+          font-weight: 700;
+          line-height: 2rem;
+          letter-spacing: 0.15px;
+          color: var(--sg-blue);
+          margin-bottom: 8px;
+          transition: color 0.2s ease-in-out;
+        }
+
+        .sg-dataset-tile:hover .sg-dataset-title {
+          color: var(--sg-blue-hover);
+        }
+
+        .sg-dataset-description {
+          font-family: var(--sg-font-family);
+          font-size: 1.1875rem;
+          line-height: 2rem;
+          letter-spacing: 0.15px;
+          color: var(--sg-text-primary);
+          margin-bottom: 8px;
+        }
+
+        .sg-section-separator {
+          border-bottom: 1px solid var(--sg-gray-border);
+          padding-bottom: var(--sg-space-sm);
+          margin-bottom: var(--sg-space-lg);
+        }
+
+        .sg-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-primary);
+          border: 1px solid var(--sg-gray-border);
+        }
+
+        .sg-table th,
+        .sg-table td {
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          text-align: left;
+          border-bottom: 1px solid var(--sg-gray-border);
+          vertical-align: top;
+        }
+
+        .sg-table thead th {
+          background-color: var(--sg-gray-bg);
+          font-weight: 500;
+          color: var(--sg-text-primary);
+        }
+
+        .sg-table tbody tr:hover td,
+        .sg-table tbody tr:hover th {
+          background-color: var(--sg-blue-lightest);
+        }
+
         .sg-hidden {
           display: none;
         }
+
+        input, select {
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-primary);
+          border: 1px solid var(--sg-gray-border);
+          border-radius: var(--radius);
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          transition: all 0.2s ease-in-out;
+        }
+
+        input:focus, select:focus {
+          outline: none;
+          border-color: var(--sg-blue);
+          box-shadow: 0 0 0 2px var(--sg-blue-light);
+        }
+
+        button {
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          border-radius: var(--radius);
+          transition: all 0.2s ease-in-out;
+        }
+
+        .sg-error {
+          background: #fef2f2;
+          border: 1px solid #fecdca;
+          border-radius: var(--radius);
+          padding: var(--sg-space-md);
+        }
+
+        .sg-error-text {
+          color: #dc2626;
+          font-size: 0.875rem;
+          line-height: 1.25rem;
+        }
       `}</style>
 
-      {/* Hero Header */}
       <div className="sg-page-header">
         <div className="sg-page-header-container">
-          <nav className="mb-4">
-            <div className="flex items-center gap-2 text-blue-100">
+          <nav className="sg-page-header-breadcrumb">
+            <div className="flex items-center gap-2 text-base">
               <button
                 onClick={() => navigate(`/workflows/workflow/${workflowId}`)}
-                className="text-white hover:text-blue-200 underline transition-colors"
+                className="text-white hover:text-[#d9eeff] underline hover:no-underline transition-colors duration-200"
               >
                 Workflow
               </button>
-              <span>></span>
-              <span className="text-white font-medium">New Run</span>
+              <span className="text-white">&gt;</span>
+              <span className="text-white">New Run</span>
             </div>
           </nav>
           <h1 className="sg-page-header-title">
@@ -457,57 +611,63 @@ const NewRun = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8 flex gap-8">
-        {/* Sidebar Navigation */}
+      <div className="max-w-[1200px] mx-auto px-6 py-8 flex gap-8">
         <div className="w-1/4 shrink-0">
-          <div className="sg-sidebar">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Contents</h2>
-            <nav className="space-y-2">
-              {steps.map((section, index) => (
-                <button
-                  key={section.id}
-                  onClick={() => handleJumpLinkClick(section.id)}
-                  disabled={index > steps.findIndex(step => step.id === activeSection)}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-sm flex items-center gap-2 ${
-                    activeSection === section.id
-                      ? 'bg-blue-50 text-blue-700 border-l-3 border-blue-600 font-bold'
-                      : index <= steps.findIndex(step => step.id === activeSection)
-                        ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'
-                        : 'text-gray-400 font-medium cursor-not-allowed'
-                  }`}
-                >
-                  {section.icon}
-                  {section.label}
-                </button>
-              ))}
+          <div className="sg-contents-sticky">
+            <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-4">Contents</h2>
+            <nav>
+              <ul className="sg-contents-nav">
+                {steps.map((section, index) => (
+                  <li key={section.id} className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick(section.id)}
+                      disabled={index > steps.findIndex(step => step.id === activeSection)}
+                      className={`sg-contents-link w-full text-left flex items-center gap-2 ${
+                        activeSection === section.id
+                          ? 'sg-contents-link-active'
+                          : index <= steps.findIndex(step => step.id === activeSection)
+                            ? ''
+                            : 'sg-contents-link-disabled'
+                      }`}
+                    >
+                      {section.icon}
+                      {section.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </nav>
           </div>
         </div>
 
-        {/* Main Content - Only show active section */}
         <div className="w-3/4 space-y-8">
-          {/* Run Configuration Section */}
           <section
             id="run-configuration"
             ref={sectionRefs['run-configuration']}
-            className={`sg-workflow-card ${activeSection !== 'run-configuration' ? 'sg-hidden' : ''}`}
+            className={`sg-dataset-tile ${activeSection !== 'run-configuration' ? 'sg-hidden' : ''}`}
           >
-            <h2 className="sg-workflow-title flex items-center gap-2">
-              <Play className="h-6 w-6 text-blue-600" />
-              Run Configuration
-            </h2>
-            <p className="sg-workflow-description mb-6">Configure the basic settings for this workflow run</p>
+            <div className="sg-section-separator">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
+                <Play className="h-5 w-5 text-[#0065bd]" />
+                Run Configuration
+              </h2>
+            </div>
+            <p className="sg-dataset-description mb-6">
+              Configure the basic settings for this workflow run
+            </p>
             {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex justify-between items-center">
-                <span className="text-red-700 text-sm">{error}</span>
-                <button onClick={() => setError('')} className="text-red-700 hover:text-red-900">
-                  <X className="w-4 h-4" />
-                </button>
+              <div className="sg-error mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="sg-error-text">{error}</span>
+                  <button onClick={() => setError('')} className="text-red-700 hover:text-red-900">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Run Name</label>
+                <label className="block text-sm font-medium text-gray-900 mb-2">Run Name</label>
                 <div className="relative">
                   <Play className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
                   <input
@@ -515,13 +675,13 @@ const NewRun = () => {
                     value={runName}
                     onChange={(e) => setRunName(e.target.value)}
                     placeholder="Enter a unique name for this run"
-                    className="w-full p-2 pl-10 border border-gray-300 text-gray-700 bg-white text-sm rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-colors"
+                    className="w-full pl-10"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mt-4 mb-1">Workflow Details</label>
-                <div className="sg-workflow-card p-4">
+                <label className="block text-sm font-medium text-gray-900 mb-2">Workflow Details</label>
+                <div className="sg-dataset-tile">
                   <p className="font-medium text-gray-800">{workflowDetails?.workflow?.name || 'Unnamed Workflow'}</p>
                   <p className="text-gray-600 text-sm mt-1">{workflowDetails?.workflow?.description || 'No description available'}</p>
                 </div>
@@ -530,37 +690,43 @@ const NewRun = () => {
             <div className="flex justify-end mt-8">
               <button
                 onClick={handleNextSection}
-                className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 hover:bg-blue-700 p-3 rounded-full transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors duration-200"
               >
-                <ChevronDown className="h-8 w-8" />
+                Next
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </section>
 
-          {/* Input File Section */}
           {workflowDetails?.workflow?.requires_file && (
             <section
               id="input-file"
               ref={sectionRefs['input-file']}
-              className={`sg-workflow-card ${activeSection !== 'input-file' ? 'sg-hidden' : ''}`}
+              className={`sg-dataset-tile ${activeSection !== 'input-file' ? 'sg-hidden' : ''}`}
             >
-              <h2 className="sg-workflow-title flex items-center gap-2">
-                <UploadCloud className="h-6 w-6 text-blue-600" />
-                Input File
-              </h2>
-              <p className="sg-workflow-description mb-6">Upload the input file required for this workflow</p>
+              <div className="sg-section-separator">
+                <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
+                  <UploadCloud className="h-5 w-5 text-[#0065bd]" />
+                  Input File
+                </h2>
+              </div>
+              <p className="sg-dataset-description mb-6">
+                Upload the input file required for this workflow
+              </p>
               {error && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex justify-between items-center">
-                  <span className="text-red-700 text-sm">{error}</span>
-                  <button onClick={() => setError('')} className="text-red-700 hover:text-red-900">
-                    <X className="w-4 h-4" />
-                  </button>
+                <div className="sg-error mb-6">
+                  <div className="flex justify-between items-center">
+                    <span className="sg-error-text">{error}</span>
+                    <button onClick={() => setError('')} className="text-red-700 hover:text-red-900">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               )}
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Input File</label>
-                  <div className="sg-workflow-card p-6 text-center">
+                  <label className="block text-sm font-medium text-gray-900 mb-2">Input File</label>
+                  <div className="sg-dataset-tile p-6 text-center">
                     <input
                       type="file"
                       onChange={(e) => setFile(e.target.files[0])}
@@ -587,98 +753,110 @@ const NewRun = () => {
               <div className="flex justify-between items-center mt-8">
                 <button
                   onClick={() => handleJumpLinkClick('run-configuration')}
-                  className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
                 >
                   <ChevronLeft className="h-4 w-4" />
                   Previous
                 </button>
                 <button
                   onClick={handleNextSection}
-                  className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 hover:bg-blue-700 p-3 rounded-full transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors duration-200"
                 >
-                <ChevronDown className="h-8 w-8" />
+                  Next
+                  <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </section>
           )}
 
-          {/* Parameters Section */}
           <section
             id="parameters"
             ref={sectionRefs['parameters']}
-            className={`sg-workflow-card ${activeSection !== 'parameters' ? 'sg-hidden' : ''}`}
+            className={`sg-dataset-tile ${activeSection !== 'parameters' ? 'sg-hidden' : ''}`}
           >
-            <h2 className="sg-workflow-title flex items-center gap-2">
-              <Plug className="h-6 w-6 text-blue-600" />
-              Parameters
-            </h2>
-            <p className="sg-workflow-description mb-6">Set parameters for this workflow run</p>
+            <div className="sg-section-separator">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
+                <Plug className="h-5 w-5 text-[#0065bd]" />
+                Parameters
+              </h2>
+            </div>
+            <p className="sg-dataset-description mb-6">
+              Set parameters for this workflow run
+            </p>
             {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex justify-between items-center">
-                <span className="text-red-700 text-sm">{error}</span>
-                <button onClick={() => setError('')} className="text-red-700 hover:text-red-900">
-                  <X className="w-4 h-4" />
-                </button>
+              <div className="sg-error mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="sg-error-text">{error}</span>
+                  <button onClick={() => setError('')} className="text-red-700 hover:text-red-900">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Parameters</label>
+                <label className="block text-sm font-medium text-gray-900 mb-2">Parameters</label>
                 {renderParameters()}
               </div>
             </div>
             <div className="flex justify-between items-center mt-8">
               <button
                 onClick={() => handleJumpLinkClick(workflowDetails?.workflow?.requires_file ? 'input-file' : 'run-configuration')}
-                className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" />
                 Previous
               </button>
               <button
                 onClick={handleNextSection}
-                className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 hover:bg-blue-700 p-3 rounded-full transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors duration-200"
               >
-                <ChevronDown className="h-8 w-8" />
+                Next
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </section>
 
-          {/* Schedule Section */}
           <section
             id="schedule"
             ref={sectionRefs['schedule']}
-            className={`sg-workflow-card ${activeSection !== 'schedule' ? 'sg-hidden' : ''}`}
+            className={`sg-dataset-tile ${activeSection !== 'schedule' ? 'sg-hidden' : ''}`}
           >
-            <h2 className="sg-workflow-title flex items-center gap-2">
-              <Clock className="h-6 w-6 text-blue-600" />
-              Schedule
-            </h2>
-            <p className="sg-workflow-description mb-6">Configure when this workflow should run</p>
+            <div className="sg-section-separator">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
+                <Clock className="h-5 w-5 text-[#0065bd]" />
+                Schedule
+              </h2>
+            </div>
+            <p className="sg-dataset-description mb-6">
+              Configure when this workflow should run
+            </p>
             {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex justify-between items-center">
-                <span className="text-red-700 text-sm">{error}</span>
-                <button onClick={() => setError('')} className="text-red-700 hover:text-red-900">
-                  <X className="w-4 h-4" />
-                </button>
+              <div className="sg-error mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="sg-error-text">{error}</span>
+                  <button onClick={() => setError('')} className="text-red-700 hover:text-red-900">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Schedule</label>
+                <label className="block text-sm font-medium text-gray-900 mb-2">Schedule</label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {scheduleOptions.map((option) => (
                     <div
                       key={option}
                       onClick={() => setScheduleType(option)}
-                      className={`sg-workflow-card p-4 text-center cursor-pointer transition-colors ${
-                        scheduleType === option ? 'border-blue-600 bg-blue-50' : 'border-gray-300'
+                      className={`sg-dataset-tile p-4 text-center cursor-pointer transition-colors ${
+                        scheduleType === option ? 'border-[#0065bd] bg-[#e6f3ff]' : 'border-gray-300'
                       }`}
                     >
                       <div className="flex items-center justify-center">
                         <div
                           className={`w-4 h-4 mr-2 rounded-full ${
-                            scheduleType === option ? 'bg-blue-600' : 'bg-gray-200'
+                            scheduleType === option ? 'bg-[#0065bd]' : 'bg-gray-200'
                           }`}
                         ></div>
                         <span className="capitalize font-medium text-sm">
@@ -702,61 +880,67 @@ const NewRun = () => {
             <div className="flex justify-between items-center mt-8">
               <button
                 onClick={() => handleJumpLinkClick('parameters')}
-                className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" />
                 Previous
               </button>
               <button
                 onClick={handleNextSection}
-                className="inline-flex items-center justify-center gap-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 hover:bg-blue-700 p-3 rounded-full transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors duration-200"
               >
-                <ChevronDown className="h-8 w-8" />
+                Next
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </section>
 
-          {/* Review Section */}
           <section
             id="review"
             ref={sectionRefs['review']}
-            className={`sg-workflow-card ${activeSection !== 'review' ? 'sg-hidden' : ''}`}
+            className={`sg-dataset-tile ${activeSection !== 'review' ? 'sg-hidden' : ''}`}
           >
-            <h2 className="sg-workflow-title flex items-center gap-2">
-              <CheckCircle className="h-6 w-6 text-blue-600" />
-              Review Configuration
-            </h2>
-            <p className="sg-workflow-description mb-6">Review your workflow run configuration</p>
+            <div className="sg-section-separator">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-[#0065bd]" />
+                Review Configuration
+              </h2>
+            </div>
+            <p className="sg-dataset-description mb-6">
+              Review your workflow run configuration
+            </p>
             {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex justify-between items-center">
-                <span className="text-red-700 text-sm">{error}</span>
-                <button onClick={() => setError('')} className="text-red-700 hover:text-red-900">
-                  <X className="w-4 h-4" />
-                </button>
+              <div className="sg-error mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="sg-error-text">{error}</span>
+                  <button onClick={() => setError('')} className="text-red-700 hover:text-red-900">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
             <div className="space-y-6">
-              <div className="sg-workflow-card p-6">
+              <div className="sg-dataset-tile">
                 <div className="flex justify-between items-center mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Run Name</h3>
+                    <h3 className="sg-dataset-title">Run Name</h3>
                     <p className="text-base text-gray-700 mt-1">
                       {runName || <span className="text-red-600 font-medium">Not set</span>}
                     </p>
                   </div>
                   <button
                     onClick={() => handleJumpLinkClick('run-configuration')}
-                    className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
                   >
                     Edit
                   </button>
                 </div>
               </div>
               {workflowDetails?.workflow?.requires_file && (
-                <div className="sg-workflow-card p-6">
+                <div className="sg-dataset-tile">
                   <div className="flex justify-between items-center mb-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Input File</h3>
+                      <h3 className="sg-dataset-title">Input File</h3>
                       <p className="text-base text-gray-700 mt-1">
                         {file ? (
                           <>
@@ -770,17 +954,17 @@ const NewRun = () => {
                     </div>
                     <button
                       onClick={() => handleJumpLinkClick('input-file')}
-                      className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors"
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
                     >
                       Edit
                     </button>
                   </div>
                 </div>
               )}
-              <div className="sg-workflow-card p-6">
+              <div className="sg-dataset-tile">
                 <div className="flex justify-between items-center mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Parameters</h3>
+                    <h3 className="sg-dataset-title">Parameters</h3>
                     <div className="mt-4 space-y-5">
                       {Array.isArray(workflowDetails?.workflow?.parameters) && workflowDetails.workflow.parameters.length > 0 ? (
                         workflowDetails.workflow.parameters.map((section) => (
@@ -807,23 +991,23 @@ const NewRun = () => {
                   </div>
                   <button
                     onClick={() => handleJumpLinkClick('parameters')}
-                    className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
                   >
                     Edit
                   </button>
                 </div>
               </div>
-              <div className="sg-workflow-card p-6">
+              <div className="sg-dataset-tile">
                 <div className="flex justify-between items-center mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Schedule</h3>
+                    <h3 className="sg-dataset-title">Schedule</h3>
                     <p className="text-base text-gray-700 mt-1 capitalize">
                       {scheduleType === 'none' ? 'No Schedule (Run once)' : scheduleType}
                     </p>
                   </div>
                   <button
                     onClick={() => handleJumpLinkClick('schedule')}
-                    className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
                   >
                     Edit
                   </button>
@@ -833,7 +1017,7 @@ const NewRun = () => {
             <div className="flex justify-between items-center mt-8">
               <button
                 onClick={() => handleJumpLinkClick('schedule')}
-                className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" />
                 Previous
@@ -841,19 +1025,23 @@ const NewRun = () => {
               <button
                 onClick={handleStartRun}
                 disabled={isSubmitting}
-                className={`inline-flex items-center justify-center gap-2 text-sm font-medium text-white px-4 py-2 rounded-lg transition-colors ${
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded transition-colors ${
                   isSubmitting 
-                    ? 'bg-gray-400 border-gray-400 cursor-not-allowed' 
-                    : 'bg-blue-600 border border-blue-600 hover:bg-blue-700'
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-[#0065bd] hover:bg-[#004a9f]'
                 }`}
               >
-                {isSubmitting ? 'Starting...' : 'Start Run'}
+                {isSubmitting ? (
+                  <div className="h-5 w-5 animate-spin border-2 border-white border-t-transparent rounded-full"></div>
+                ) : (
+                  'Start Run'
+                )}
               </button>
             </div>
           </section>
         </div>
       </div>
-    </main>
+    </div>
   );
 };
 

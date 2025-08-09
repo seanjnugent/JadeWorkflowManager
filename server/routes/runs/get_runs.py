@@ -20,10 +20,12 @@ async def get_runs(
         offset = (page - 1) * limit
         runs = db.execute(
             text("""
-                SELECT id, workflow_id, triggered_by, status, started_at, finished_at, error_message,
-                       output_file_path, dagster_run_id, input_file_path
-                FROM workflow.run
-                ORDER BY started_at DESC
+                SELECT a.id, workflow_id, triggered_by, a.status, started_at, finished_at, error_message,
+                       a.output_file_path, dagster_run_id, a.input_file_path, w."name", concat(b.first_name,' ', b.surname) as user_name
+                FROM workflow.run a
+                left join workflow.user b on a.triggered_by  = b.id
+                left join workflow.workflow w on a.workflow_id = w.id
+                ORDER BY started_at desc
                 LIMIT :limit OFFSET :offset
             """),
             {"limit": limit, "offset": offset}

@@ -352,3 +352,6 @@ hr {
   width: auto;
 }
 
+a {
+  text-decoration: none !important;
+}
