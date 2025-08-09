@@ -301,19 +301,19 @@ def build_dagster_config(workflow: Dict[str, Any], input_path: str, parameters: 
     return dagster_config
 
 def create_run_record(db: Session, workflow_id: int, triggered_by: int, input_path: str,
-                     dagster_run_id: str, status: str, config: Dict[str, Any]) -> Dict[str, Any]:
+                     dagster_run_id: str, status: str, config: Dict[str, Any], run_name: str) -> Dict[str, Any]:
     """Create run record in database"""
     try:
         result = db.execute(
             text("""
                 INSERT INTO workflow.run (
                     workflow_id, triggered_by, status, input_file_path,
-                    dagster_run_id, config_used, started_at
+                    dagster_run_id, config_used, started_at, run_name
                 ) VALUES (
                     :workflow_id, :triggered_by, :status, :input_path,
-                    :dagster_run_id, :config, NOW()
+                    :dagster_run_id, :config, NOW(), :run_name
                 )
-                RETURNING id, status, dagster_run_id
+                RETURNING id, status, dagster_run_id, run_name
             """),
             {
                 "workflow_id": workflow_id,
@@ -321,26 +321,28 @@ def create_run_record(db: Session, workflow_id: int, triggered_by: int, input_pa
                 "status": status,
                 "input_path": input_path,
                 "dagster_run_id": dagster_run_id,
-                "config": json.dumps(config)
+                "config": json.dumps(config),
+                "run_name": run_name
             }
         )
         run_record = result.fetchone()
         if run_record is None:
             raise Exception("No record returned from INSERT")
 
-        run_id, run_status, run_dagster_run_id = run_record
+        run_id, run_status, run_dagster_run_id, run_name = run_record
         db.commit()
 
         return {
             "id": run_id,
             "status": run_status,
-            "dagster_run_id": run_dagster_run_id
+            "dagster_run_id": run_dagster_run_id,
+            "run_name": run_name
         }
     except Exception as e:
         logger.error(f"Failed to create run record: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create run record: {str(e)}")
-
+    
 async def execute_dagster_workflow_direct(workflow: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, str]:
     """Execute Dagster workflow via direct GraphQL API call"""
     try:
@@ -490,6 +492,7 @@ async def execute_dagster_workflow_direct(workflow: Dict[str, Any], config: Dict
 async def trigger_workflow_run(
     workflow_id: int = Form(...),
     triggered_by: int = Form(...),
+    run_name: str = Form(...),  # Add run_name as a required form field
     parameters: str = Form("{}"),
     file: UploadFile = File(None),
     db: Session = Depends(get_db)
@@ -515,7 +518,7 @@ async def trigger_workflow_run(
 
         run_record = create_run_record(
             db, workflow["id"], triggered_by, input_path or "",
-            execution_result["run_id"], execution_result["status"], dagster_config
+            execution_result["run_id"], execution_result["status"], dagster_config, run_name  # Pass run_name
         )
 
         output_path = None
@@ -542,6 +545,7 @@ async def trigger_workflow_run(
             "dagster_run_id": run_record["dagster_run_id"],
             "workflow_name": workflow["name"],
             "workflow_id": workflow["id"],
+            "run_name": run_name,  # Include run_name in response
             "started_at": run_record["started_at"].isoformat() if run_record.get("started_at") else None,
             "message": f"Workflow '{workflow['name']}' triggered successfully with status: {execution_result['status']}"
         }

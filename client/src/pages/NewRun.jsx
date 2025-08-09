@@ -187,60 +187,66 @@ const NewRun = () => {
   };
 
   const handleStartRun = async () => {
-    if (!validateCurrentSection()) return;
-    setIsSubmitting(true);
-    setError('');
-    try {
-      const formData = new FormData();
-      formData.append('workflow_id', workflowId);
-      formData.append('triggered_by', userId);
-      formData.append('name', runName);
-      if (file) {
-        formData.append('file', file);
-      }
-      
-      const workflowParams = workflowDetails?.workflow?.parameters || [];
-      const validParameters = {};
-      if (Array.isArray(workflowParams)) {
-        workflowParams.forEach(section => {
-          section.parameters.forEach(param => {
-            if (parameters[param.name] !== undefined) {
-              validParameters[param.name] = parameters[param.name];
-            }
-          });
-        });
-      }
-      
-      if (Object.keys(validParameters).length) {
-        formData.append('parameters', JSON.stringify(validParameters));
-      }
-      
-      if (scheduleType !== 'none') {
-        formData.append('schedule', scheduleType);
-      }
-
-      const accessToken = localStorage.getItem('access_token');
-      const response = await fetch(`${API_BASE_URL}/runs/trigger`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Run failed');
-      }
-      
-      navigate('/runs');
-    } catch (err) {
-      console.error('Submission error:', err);
-      setError(err.message || 'Failed to start run');
-    } finally {
-      setIsSubmitting(false);
+  if (!validateCurrentSection()) return;
+  setIsSubmitting(true);
+  setError('');
+  try {
+    const formData = new FormData();
+    formData.append('workflow_id', workflowId);
+    formData.append('triggered_by', userId);
+    formData.append('run_name', runName); // Already included
+    if (file) {
+      formData.append('file', file);
     }
-  };
+    
+    const workflowParams = workflowDetails?.workflow?.parameters || [];
+    const validParameters = {};
+    if (Array.isArray(workflowParams)) {
+      workflowParams.forEach(section => {
+        section.parameters.forEach(param => {
+          if (parameters[param.name] !== undefined) {
+            validParameters[param.name] = parameters[param.name];
+          }
+        });
+      });
+    }
+    
+    if (Object.keys(validParameters).length) {
+      formData.append('parameters', JSON.stringify(validParameters));
+    }
+    
+    if (scheduleType !== 'none') {
+      formData.append('schedule', scheduleType);
+    }
+
+    const accessToken = localStorage.getItem('access_token');
+    const response = await fetch(`${API_BASE_URL}/runs/trigger`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Run failed');
+    }
+
+    const responseData = await response.json();
+    console.log('Run triggered successfully:', responseData); // Log response for debugging
+    if (responseData.run_name) {
+      console.log(`Run Name saved: ${responseData.run_name}`); // Log run_name specifically
+    }
+    
+    navigate('/runs');
+  } catch (err) {
+    console.error('Submission error:', err);
+    setError(err.message || 'Failed to start run');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const handleJumpLinkClick = (sectionId) => {
     const currentIndex = steps.findIndex(step => step.id === activeSection);

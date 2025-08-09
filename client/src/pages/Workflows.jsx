@@ -865,9 +865,9 @@ const Workflows = () => {
                         href={`/workflows/workflow/${workflow.id}`}
                         className="sg-dataset-tile block"
                       >
-                        <h3 className="sg-dataset-title">
-                          WF0{workflow.id} - {workflow.name}
-                        </h3>
+                   <h3 className="sg-dataset-title">
+  WF{String(workflow.id).padStart(4, '0')} - {workflow.name}
+</h3>
 <div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3 [text-decoration:none]">
   <span className="flex items-center gap-1 [text-decoration:none]">
     {icon}

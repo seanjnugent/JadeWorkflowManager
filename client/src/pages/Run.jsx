@@ -24,6 +24,7 @@ import {
   CircleAlert
 } from 'lucide-react';
 import { GridLoader, ClipLoader } from 'react-spinners';
+import { Link } from 'react-router-dom';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
@@ -333,6 +334,7 @@ const Run = () => {
           },
           workflow_id: data.run.workflow_id,
           triggered_by_email: data.run.triggered_by_email,
+          run_name: data.run.run_name,
           triggered_by_username: data.run.triggered_by_username,
           started_at: data.run.started_at,
           finished_at: data.run.finished_at,
@@ -834,22 +836,36 @@ const Run = () => {
                       <th className="w-1/2">Run ID</th>
                       <td>#{runId}</td>
                     </tr>
+                                    <tr>
+                      <th>Status</th>
+                      <td><StatusBadge status={status} /></td>
+                    </tr>
+                    <tr>
+                      <th className="w-1/2">Run Name</th>
+                      <td>{runData.run_name}</td>
+                    </tr>
                     <tr>
                       <th>Workflow Name</th>
                       <td>{pipeline?.name || 'Untitled Workflow'}</td>
                     </tr>
-                    <tr>
-                      <th>Workflow ID</th>
-                      <td>{runData.workflow_id || 'N/A'}</td>
-                    </tr>
+<tr>
+  <th>Workflow ID</th>
+  <td>
+    {runData.workflow_id ? (
+      <Link to={`/workflows/workflow/${runData.workflow_id}`}>
+        {`WF${String(runData.workflow_id).padStart(4, '0')}`}
+      </Link>
+    ) : (
+      'N/A'
+    )}
+  </td>
+</tr>
+
                     <tr>
                       <th>Dagster Run ID</th>
                       <td>{dagsterRunId || 'N/A'}</td>
                     </tr>
-                    <tr>
-                      <th>Status</th>
-                      <td><StatusBadge status={status} /></td>
-                    </tr>
+  
                     <tr>
                       <th>Triggered By</th>
                       <td>

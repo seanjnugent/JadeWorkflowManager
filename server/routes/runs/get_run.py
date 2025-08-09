@@ -38,7 +38,7 @@ async def get_run(
                 SELECT
                     r.*,
                     w.name AS workflow_name,
-                    w.description AS workflow_description,
+                    w.description AS workflow_description, run_name,
                     u.email AS triggered_by_email,
                     concat(u.first_name, ' ', u.surname) AS triggered_by_username
                 FROM workflow.run r

@@ -369,7 +369,7 @@ const FailureTable = ({ data, navigate }) => {
               <tr
                 key={failure.run_id}
                 className="hover:bg-gray-50 cursor-pointer"
-                onClick={() => navigate(`/runs/${failure.run_id}`)}
+                onClick={() => navigate(`/runs/run/${failure.run_id}`)}
               >
                 <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
                   {failure.run_id}

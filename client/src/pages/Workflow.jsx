@@ -875,6 +875,14 @@ const Workflow = () => {
                       Config template
                     </button>
                   </li>
+                                    <li className="sg-contents-item">
+                    <button
+                      onClick={() => handleJumpLinkClick('version-control')}
+                      className={`sg-contents-link w-full text-left ${isActiveSection('version-control') ? 'sg-contents-link-active' : ''}`}
+                    >
+                      Version Control
+                    </button>
+                  </li>
                 </ul>
               </nav>
             </div>
@@ -930,11 +938,11 @@ const Workflow = () => {
                     </tr>
                     <tr>
                       <th>Workflow ID</th>
-                      <td>{workflow?.id || workflowId}</td>
+                      <td>WF0{workflow?.id || workflowId}</td>
                     </tr>
                     <tr>
                       <th>Workflow maintainer</th>
-                      <td>{versionControl?.modifiedBy || 'Health Analytics Team'}</td>
+                      <td>{workflow?.user_name}</td>
                     </tr>
                     <tr>
                       <th>Workflow created</th>
@@ -945,11 +953,7 @@ const Workflow = () => {
                       <td>{recent_runs?.[0]?.started_at ? new Date(recent_runs[0].started_at).toLocaleDateString('en-GB') : 'N/A'}</td>
                     </tr>
                     <tr>
-                      <th>Current workflow GitHub version</th>
-                      <td>{versionControl?.version || 'N/A'}</td>
-                    </tr>
-                    <tr>
-                      <th>Status</th>
+                      <th>Last Run Status</th>
                       <td><StatusBadge status={recent_runs?.[0]?.status || 'Unknown'} /></td>
                     </tr>
                     <tr>
@@ -975,7 +979,7 @@ const Workflow = () => {
                 </p>
                 <div className="space-y-6">
                   {recent_runs?.length > 0 ? (
-                    recent_runs.slice(0, 5).map((run) => (
+                    recent_runs.slice(0, 3).map((run) => (
                       <button
                         key={run.id}
                         onClick={() => navigate(`/runs/run/${run.id}`)}
@@ -1072,76 +1076,82 @@ const Workflow = () => {
             )}
 
             {/* Parameters Section */}
-            <section id="parameters" className="mb-12">
-              <div className="sg-section-separator">
-                <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px]">
-                    Parameters
-                  </h2>
-                  <button 
-                    onClick={() => setShowParamsModal(true)}
-                    className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
-                  >
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit
-                  </button>
-                </div>
-              </div>
-              
-              <div className="prose prose-lg max-w-none">
-                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
-                  Configuration parameters for this workflow. These parameters control the workflow execution behavior.
-                </p>
-                {workflow?.parameters?.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="sg-table">
-                      <thead>
-                        <tr>
-                          <th>Name</th>
-                          <th>Type</th>
-                          <th>Requirement</th>
-                          <th>Description</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {workflow.parameters.map((param) => (
-                          <tr key={param.name}>
-                            <td className="font-medium">{param.name}</td>
-                            <td>{param.type}</td>
-                            <td>
-                              <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${param.mandatory ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                                {param.mandatory ? 'Required' : 'Optional'}
-                              </span>
-                            </td>
-                            <td>
-                              {param.description || 'No description'}
-                              {param.options && (
-                                <p className="text-sm text-gray-600 mt-1">
-                                  Options: {param.options.map(opt => opt.label).join(', ')}
-                                </p>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                    <Settings className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No parameters configured</h3>
-                    <p className="text-sm text-gray-500">This workflow does not have any configurable parameters.</p>
-                  </div>
-                )}
-              </div>
-              <JsonEditModal
-                isOpen={showParamsModal}
-                onClose={() => setShowParamsModal(false)}
-                title="Edit Workflow Parameters"
-                jsonData={workflow?.parameters || []}
-                onSave={handleSaveParameters}
-              />
-            </section>
+            {/* Parameters Section */}
+<section id="parameters" className="mb-12">
+  <div className="sg-section-separator">
+    <div className="flex items-center justify-between mb-2">
+      <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px]">
+        Parameters
+      </h2>
+      <button 
+        onClick={() => setShowParamsModal(true)}
+        className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+      >
+        <Pencil className="h-4 w-4 mr-2" />
+        Edit
+      </button>
+    </div>
+  </div>
+  
+  <div className="prose prose-lg max-w-none">
+    <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+      Configuration parameters for this workflow. These parameters control the workflow execution behavior.
+    </p>
+    {workflow?.parameters?.length > 0 && workflow.parameters.some(section => section.parameters?.length > 0) ? (
+      <div className="overflow-x-auto">
+        {workflow.parameters.map((section, index) => (
+          <div key={index} className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{section.section || 'Unnamed Section'}</h3>
+            <table className="sg-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Requirement</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {section.parameters.map((param) => (
+                  <tr key={param.name}>
+                    <td className="font-medium">{param.name}</td>
+                    <td>{param.type}</td>
+                    <td>
+                      <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${param.mandatory ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {param.mandatory ? 'Required' : 'Optional'}
+                      </span>
+                    </td>
+                    <td>
+                      {param.description || 'No description'}
+                      {param.options && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          Options: {param.options.map(opt => opt.label).join(', ')}
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+        <Settings className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No parameters configured</h3>
+        <p className="text-sm text-gray-500">This workflow does not have any configurable parameters.</p>
+      </div>
+    )}
+  </div>
+  <JsonEditModal
+    isOpen={showParamsModal}
+    onClose={() => setShowParamsModal(false)}
+    title="Edit Workflow Parameters"
+    jsonData={workflow?.parameters || []}
+    onSave={handleSaveParameters}
+  />
+</section>
 
             {/* Destination Config Section */}
             <section id="destination-config" className="mb-12">
@@ -1274,8 +1284,8 @@ const Workflow = () => {
                       </h3>
                       <GitHubDagLink
                         dagPath={workflow?.dag_path}
-                        repoOwner="health-analytics"
-                        repoName="workflows"
+                        repoOwner="seanjnugent"
+                        repoName="DataWorkflowTool-Workflows"
                         setVersionControl={setVersionControl}
                       />
                     </div>

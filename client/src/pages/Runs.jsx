@@ -23,6 +23,12 @@ const Runs = () => {
     workflow_id: false,
     user_name: false
   });
+  // Store unique filter values fetched from the backend
+  const [filterOptions, setFilterOptions] = useState({
+    status: [],
+    workflow_id: [],
+    user_name: []
+  });
 
   const limit = 10;
 
@@ -36,12 +42,19 @@ const Runs = () => {
       return;
     }
 
+    // Build query parameters
     const queryParams = new URLSearchParams({
       user_id: userId,
       page: currentPage.toString(),
       limit: limit.toString(),
+      ...(searchValue && { search: searchValue }),
+      ...(filters.status.length > 0 && { status: filters.status.join(',') }),
+      ...(filters.workflow_id.length > 0 && { workflow_id: filters.workflow_id.join(',') }),
+      ...(filters.user_name.length > 0 && { user_name: filters.user_name.join(',') }),
+      ...(sortBy !== 'Most relevant' && { sort_by: sortBy })
     });
 
+    // Fetch runs
     fetch(`${API_BASE_URL}/runs/?${queryParams}`, {
       headers: {
         'accept': 'application/json',
@@ -69,7 +82,29 @@ const Runs = () => {
       .finally(() => {
         setLoading(false);
       });
-  }, [navigate, currentPage]);
+
+    // Fetch filter options
+    fetch(`${API_BASE_URL}/runs/filter-options`, {
+      headers: {
+        'accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch filter options');
+        return res.json();
+      })
+      .then((data) => {
+        setFilterOptions({
+          status: data.status || [],
+          workflow_id: data.workflow_id || [],
+          user_name: data.user_name || []
+        });
+      })
+      .catch((err) => {
+        console.error('Error fetching filter options:', err);
+      });
+  }, [navigate, currentPage, searchValue, filters, sortBy]);
 
   const totalPages = Math.ceil(totalItems / limit);
 
@@ -81,10 +116,12 @@ const Runs = () => {
 
   const handleSearchChange = (e) => {
     setSearchValue(e.target.value);
+    setCurrentPage(1); // Reset to first page on search
   };
 
   const clearSearch = () => {
     setSearchValue('');
+    setCurrentPage(1);
   };
 
   const toggleFilter = (filterType) => {
@@ -101,6 +138,7 @@ const Runs = () => {
         ? prev[filterType].filter(v => v !== value)
         : [...prev[filterType], value]
     }));
+    setCurrentPage(1); // Reset to first page on filter change
   };
 
   const clearFilters = () => {
@@ -109,6 +147,7 @@ const Runs = () => {
       workflow_id: [],
       user_name: []
     });
+    setCurrentPage(1);
   };
 
   const getStatusIconAndColor = (status) => {
@@ -128,48 +167,13 @@ const Runs = () => {
     }
   };
 
-  const uniqueStatuses = Array.from(new Set(allRuns.map(run => run.status).filter(Boolean)));
-  const uniqueWorkflowIds = Array.from(new Set(allRuns.map(run => run.workflow_id).filter(Boolean)));
-  const uniqueTriggeredBy = Array.from(new Set(allRuns.map(run => run.user_name).filter(Boolean)));
+  // Use filterOptions for filter dropdowns
+  const { status: uniqueStatuses, workflow_id: uniqueWorkflowIds, user_name: uniqueTriggeredBy } = filterOptions;
 
+  // Backend handles filtering and sorting
   const sortedRuns = useMemo(() => {
-    let sortableRuns = [...allRuns];
-
-    if (sortBy !== 'Most relevant') {
-      sortableRuns.sort((a, b) => {
-        let key;
-        if (sortBy === 'Newest first') key = 'started_at';
-        else if (sortBy === 'Oldest first') key = 'started_at';
-        else if (sortBy === 'A-Z') key = 'id';
-        else if (sortBy === 'Z-A') key = 'id';
-
-        if (key === 'started_at') {
-          const aTime = new Date(a[key]).getTime();
-          const bTime = new Date(b[key]).getTime();
-          if (sortBy === 'Newest first') return bTime - aTime;
-          return aTime - bTime;
-        } else {
-          if (a[key] < b[key]) return sortBy === 'A-Z' ? -1 : 1;
-          if (a[key] > b[key]) return sortBy === 'A-Z' ? 1 : -1;
-          return 0;
-        }
-      });
-    }
-
-    return sortableRuns.filter(run => {
-      const matchesSearch = (
-        run.id.toString().toLowerCase().includes(searchValue.toLowerCase()) ||
-        run.workflow_id.toString().toLowerCase().includes(searchValue.toLowerCase()) ||
-        run.status.toLowerCase().includes(searchValue.toLowerCase())
-      );
-
-      const matchesStatus = filters.status.length === 0 || filters.status.includes(run.status);
-      const matchesWorkflowId = filters.workflow_id.length === 0 || filters.workflow_id.includes(run.workflow_id);
-      const matchesTriggeredBy = filters.user_name.length === 0 || filters.user_name.includes(run.user_name);
-
-      return matchesSearch && matchesStatus && matchesWorkflowId && matchesTriggeredBy;
-    });
-  }, [allRuns, sortBy, searchValue, filters]);
+    return [...allRuns];
+  }, [allRuns]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -712,7 +716,6 @@ const Runs = () => {
       `}</style>
 
       <div className="max-w-[1200px] mx-auto px-6 py-8">
-        {/* Breadcrumb */}
         <nav className="mb-6">
           <div className="flex items-center gap-2 text-base">
             <a
@@ -721,21 +724,19 @@ const Runs = () => {
             >
               Home
             </a>
-            <span className="text-[#5e5e5e]">&gt;</span>
+            <span className="text-[#5e5e5e">&gt;</span>
             <span className="text-[#333333]">Runs</span>
           </div>
         </nav>
 
         <div className="flex gap-8">
-          {/* Sidebar - 25% width */}
           <div className="w-1/4 shrink-0">
             <div className="mb-6">
               <h1 className="text-[44px] font-bold text-black leading-[50px] tracking-[0.15px] whitespace-nowrap">
-                {sortedRuns.length} runs available
+                {totalItems} runs available
               </h1>
             </div>
 
-            {/* Search */}
             <div className="mb-6">
               <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
                 Search
@@ -767,13 +768,11 @@ const Runs = () => {
               </div>
             </div>
 
-            {/* Filter by */}
             <div>
               <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-4">
                 Filter by
               </h2>
 
-              {/* Status Filter */}
               <div className={`sg-filter-item ${expandedFilters.status ? 'sg-filter-expanded' : ''}`}>
                 <div className="sg-filter-content" onClick={() => toggleFilter('status')}>
                   <span className="sg-filter-label">Status</span>
@@ -796,7 +795,6 @@ const Runs = () => {
                 )}
               </div>
 
-              {/* Workflow ID Filter */}
               <div className={`sg-filter-item ${expandedFilters.workflow_id ? 'sg-filter-expanded' : ''}`}>
                 <div className="sg-filter-content" onClick={() => toggleFilter('workflow_id')}>
                   <span className="sg-filter-label">Workflow ID</span>
@@ -819,7 +817,6 @@ const Runs = () => {
                 )}
               </div>
 
-              {/* Triggered By Filter */}
               <div className={`sg-filter-item sg-filter-item-last ${expandedFilters.user_name ? 'sg-filter-expanded' : ''}`}>
                 <div className="sg-filter-content" onClick={() => toggleFilter('user_name')}>
                   <span className="sg-filter-label">Triggered By</span>
@@ -846,7 +843,6 @@ const Runs = () => {
                 )}
               </div>
 
-              {/* Clear Filters Button */}
               <button
                 onClick={clearFilters}
                 className="w-full h-12 bg-[#0065bd] text-white font-bold text-base mt-8 rounded hover:bg-[#004a9f] transition-colors duration-200"
@@ -856,9 +852,7 @@ const Runs = () => {
             </div>
           </div>
 
-          {/* Main content - 75% width */}
           <div className="w-3/4">
-            {/* Sort by dropdown */}
             <div className="sg-sort-container">
               <label className="sg-sort-label">
                 Sort by:
@@ -881,7 +875,6 @@ const Runs = () => {
               </div>
             </div>
 
-            {/* Run tiles */}
             {loading ? (
               <div className="flex justify-center items-center py-12">
                 <GridLoader color="#0065bd" size={17.5} margin={7.5} />
@@ -919,6 +912,9 @@ const Runs = () => {
                         <p className="sg-dataset-description [text-decoration:none]">
                           {run.name}
                         </p>
+                        <p className="text-sm text-gray-500 mt-2">
+                          {run.run_name}
+                        </p>
                       </a>
                     );
                   })
@@ -932,7 +928,6 @@ const Runs = () => {
               </div>
             )}
 
-            {/* Pagination */}
             <div className="sg-pagination">
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
@@ -961,7 +956,6 @@ const Runs = () => {
           </div>
         </div>
 
-        {/* Floating New Run Button */}
         <button
           onClick={() => navigate('/runs/new/')}
           className="sg-fab"

@@ -19,11 +19,12 @@ async def get_workflow(
         # Get workflow metadata including new columns
         workflow = db.execute(
             text("""
-             SELECT id, name, description, status, schedule, last_run_at, 
+             SELECT a.id, name, description, status, schedule, last_run_at, 
                        next_run_at, input_structure, parameters, config_template,
-                       dag_path, dag_status, created_at, updated_at, destination, destination_config, requires_file
-                FROM workflow.workflow
-                WHERE id = :id
+                       dag_path, dag_status, a.created_at, a.updated_at, destination, destination_config, requires_file,  CONCAT(b.first_name, ' ', b.surname) as user_name, b.email 
+                FROM workflow.workflow a
+                 left join workflow.user b on a.created_by = b.id
+                WHERE a.id = :id
             """),
             {"id": workflow_id}
         ).fetchone()
