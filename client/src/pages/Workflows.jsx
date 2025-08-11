@@ -1,27 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect,useMemo  } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ChevronRight, ChevronLeft, Search, FileText, Database, Waypoints, X, ChevronDown } from 'lucide-react';
+import { CheckCircle, XCircle, RefreshCw, Plus, Search, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { GridLoader } from 'react-spinners';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
 const Workflows = () => {
   const navigate = useNavigate();
-  const [workflows, setWorkflows] = useState([]);
+  const [allWorkflows, setAllWorkflows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchValue, setSearchValue] = useState('');
   const [sortBy, setSortBy] = useState('Most relevant');
   const [loading, setLoading] = useState(true);
   const [totalItems, setTotalItems] = useState(0);
   const [filters, setFilters] = useState({
-    destination: [],
+    status: ['Active'], // Preselect "Active"
     owner: [],
-    group: []
+    group_name: []
   });
   const [expandedFilters, setExpandedFilters] = useState({
-    destination: false,
+    status: false, // Collapsed by default
     owner: false,
-    group: false
+    group_name: false
+  });
+  const [filterOptions, setFilterOptions] = useState({
+    status: [],
+    owner: [],
+    group_name: []
   });
 
   const limit = 10;
@@ -36,35 +41,69 @@ const Workflows = () => {
       return;
     }
 
+    // Build query parameters
     const queryParams = new URLSearchParams({
+      user_id: userId,
       page: currentPage.toString(),
       limit: limit.toString(),
-      user_id: userId
+      ...(searchValue && { search: searchValue }),
+      ...(filters.status.length > 0 && { status: filters.status.join(',') }),
+      ...(filters.owner.length > 0 && { owner: filters.owner.join(',') }),
+      ...(filters.group_name.length > 0 && { group_name: filters.group_name.join(',') }),
+      ...(sortBy !== 'Most relevant' && { sort_by: sortBy })
     });
 
+    // Fetch workflows
     fetch(`${API_BASE_URL}/workflows/?${queryParams}`, {
       headers: {
         'accept': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
       },
     })
-      .then(response => {
-        if (!response.ok) throw new Error('Failed to fetch workflows');
-        return response.json();
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch workflows');
+        return res.json();
       })
-      .then(data => {
-        setWorkflows(data.workflows || []);
-        setTotalItems(data.pagination?.total || 0);
+      .then((data) => {
+        if (data.workflows && Array.isArray(data.workflows)) {
+          setAllWorkflows(data.workflows);
+          setTotalItems(data.pagination?.total || 0);
+        } else {
+          setAllWorkflows([]);
+          setTotalItems(0);
+        }
       })
-      .catch(error => {
-        console.error('Error fetching workflows:', error);
-        setWorkflows([]);
+      .catch((err) => {
+        console.error('Error fetching workflows:', err);
+        setAllWorkflows([]);
         setTotalItems(0);
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [navigate, currentPage]);
+
+    // Fetch filter options
+    fetch(`${API_BASE_URL}/workflows/filter-options`, {
+      headers: {
+        'accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch filter options');
+        return res.json();
+      })
+      .then((data) => {
+        setFilterOptions({
+          status: data.status || [],
+          owner: data.owner || [],
+          group_name: data.group_name || []
+        });
+      })
+      .catch((err) => {
+        console.error('Error fetching filter options:', err);
+      });
+  }, [navigate, currentPage, searchValue, filters, sortBy]);
 
   const totalPages = Math.ceil(totalItems / limit);
 
@@ -76,10 +115,12 @@ const Workflows = () => {
 
   const handleSearchChange = (e) => {
     setSearchValue(e.target.value);
+    setCurrentPage(1); // Reset to first page on search
   };
 
   const clearSearch = () => {
     setSearchValue('');
+    setCurrentPage(1);
   };
 
   const toggleFilter = (filterType) => {
@@ -96,69 +137,38 @@ const Workflows = () => {
         ? prev[filterType].filter(v => v !== value)
         : [...prev[filterType], value]
     }));
+    setCurrentPage(1); // Reset to first page on filter change
   };
 
   const clearFilters = () => {
     setFilters({
-      destination: [],
+      status: ['Active'], // Keep "Active" preselected
       owner: [],
-      group: []
+      group_name: []
     });
+    setCurrentPage(1);
   };
 
-  const getStatusBadge = (status) => {
-    switch (status?.toLowerCase()) {
+  const getStatusIconAndColor = (status) => {
+    const normalizedStatus = status?.toLowerCase();
+    switch (normalizedStatus) {
       case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'failed':
-        return 'bg-red-100 text-red-800';
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-800';
+        return { icon: <CheckCircle className="h-4 w-4 text-green-600" />, badge: 'bg-green-100 text-green-800' };
+      case 'inactive':
+        return { icon: <XCircle className="h-4 w-4 text-red-600" />, badge: 'bg-red-100 text-red-800' };
+      case 'pending':
+        return { icon: <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />, badge: 'bg-blue-100 text-blue-800' };
       default:
-        return 'bg-gray-100 text-gray-800';
+        return { icon: null, badge: 'bg-gray-100 text-gray-800' };
     }
   };
 
-  const getDestinationIconAndColor = (destination) => {
-    const destinations = destination?.split(',').map(d => d.trim().toLowerCase()) || [];
-    if (destinations.includes('pdf')) {
-      return { icon: <FileText className="h-4 w-4 text-[#0065bd]" /> };
-    } else if (destinations.includes('csv')) {
-      return { icon: <FileText className="h-4 w-4 text-[#0065bd]" /> };
-    } else if (destinations.includes('database')) {
-      return { icon: <Database className="h-4 w-4 text-red-600" /> };
-    } else if (destinations.includes('api')) {
-      return { icon: <Waypoints className="h-4 w-4 text-blue-600" /> };
-    }
-    return { icon: <FileText className="h-4 w-4 text-gray-600" /> };
-  };
+  const { status: uniqueStatuses, owner: uniqueOwners, group_name: uniqueGroups } = filterOptions;
 
-  const uniqueDestinations = Array.from(
-    new Set(
-      workflows
-        .flatMap(w => w.destination?.split(',').map(d => d.trim()) || [])
-        .filter(Boolean)
-    )
-  );
-  const uniqueOwners = Array.from(new Set(workflows.map(w => w.owner).filter(Boolean)));
-  const uniqueGroups = Array.from(new Set(workflows.map(w => w.group_name).filter(Boolean)));
-
-  const filteredWorkflows = React.useMemo(() => {
-    return workflows.filter(workflow => {
-      const matchesSearch = (
-        workflow.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-        (workflow.description && workflow.description.toLowerCase().includes(searchValue.toLowerCase())) ||
-        (workflow.status && workflow.status.toLowerCase().includes(searchValue.toLowerCase()))
-      );
-
-      const matchesDestination = filters.destination.length === 0 ||
-        workflow.destination?.split(',').some(d => filters.destination.includes(d.trim()));
-      const matchesOwner = filters.owner.length === 0 || filters.owner.includes(workflow.owner);
-      const matchesGroup = filters.group.length === 0 || filters.group.includes(workflow.group_name);
-
-      return matchesSearch && matchesDestination && matchesOwner && matchesGroup;
-    });
-  }, [workflows, searchValue, filters]);
+  // Backend handles filtering and sorting
+  const sortedWorkflows = useMemo(() => {
+    return [...allWorkflows];
+  }, [allWorkflows]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -528,7 +538,11 @@ const Workflows = () => {
             letter-spacing: 0.15px;
           }
 
-
+          .sg-sort-select {
+            position: relative;
+            width: 180px;
+            height: 40px;
+          }
 
           .sg-sort-dropdown {
             width: 100%;
@@ -542,6 +556,24 @@ const Workflows = () => {
             appearance: none;
             cursor: pointer;
             border-radius: var(--radius);
+          }
+
+          .sg-sort-chevron {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+          }
+
+          .sg-sort-chevron-icon {
+            width: 16px;
+            height: 16px;
+            color: var(--sg-text-primary);
           }
 
           .sg-pagination {
@@ -646,6 +678,10 @@ const Workflows = () => {
         }
 
         @media (max-width: 768px) {
+          .sg-data-search-container {
+            height: 40px;
+          }
+
           .sg-data-search-input {
             height: 40px;
           }
@@ -679,7 +715,6 @@ const Workflows = () => {
       `}</style>
 
       <div className="max-w-[1200px] mx-auto px-6 py-8">
-        {/* Breadcrumb */}
         <nav className="mb-6">
           <div className="flex items-center gap-2 text-base">
             <a
@@ -688,22 +723,19 @@ const Workflows = () => {
             >
               Home
             </a>
-            <span className="text-[#5e5e5e]">&gt;</span>
+            <span className="text-[#5e5e5e">&gt;</span>
             <span className="text-[#333333]">Workflows</span>
           </div>
         </nav>
 
         <div className="flex gap-8">
-          {/* Sidebar - 25% width */}
           <div className="w-1/4 shrink-0">
-            {/* Page title */}
             <div className="mb-6">
               <h1 className="text-[44px] font-bold text-black leading-[50px] tracking-[0.15px] whitespace-nowrap">
-                {filteredWorkflows.length} workflows available
+                {totalItems} workflows available
               </h1>
             </div>
 
-            {/* Search */}
             <div className="mb-6">
               <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
                 Search
@@ -735,36 +767,33 @@ const Workflows = () => {
               </div>
             </div>
 
-            {/* Filter by */}
             <div>
               <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-4">
                 Filter by
               </h2>
 
-              {/* Destination Filter */}
-              <div className={`sg-filter-item ${expandedFilters.destination ? 'sg-filter-expanded' : ''}`}>
-                <div className="sg-filter-content" onClick={() => toggleFilter('destination')}>
-                  <span className="sg-filter-label">Destination</span>
+              <div className={`sg-filter-item ${expandedFilters.status ? 'sg-filter-expanded' : ''}`}>
+                <div className="sg-filter-content" onClick={() => toggleFilter('status')}>
+                  <span className="sg-filter-label">Workflow Status</span>
                   <ChevronDown className="sg-filter-chevron" />
                 </div>
-                {expandedFilters.destination && (
+                {expandedFilters.status && (
                   <div className="mt-3 space-y-3">
-                    {uniqueDestinations.map(dest => (
-                      <label key={dest} className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer hover:text-blue-600 transition-colors">
+                    {uniqueStatuses.map(status => (
+                      <label key={status} className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer hover:text-blue-600 transition-colors">
                         <input
                           type="checkbox"
-                          checked={filters.destination.includes(dest)}
-                          onChange={() => handleFilterChange('destination', dest)}
+                          checked={filters.status.includes(status)}
+                          onChange={() => handleFilterChange('status', status)}
                           className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600"
                         />
-                        {dest}
+                        {status}
                       </label>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Owner Filter */}
               <div className={`sg-filter-item ${expandedFilters.owner ? 'sg-filter-expanded' : ''}`}>
                 <div className="sg-filter-content" onClick={() => toggleFilter('owner')}>
                   <span className="sg-filter-label">Owner</span>
@@ -787,21 +816,20 @@ const Workflows = () => {
                 )}
               </div>
 
-              {/* Group Filter */}
-              <div className={`sg-filter-item sg-filter-item-last ${expandedFilters.group ? 'sg-filter-expanded' : ''}`}>
-                <div className="sg-filter-content" onClick={() => toggleFilter('group')}>
-                  <span className="sg-filter-label">Group</span>
+              <div className={`sg-filter-item sg-filter-item-last ${expandedFilters.group_name ? 'sg-filter-expanded' : ''}`}>
+                <div className="sg-filter-content" onClick={() => toggleFilter('group_name')}>
+                  <span className="sg-filter-label">Group Name</span>
                   <ChevronDown className="sg-filter-chevron" />
                 </div>
-                {expandedFilters.group && (
+                {expandedFilters.group_name && (
                   <div className="mt-3 space-y-3">
                     {uniqueGroups.length > 0 ? (
                       uniqueGroups.map(group => (
                         <label key={group} className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer hover:text-blue-600 transition-colors">
                           <input
                             type="checkbox"
-                            checked={filters.group.includes(group)}
-                            onChange={() => handleFilterChange('group', group)}
+                            checked={filters.group_name.includes(group)}
+                            onChange={() => handleFilterChange('group_name', group)}
                             className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600"
                           />
                           {group}
@@ -814,7 +842,6 @@ const Workflows = () => {
                 )}
               </div>
 
-              {/* Clear Filters Button */}
               <button
                 onClick={clearFilters}
                 className="w-full h-12 bg-[#0065bd] text-white font-bold text-base mt-8 rounded hover:bg-[#004a9f] transition-colors duration-200"
@@ -824,73 +851,75 @@ const Workflows = () => {
             </div>
           </div>
 
-          {/* Main content - 75% width */}
           <div className="w-3/4">
-            {/* Sort by dropdown */}
-                 <div className="sg-sort-container">
-                   <label className="sg-sort-label">
-                     Sort by:
-                   </label>
-                   <div className="sg-sort-select">
-                     <select
-                       value={sortBy}
-                       onChange={(e) => setSortBy(e.target.value)}
-                       className="sg-sort-dropdown"
-                     >
-                       <option>Most relevant</option>
-                       <option>Newest first</option>
-                       <option>Oldest first</option>
-                       <option>A-Z</option>
-                       <option>Z-A</option>
-                     </select>
-                     <div className="sg-sort-chevron">
-                       <ChevronDown className="sg-sort-chevron-icon" />
-                     </div>
-                   </div>
-                 </div>
+            <div className="sg-sort-container">
+              <label className="sg-sort-label">
+                Sort by:
+              </label>
+              <div className="sg-sort-select">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="sg-sort-dropdown"
+                >
+                  <option>Most relevant</option>
+                  <option>Newest first</option>
+                  <option>Oldest first</option>
+                  <option>A-Z</option>
+                  <option>Z-A</option>
+                </select>
+                <div className="sg-sort-chevron">
+                  <ChevronDown className="sg-sort-chevron-icon" />
+                </div>
+              </div>
+            </div>
 
-            {/* Workflow tiles */}
             {loading ? (
               <div className="flex justify-center items-center py-12">
                 <GridLoader color="#0065bd" size={17.5} margin={7.5} />
               </div>
             ) : (
               <div className="space-y-6">
-                {filteredWorkflows.length > 0 ? (
-                  filteredWorkflows.map((workflow) => {
-                    const { icon } = getDestinationIconAndColor(workflow.destination);
+                {sortedWorkflows.length > 0 ? (
+                  sortedWorkflows.map((workflow) => {
+                    const { icon, badge } = getStatusIconAndColor(workflow.status);
                     return (
                       <a
                         key={workflow.id}
                         href={`/workflows/workflow/${workflow.id}`}
                         className="sg-dataset-tile block"
                       >
-                   <h3 className="sg-dataset-title">
-  WF{String(workflow.id).padStart(4, '0')} - {workflow.name}
-</h3>
-<div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3 [text-decoration:none]">
-  <span className="flex items-center gap-1 [text-decoration:none]">
-    {icon}
-    {workflow.destination || 'N/A'}
-  </span>
-  <span className="[text-decoration:none]">
-    Last updated: {workflow.last_run ? new Date(workflow.last_run).toLocaleDateString('en-GB') : 'N/A'}
-  </span>
-  <span className="flex items-center gap-1 [text-decoration:none]">
-    Status: <span className={`sg-badge ${getStatusBadge(workflow.status)}`}>{workflow.status}</span>
-  </span>
-</div>
-
-<p className="sg-dataset-description [text-decoration:none]">
-  {workflow.description || 'No description available'}
-</p>
-
+                        <h3 className="sg-dataset-title">
+                          {workflow.name}
+                        </h3>
+                        <div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3 [text-decoration:none]">
+                          <span className="flex items-center gap-1 [text-decoration:none]">
+                            WF0{workflow.id}
+                          </span>
+                          <span className="flex items-center gap-1 [text-decoration:none]">
+                            Status: <span className={`sg-badge ${badge}`}>
+                              {icon} <span className="ml-1">{workflow.status}</span>
+                            </span>
+                          </span>
+                          <span className="[text-decoration:none]">
+                            Created: {workflow.created_at ? new Date(workflow.created_at).toLocaleDateString('en-GB') : 'N/A'}
+                          </span>
+                          <span className="[text-decoration:none]">
+                            Owner: {workflow.owner}
+                          </span>
+                          <span className="[text-decoration:none]">
+                            Group: {workflow.group_name || 'N/A'}
+                          </span>
+                        </div>
+                        <p className="sg-dataset-description [text-decoration:none]">
+                          {workflow.description || 'No description available.'}
+                        </p>
                       </a>
                     );
                   })
                 ) : (
                   <div className="sg-empty-state">
-                    <FileText className="sg-empty-state-icon" />
+                    <CheckCircle className="sg-empty-state-icon" />
                     <h3 className="sg-empty-state-title">No workflows found</h3>
                     <p className="sg-empty-state-description">No workflows match your current search criteria.</p>
                   </div>
@@ -898,7 +927,6 @@ const Workflows = () => {
               </div>
             )}
 
-            {/* Pagination */}
             <div className="sg-pagination">
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
@@ -927,7 +955,6 @@ const Workflows = () => {
           </div>
         </div>
 
-        {/* Floating New Workflow Button */}
         <button
           onClick={() => navigate('/workflows/new/')}
           className="sg-fab"
