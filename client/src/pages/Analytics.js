@@ -6,32 +6,6 @@ import { useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
-// Card Component
-const Card = ({ children, title, icon, className = '' }) => (
-  <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all hover:shadow-md ${className}`}>
-    <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
-      {icon}
-      {title}
-    </h2>
-    {children}
-  </div>
-);
-
-// Metric Card Component
-const MetricCard = ({ value, label, icon, trend, className = '' }) => (
-  <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-5 ${className}`}>
-    <div className="flex items-center gap-4">
-      <div className={`p-3 rounded-lg ${trend === 'up' ? 'bg-emerald-50 text-emerald-600' : trend === 'down' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
-        {icon}
-      </div>
-      <div>
-        <p className="text-sm font-medium text-gray-500">{label}</p>
-        <p className="text-2xl font-semibold text-gray-800">{value}</p>
-      </div>
-    </div>
-  </div>
-);
-
 // Fetch Data Utility
 const fetchData = async (endpoint) => {
   try {
@@ -64,8 +38,8 @@ const RunStatsChart = ({ data }) => {
           {
             label: 'Total Runs',
             data: data.run_stats.map(stat => stat.total_runs),
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+            borderColor: '#0065bd',
+            backgroundColor: 'rgba(0, 101, 189, 0.05)',
             borderWidth: 2,
             tension: 0.3,
             fill: true,
@@ -141,7 +115,7 @@ const RunStatsChart = ({ data }) => {
       </div>
       <div className="flex justify-center gap-4 mt-4">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+          <div className="w-2.5 h-2.5 bg-[#0065bd] rounded-full"></div>
           <span className="text-xs text-gray-500">Total Runs</span>
         </div>
         <div className="flex items-center gap-2">
@@ -234,7 +208,7 @@ const RunAnalysisChart = ({ data }) => {
           {
             label: 'Successful Runs',
             data: successData,
-            backgroundColor: '#3b82f6',
+            backgroundColor: '#0065bd',
             borderWidth: 0,
             borderRadius: 4,
           },
@@ -297,7 +271,7 @@ const RunAnalysisChart = ({ data }) => {
       </div>
       <div className="flex justify-center gap-4 mt-4">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+          <div className="w-2.5 h-2.5 bg-[#0065bd] rounded-full"></div>
           <span className="text-xs text-gray-500">Successful</span>
         </div>
         <div className="flex items-center gap-2">
@@ -315,10 +289,10 @@ const FailureTable = ({ data, navigate }) => {
   const itemsPerPage = 8;
 
   if (!data.failures || data.failures.length === 0) return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
-      <AlertCircle className="mx-auto text-gray-300 h-12 w-12 mb-3" />
-      <h3 className="text-lg font-medium text-gray-500 mb-1">No Failures Detected</h3>
-      <p className="text-sm text-gray-400">All workflows are running smoothly</p>
+    <div className="sg-dataset-tile text-center py-12">
+      <AlertCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+      <h3 className="sg-dataset-title text-gray-500 mb-2">No Failures Detected</h3>
+      <p className="sg-dataset-description">All workflows are running smoothly</p>
     </div>
   );
 
@@ -354,31 +328,31 @@ const FailureTable = ({ data, navigate }) => {
 
   return (
     <div>
-      <div className="relative w-full overflow-x-auto rounded-lg border border-gray-200">
-        <table className="w-full text-sm text-left">
-          <thead className="text-xs text-gray-500 bg-gray-50">
+      <div className="relative w-full overflow-x-auto">
+        <table className="sg-table">
+          <thead>
             <tr>
-              <th className="px-4 py-3">Run ID</th>
-              <th className="px-4 py-3">Workflow</th>
-              <th className="px-4 py-3">Started At</th>
-              <th className="px-4 py-3">Error</th>
+              <th>Run ID</th>
+              <th>Workflow</th>
+              <th>Started At</th>
+              <th>Error</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody>
             {paginatedFailures.map((failure) => (
               <tr
                 key={failure.run_id}
-                className="hover:bg-gray-50 cursor-pointer"
+                className="cursor-pointer"
                 onClick={() => navigate(`/runs/run/${failure.run_id}`)}
               >
-                <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
+                <td className="font-medium whitespace-nowrap">
                   {failure.run_id}
                 </td>
-                <td className="px-4 py-3 max-w-[200px]">
+                <td className="max-w-[200px]">
                   <div className="truncate">{failure.workflow_name}</div>
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  {new Date(failure.started_at).toLocaleString('en-GB', {
+                <td className="whitespace-nowrap">
+                  {new Date(failure.started_at).toLocaleDateString('en-GB', {
                     day: '2-digit',
                     month: 'short',
                     hour: '2-digit',
@@ -386,7 +360,7 @@ const FailureTable = ({ data, navigate }) => {
                     hour12: false,
                   })}
                 </td>
-                <td className="px-4 py-3">
+                <td>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                     {identifyPattern(failure.error_message)}
                   </span>
@@ -438,7 +412,7 @@ const FailureTable = ({ data, navigate }) => {
                   onClick={() => handlePageChange(page)}
                   className={`w-10 h-10 rounded-md text-sm ${
                     currentPage === page
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-[#0065bd] text-white'
                       : 'text-gray-500 hover:bg-gray-100'
                   }`}
                 >
@@ -545,6 +519,8 @@ const Analytics = () => {
     }
   };
 
+  const isActiveSection = (sectionId) => activeSection === sectionId;
+
   const totalRuns = runStats.run_stats.reduce((sum, stat) => sum + stat.total_runs, 0);
   const successRate = totalRuns > 0
     ? (runStats.run_stats.reduce((sum, stat) => sum + stat.successful_runs, 0) / totalRuns * 100 ): 0;
@@ -552,47 +528,284 @@ const Analytics = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
+      <div className="min-h-screen bg-white flex justify-center items-center">
         <div className="text-center">
           <div className="flex justify-center items-center">
-            <GridLoader color="#3b82f6" size={15} margin={5} />
+            <GridLoader color="#0065bd" size={17.5} margin={7.5} />
           </div>
-          <p className="text-gray-500 text-sm mt-3">Loading analytics data...</p>
+          <p className="text-gray-600 text-sm mt-2">Loading analytics data...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
+      <style jsx>{`
+        /* Scottish Government Design System CSS variables */
+        :root {
+          --sg-blue: #0065bd;
+          --sg-blue-dark: #005eb8;
+          --sg-blue-darker: #00437d;
+          --sg-blue-light: #d9eeff;
+          --sg-blue-lighter: #f0f8ff;
+          --sg-blue-lightest: #e6f3ff;
+          --sg-blue-border: rgba(0,101,189,0.64);
+          --sg-blue-text: #00437d;
+          --sg-blue-hover: #004a9f;
+          --sg-gray: #5e5e5e;
+          --sg-gray-dark: #333333;
+          --sg-gray-light: #ebebeb;
+          --sg-gray-lighter: #f8f8f8;
+          --sg-gray-border: #b3b3b3;
+          --sg-gray-bg: #f8f8f8;
+          --sg-text-primary: #333333;
+          --sg-text-secondary: #5e5e5e;
+          --sg-text-inverse: #ffffff;
+          --sg-space-xs: 4px;
+          --sg-space-sm: 8px;
+          --sg-space-md: 16px;
+          --sg-space-lg: 24px;
+          --sg-space-xl: 32px;
+          --sg-space-xxl: 48px;
+          --sg-font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+          --radius: 4px;
+        }
+
+        .sg-page-header {
+          background: var(--sg-blue-dark);
+          color: var(--sg-text-inverse);
+          padding: var(--sg-space-xl) 0;
+          padding-bottom: var(--sg-space-lg);
+        }
+
+        .sg-page-header-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 var(--sg-space-lg);
+        }
+
+        .sg-page-header-breadcrumb {
+          margin-bottom: var(--sg-space-md);
+        }
+
+        .sg-page-header-title {
+          font-family: var(--sg-font-family);
+          font-size: 2.25rem;
+          font-weight: 700;
+          line-height: 1.25;
+          color: var(--sg-text-inverse);
+          margin-bottom: var(--sg-space-md);
+        }
+
+        .sg-page-header-description {
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-inverse);
+          margin-bottom: var(--sg-space-lg);
+        }
+
+        .sg-contents-sticky {
+          position: sticky;
+          top: var(--sg-space-lg);
+          align-self: flex-start;
+          background: white;
+          border-radius: var(--radius);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          padding: var(--sg-space-lg);
+          max-height: calc(100vh - var(--sg-space-xl));
+          overflow-y: auto;
+        }
+
+        .sg-contents-nav {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+
+        .sg-contents-item {
+          margin: 0;
+          padding: 0;
+        }
+
+        .sg-contents-link {
+          display: flex;
+          align-items: center;
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          text-decoration: none;
+          color: var(--sg-blue);
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          font-weight: 400;
+          line-height: 1.5;
+          border-left: 4px solid transparent;
+          transition: all 0.2s ease-in-out;
+          cursor: pointer;
+          margin: 2px 0;
+        }
+
+        .sg-contents-link::before {
+          content: '–';
+          margin-right: var(--sg-space-sm);
+          color: var(--sg-blue);
+          font-weight: 400;
+        }
+
+        .sg-contents-link:hover {
+          background-color: var(--sg-blue-light);
+          border-left-color: var(--sg-blue);
+          text-decoration: none;
+        }
+
+        .sg-contents-link-active {
+          background-color: var(--sg-blue-lightest);
+          border-left-color: var(--sg-blue);
+          font-weight: 500;
+          color: var(--sg-blue);
+        }
+
+        .sg-contents-link-active::before {
+          font-weight: 700;
+        }
+
+        .sg-section-separator {
+          border-bottom: 1px solid #b3b3b3;
+          padding-bottom: var(--sg-space-sm);
+          margin-bottom: var(--sg-space-lg);
+        }
+
+        .sg-dataset-tile {
+          background: white;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          border: 1px solid var(--sg-gray-light);
+          border-radius: var(--radius);
+          padding: var(--sg-space-lg);
+          display: block;
+          text-decoration: none;
+          cursor: pointer;
+          transition: box-shadow 0.2s ease-in-out;
+        }
+
+        .sg-dataset-tile:hover {
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .sg-dataset-title {
+          font-family: var(--sg-font-family);
+          font-size: 1.375rem;
+          font-weight: 700;
+          line-height: 2rem;
+          letter-spacing: 0.15px;
+          color: var(--sg-blue);
+          margin-bottom: 8px;
+          text-decoration: none;
+          transition: color 0.2s ease-in-out;
+        }
+
+        .sg-dataset-tile:hover .sg-dataset-title {
+          color: var(--sg-blue-hover);
+          text-decoration: underline;
+        }
+
+        .sg-dataset-description {
+          font-family: var(--sg-font-family);
+          font-size: 1.1875rem;
+          line-height: 2rem;
+          letter-spacing: 0.15px;
+          color: var(--sg-text-primary);
+          margin-bottom: 8px;
+          text-decoration: none;
+        }
+
+        .sg-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-primary);
+          border: 1px solid var(--sg-gray-border);
+        }
+
+        .sg-table th,
+        .sg-table td {
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          text-align: left;
+          border-bottom: 1px solid var(--sg-gray-border);
+          vertical-align: top;
+        }
+
+        .sg-table thead th {
+          background-color: var(--sg-gray-bg);
+          font-weight: 500;
+          color: var(--sg-text-primary);
+        }
+
+        .sg-table tbody th {
+          background-color: transparent;
+          font-weight: 500;
+          color: var(--sg-text-primary);
+        }
+
+        .sg-table tbody tr:hover td,
+        .sg-table tbody tr:hover th {
+          background-color: var(--sg-blue-lightest);
+        }
+
+        .metric-card {
+          background: white;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          border: 1px solid var(--sg-gray-light);
+          border-radius: var(--radius);
+          padding: var(--sg-space-lg);
+        }
+
+        .metric-value {
+          font-family: var(--sg-font-family);
+          font-size: 2rem;
+          font-weight: 700;
+          color: var(--sg-text-primary);
+          margin-bottom: var(--sg-space-xs);
+        }
+
+        .metric-label {
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          color: var(--sg-text-secondary);
+          font-weight: 500;
+        }
+      `}</style>
+
       {/* Blue page header section */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="sg-page-header">
+        <div className="sg-page-header-container">
           {/* Breadcrumb */}
-          <nav className="mb-4">
-            <div className="flex items-center gap-2 text-sm">
+          <nav className="sg-page-header-breadcrumb">
+            <div className="flex items-center gap-2 text-base">
               <button 
                 onClick={() => navigate('/workflows')}
-                className="text-blue-100 hover:text-white hover:underline cursor-pointer transition-colors"
+                className="text-white hover:text-[#d9eeff] hover:no-underline underline cursor-pointer transition-colors duration-200"
               >
                 Workflows
               </button>
-              <span className="text-blue-200">/</span>
+              <span className="text-white">&gt;</span>
               <span className="text-white">Analytics</span>
             </div>
           </nav>
 
           {/* Page title */}
-          <h1 className="text-3xl font-bold mb-3">
+          <h1 className="sg-page-header-title">
             Analytics Dashboard
           </h1>
 
-          {/* Page description */}
-          <p className="text-blue-100 max-w-3xl">
-            Real-time insights into your pipeline performance with detailed metrics and visualizations
-          </p>
+          {/* Page description - constrained to 75% width */}
+          <div className="w-3/4">
+            <p className="sg-page-header-description">
+              Real-time insights into your pipeline performance with detailed metrics, trends, and failure analysis to help optimize your workflow operations.
+            </p>
+          </div>
         </div>
-      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-8">
         {/* Sidebar - Sticky contents navigation */}
