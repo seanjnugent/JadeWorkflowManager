@@ -20,10 +20,12 @@ async def get_workflow(
         workflow = db.execute(
             text("""
              SELECT a.id, name, description, status, schedule, last_run_at, 
-                       next_run_at, input_structure, parameters, config_template,
-                       dag_path, dag_status, a.created_at, a.updated_at, destination, destination_config, requires_file,  CONCAT(b.first_name, ' ', b.surname) as user_name, b.email 
+                    next_run_at, input_structure, parameters, config_template,
+                    dag_path, dag_status, a.created_at, a.updated_at, destination, 
+                    destination_config, requires_file, input_file_path, supported_file_types,
+                    CONCAT(b.first_name, ' ', b.surname) as user_name, b.email 
                 FROM workflow.workflow a
-                 left join workflow.user b on a.created_by = b.id
+                LEFT JOIN workflow.user b ON a.created_by = b.id
                 WHERE a.id = :id
             """),
             {"id": workflow_id}
@@ -36,9 +38,10 @@ async def get_workflow(
         # Get recent runs
         runs = db.execute(
             text("""
-                SELECT a.id, status, started_at, finished_at, concat(first_name, ' ', surname) as triggered_by_name, duration_ms
+                SELECT a.id, status, started_at, finished_at, 
+                       CONCAT(first_name, ' ', surname) as triggered_by_name, duration_ms
                 FROM workflow.run a
-                inner join workflow.user b on a.triggered_by = b.id
+                INNER JOIN workflow.user b ON a.triggered_by = b.id
                 WHERE workflow_id = :workflow_id
                 ORDER BY started_at DESC
                 LIMIT 5

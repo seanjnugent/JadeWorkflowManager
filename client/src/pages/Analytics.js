@@ -8,8 +8,8 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:800
 
 // Card Component
 const Card = ({ children, title, icon, className = '' }) => (
-  <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all hover:shadow-md ${className}`}>
-    <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
+  <div className={`sg-dataset-tile ${className}`}>
+    <h2 className="sg-dataset-title flex items-center gap-2 mb-4">
       {icon}
       {title}
     </h2>
@@ -19,14 +19,14 @@ const Card = ({ children, title, icon, className = '' }) => (
 
 // Metric Card Component
 const MetricCard = ({ value, label, icon, trend, className = '' }) => (
-  <div className={`bg-white rounded-xl shadow-sm border border-gray-100 p-5 ${className}`}>
+  <div className={`sg-dataset-tile ${className}`}>
     <div className="flex items-center gap-4">
       <div className={`p-3 rounded-lg ${trend === 'up' ? 'bg-emerald-50 text-emerald-600' : trend === 'down' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
         {icon}
       </div>
       <div>
         <p className="text-sm font-medium text-gray-500">{label}</p>
-        <p className="text-2xl font-semibold text-gray-800">{value}</p>
+        <p className="sg-dataset-title">{value}</p>
       </div>
     </div>
   </div>
@@ -64,8 +64,8 @@ const RunStatsChart = ({ data }) => {
           {
             label: 'Total Runs',
             data: data.run_stats.map(stat => stat.total_runs),
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+            borderColor: '#0065bd', // --sg-blue
+            backgroundColor: 'rgba(0, 101, 189, 0.05)', // --sg-blue-lightest with opacity
             borderWidth: 2,
             tension: 0.3,
             fill: true,
@@ -74,7 +74,7 @@ const RunStatsChart = ({ data }) => {
           {
             label: 'Successful Runs',
             data: data.run_stats.map(stat => stat.successful_runs),
-            borderColor: '#10b981',
+            borderColor: '#10b981', // emerald-600
             backgroundColor: 'rgba(16, 185, 129, 0.05)',
             borderWidth: 2,
             tension: 0.3,
@@ -84,7 +84,7 @@ const RunStatsChart = ({ data }) => {
           {
             label: 'Failed Runs',
             data: data.run_stats.map(stat => stat.failed_runs),
-            borderColor: '#ef4444',
+            borderColor: '#ef4444', // red-600
             backgroundColor: 'rgba(239, 68, 68, 0.05)',
             borderWidth: 2,
             tension: 0.3,
@@ -101,9 +101,9 @@ const RunStatsChart = ({ data }) => {
           tooltip: {
             mode: 'index',
             intersect: false,
-            backgroundColor: '#1f2937',
-            titleFont: { size: 12, weight: 'normal' },
-            bodyFont: { size: 12, weight: 'normal' },
+            backgroundColor: '#333333', // --sg-gray-dark
+            titleFont: { size: 12, weight: 'normal', family: 'Roboto, Helvetica Neue, Arial, sans-serif' },
+            bodyFont: { size: 12, weight: 'normal', family: 'Roboto, Helvetica Neue, Arial, sans-serif' },
             padding: 10,
             cornerRadius: 8,
           },
@@ -112,18 +112,18 @@ const RunStatsChart = ({ data }) => {
           x: {
             grid: { display: false },
             ticks: { 
-              color: '#9ca3af',
-              font: { size: 11 },
+              color: '#5e5e5e', // --sg-text-secondary
+              font: { size: 11, family: 'Roboto, Helvetica Neue, Arial, sans-serif' },
             },
           },
           y: {
             grid: { 
-              color: '#f3f4f6',
+              color: '#ebebeb', // --sg-gray-light
               drawBorder: false,
             },
             ticks: { 
-              color: '#9ca3af',
-              font: { size: 11 },
+              color: '#5e5e5e', // --sg-text-secondary
+              font: { size: 11, family: 'Roboto, Helvetica Neue, Arial, sans-serif' },
               padding: 8,
             },
           },
@@ -182,8 +182,8 @@ const StatusPieChart = ({ data }) => {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#1f2937',
-            bodyFont: { size: 12 },
+            backgroundColor: '#333333', // --sg-gray-dark
+            bodyFont: { size: 12, family: 'Roboto, Helvetica Neue, Arial, sans-serif' },
             padding: 10,
             cornerRadius: 8,
           },
@@ -234,14 +234,14 @@ const RunAnalysisChart = ({ data }) => {
           {
             label: 'Successful Runs',
             data: successData,
-            backgroundColor: '#3b82f6',
+            backgroundColor: '#0065bd', // --sg-blue
             borderWidth: 0,
             borderRadius: 4,
           },
           {
             label: 'Failed Runs',
             data: failureData,
-            backgroundColor: '#ef4444',
+            backgroundColor: '#ef4444', // red-600
             borderWidth: 0,
             borderRadius: 4,
           },
@@ -253,8 +253,8 @@ const RunAnalysisChart = ({ data }) => {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#1f2937',
-            bodyFont: { size: 12 },
+            backgroundColor: '#333333', // --sg-gray-dark
+            bodyFont: { size: 12, family: 'Roboto, Helvetica Neue, Arial, sans-serif' },
             padding: 10,
             cornerRadius: 8,
           },
@@ -264,8 +264,8 @@ const RunAnalysisChart = ({ data }) => {
             grid: { display: false },
             stacked: true,
             ticks: {
-              color: '#9ca3af',
-              font: { size: 11 },
+              color: '#5e5e5e', // --sg-text-secondary
+              font: { size: 11, family: 'Roboto, Helvetica Neue, Arial, sans-serif' },
               callback: function(value) {
                 return this.getLabelForValue(value).substring(0, 12) + (this.getLabelForValue(value).length > 12 ? '...' : '');
               }
@@ -273,13 +273,13 @@ const RunAnalysisChart = ({ data }) => {
           },
           y: {
             grid: { 
-              color: '#f3f4f6',
+              color: '#ebebeb', // --sg-gray-light
               drawBorder: false,
             },
             stacked: true,
             ticks: { 
-              color: '#9ca3af',
-              font: { size: 11 },
+              color: '#5e5e5e', // --sg-text-secondary
+              font: { size: 11, family: 'Roboto, Helvetica Neue, Arial, sans-serif' },
               padding: 8,
             },
             beginAtZero: true,
@@ -315,10 +315,10 @@ const FailureTable = ({ data, navigate }) => {
   const itemsPerPage = 8;
 
   if (!data.failures || data.failures.length === 0) return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
-      <AlertCircle className="mx-auto text-gray-300 h-12 w-12 mb-3" />
-      <h3 className="text-lg font-medium text-gray-500 mb-1">No Failures Detected</h3>
-      <p className="text-sm text-gray-400">All workflows are running smoothly</p>
+    <div className="sg-dataset-tile text-center py-12">
+      <AlertCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+      <h3 className="sg-dataset-title text-gray-500 mb-2">No Failures Detected</h3>
+      <p className="sg-dataset-description">All workflows are running smoothly</p>
     </div>
   );
 
@@ -354,30 +354,26 @@ const FailureTable = ({ data, navigate }) => {
 
   return (
     <div>
-      <div className="relative w-full overflow-x-auto rounded-lg border border-gray-200">
-        <table className="w-full text-sm text-left">
-          <thead className="text-xs text-gray-500 bg-gray-50">
+      <div className="sg-table-wrapper">
+        <table className="sg-table">
+          <thead>
             <tr>
-              <th className="px-4 py-3">Run ID</th>
-              <th className="px-4 py-3">Workflow</th>
-              <th className="px-4 py-3">Started At</th>
-              <th className="px-4 py-3">Error</th>
+              <th>Run ID</th>
+              <th>Workflow</th>
+              <th>Started At</th>
+              <th>Error</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody>
             {paginatedFailures.map((failure) => (
               <tr
                 key={failure.run_id}
-                className="hover:bg-gray-50 cursor-pointer"
+                className="hover:bg-blue-50 cursor-pointer"
                 onClick={() => navigate(`/runs/run/${failure.run_id}`)}
               >
-                <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
-                  {failure.run_id}
-                </td>
-                <td className="px-4 py-3 max-w-[200px]">
-                  <div className="truncate">{failure.workflow_name}</div>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
+                <td className="font-medium">{failure.run_id}</td>
+                <td className="max-w-[200px] truncate">{failure.workflow_name}</td>
+                <td className="whitespace-nowrap">
                   {new Date(failure.started_at).toLocaleString('en-GB', {
                     day: '2-digit',
                     month: 'short',
@@ -386,7 +382,7 @@ const FailureTable = ({ data, navigate }) => {
                     hour12: false,
                   })}
                 </td>
-                <td className="px-4 py-3">
+                <td>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                     {identifyPattern(failure.error_message)}
                   </span>
@@ -547,197 +543,424 @@ const Analytics = () => {
 
   const totalRuns = runStats.run_stats.reduce((sum, stat) => sum + stat.total_runs, 0);
   const successRate = totalRuns > 0
-    ? (runStats.run_stats.reduce((sum, stat) => sum + stat.successful_runs, 0) / totalRuns * 100 ): 0;
+    ? (runStats.run_stats.reduce((sum, stat) => sum + stat.successful_runs, 0) / totalRuns * 100).toFixed(1)
+    : 0;
   const totalWorkflows = [...new Set(runAnalysis.analysis.map(item => item.workflow_id))].length;
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
+      <div className="min-h-screen bg-white flex justify-center items-center">
         <div className="text-center">
           <div className="flex justify-center items-center">
-            <GridLoader color="#3b82f6" size={15} margin={5} />
+            <GridLoader color="#0065bd" size={17.5} margin={7.5} />
           </div>
-          <p className="text-gray-500 text-sm mt-3">Loading analytics data...</p>
+          <p className="text-gray-600 text-sm mt-2">Loading analytics data...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
+      <style jsx>{`
+        :root {
+          --sg-blue: #0065bd;
+          --sg-blue-dark: #005eb8;
+          --sg-blue-darker: #00437d;
+          --sg-blue-light: #d9eeff;
+          --sg-blue-lighter: #f0f8ff;
+          --sg-blue-lightest: #e6f3ff;
+          --sg-blue-border: rgba(0,101,189,0.64);
+          --sg-blue-text: #00437d;
+          --sg-blue-hover: #004a9f;
+          --sg-gray: #5e5e5e;
+          --sg-gray-dark: #333333;
+          --sg-gray-light: #ebebeb;
+          --sg-gray-lighter: #f8f8f8;
+          --sg-gray-border: #b3b3b3;
+          --sg-gray-bg: #f8f8f8;
+          --sg-text-primary: #333333;
+          --sg-text-secondary: #5e5e5e;
+          --sg-text-inverse: #ffffff;
+          --sg-space-xs: 4px;
+          --sg-space-sm: 8px;
+          --sg-space-md: 16px;
+          --sg-space-lg: 24px;
+          --sg-space-xl: 32px;
+          --sg-space-xxl: 48px;
+          --sg-font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+          --radius: 4px;
+        }
+
+        .sg-page-header {
+          background: var(--sg-blue-dark);
+          color: var(--sg-text-inverse);
+          padding: var(--sg-space-xl) 0;
+          padding-bottom: var(--sg-space-lg);
+        }
+
+        .sg-page-header-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 var(--sg-space-lg);
+        }
+
+        .sg-page-header-breadcrumb {
+          margin-bottom: var(--sg-space-md);
+        }
+
+        .sg-page-header-title {
+          font-family: var(--sg-font-family);
+          font-size: 2.25rem;
+          font-weight: 700;
+          line-height: 1.25;
+          color: var(--sg-text-inverse);
+          margin-bottom: var(--sg-space-md);
+        }
+
+        .sg-page-header-description {
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-inverse);
+          margin-bottom: var(--sg-space-lg);
+        }
+
+        .sg-contents-sticky {
+          position: sticky;
+          top: var(--sg-space-lg);
+          align-self: flex-start;
+          background: white;
+          border-radius: var(--radius);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          padding: var(--sg-space-lg);
+          max-height: calc(100vh - var(--sg-space-xl));
+          overflow-y: auto;
+        }
+
+        .sg-contents-nav {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+
+        .sg-contents-item {
+          margin: 0;
+          padding: 0;
+        }
+
+        .sg-contents-link {
+          display: flex;
+          align-items: center;
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          text-decoration: none;
+          color: var(--sg-blue);
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          font-weight: 400;
+          line-height: 1.5;
+          border-left: 4px solid transparent;
+          transition: all 0.2s ease-in-out;
+          cursor: pointer;
+          margin: 2px 0;
+        }
+
+        .sg-contents-link::before {
+          content: '–';
+          margin-right: var(--sg-space-sm);
+          color: var(--sg-blue);
+          font-weight: 400;
+        }
+
+        .sg-contents-link:hover {
+          background-color: var(--sg-blue-light);
+          border-left-color: var(--sg-blue);
+          text-decoration: none;
+        }
+
+        .sg-contents-link-active {
+          background-color: var(--sg-blue-lightest);
+          border-left-color: var(--sg-blue);
+          font-weight: 500;
+          color: var(--sg-blue);
+        }
+
+        .sg-contents-link-active::before {
+          font-weight: 700;
+        }
+
+        .sg-section-separator {
+          border-bottom: 1px solid #b3b3b3;
+          padding-bottom: var(--sg-space-sm);
+          margin-bottom: var(--sg-space-lg);
+        }
+
+        .sg-dataset-tile {
+          background: white;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          border: 1px solid var(--sg-gray-light);
+          border-radius: var(--radius);
+          padding: var(--sg-space-lg);
+          display: block;
+          text-decoration: none;
+          cursor: pointer;
+          transition: box-shadow 0.2s ease-in-out;
+        }
+
+        .sg-dataset-tile:hover {
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .sg-dataset-title {
+          font-family: var(--sg-font-family);
+          font-size: 1.375rem;
+          font-weight: 700;
+          line-height: 2rem;
+          letter-spacing: 0.15px;
+          color: var(--sg-blue);
+          margin-bottom: 8px;
+          text-decoration: none;
+          transition: color 0.2s ease-in-out;
+        }
+
+        .sg-dataset-tile:hover .sg-dataset-title {
+          color: var(--sg-blue-hover);
+          text-decoration: underline;
+        }
+
+        .sg-dataset-description {
+          font-family: var(--sg-font-family);
+          font-size: 1.1875rem;
+          line-height: 2rem;
+          letter-spacing: 0.15px;
+          color: var(--sg-text-primary);
+          margin-bottom: 8px;
+          text-decoration: none;
+        }
+
+        .sg-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-family: var(--sg-font-family);
+          font-size: 1rem;
+          line-height: 1.5;
+          color: var(--sg-text-primary);
+          border: 1px solid var(--sg-gray-border);
+        }
+
+        .sg-table th,
+        .sg-table td {
+          padding: var(--sg-space-sm) var(--sg-space-md);
+          text-align: left;
+          border-bottom: 1px solid var(--sg-gray-border);
+          vertical-align: top;
+        }
+
+        .sg-table thead th {
+          background-color: var(--sg-gray-bg);
+          font-weight: 500;
+          color: var(--sg-text-primary);
+        }
+
+        .sg-table tbody th {
+          background-color: transparent;
+          font-weight: 500;
+          color: var(--sg-text-primary);
+        }
+
+        .sg-table tbody tr:hover td,
+        .sg-table tbody tr:hover th {
+          background-color: var(--sg-blue-lightest);
+        }
+
+        .sg-table-wrapper {
+          position: relative;
+          width: 100%;
+          overflow-x: auto;
+          border-radius: var(--radius);
+          border: 1px solid var(--sg-gray-border);
+        }
+      `}</style>
+
       {/* Blue page header section */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="sg-page-header">
+        <div className="sg-page-header-container">
           {/* Breadcrumb */}
-          <nav className="mb-4">
-            <div className="flex items-center gap-2 text-sm">
+          <nav className="sg-page-header-breadcrumb">
+            <div className="flex items-center gap-2 text-base">
               <button 
                 onClick={() => navigate('/workflows')}
-                className="text-blue-100 hover:text-white hover:underline cursor-pointer transition-colors"
+                className="text-white hover:text-[#d9eeff] hover:no-underline underline cursor-pointer transition-colors duration-200"
               >
                 Workflows
               </button>
-              <span className="text-blue-200">/</span>
+              <span className="text-white">&gt;</span>
               <span className="text-white">Analytics</span>
             </div>
           </nav>
 
           {/* Page title */}
-          <h1 className="text-3xl font-bold mb-3">
+          <h1 className="sg-page-header-title">
             Analytics Dashboard
           </h1>
 
-          {/* Page description */}
-          <p className="text-blue-100 max-w-3xl">
-            Real-time insights into your pipeline performance with detailed metrics and visualizations
-          </p>
+          {/* Page description - constrained to 75% width */}
+          <div className="w-3/4">
+            <p className="sg-page-header-description">
+              Real-time insights into your pipeline performance with detailed metrics and visualizations.
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-8">
-        {/* Sidebar - Sticky contents navigation */}
-        <div className="lg:w-64 shrink-0">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 sticky top-8">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">
-              Dashboard Sections
-            </h2>
-            <nav>
-              <ul className="space-y-1">
-                {[
-                  { id: 'overview', label: 'Overview' },
-                  { id: 'runs-over-time', label: 'Runs Over Time' },
-                  { id: 'status-distribution', label: 'Status Distribution' },
-                  { id: 'run-analysis', label: 'Run Analysis' },
-                  { id: 'recent-failures', label: 'Recent Failures' }
-                ].map(section => (
-                  <li key={section.id}>
-                    <button
-                      onClick={() => handleJumpLinkClick(section.id)}
-                      className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                        activeSection === section.id
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      {section.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </nav>
+      <div className="max-w-[1200px] mx-auto px-6 py-8">
+        <div className="flex gap-8">
+          {/* Sidebar - 25% width with sticky contents */}
+          <div className="w-1/4 shrink-0">
+            <div className="sg-contents-sticky">
+              <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-4">
+                Contents
+              </h2>
+              
+              <nav>
+                <ul className="sg-contents-nav">
+                  {[
+                    { id: 'overview', label: 'Overview' },
+                    { id: 'runs-over-time', label: 'Runs Over Time' },
+                    { id: 'status-distribution', label: 'Status Distribution' },
+                    { id: 'run-analysis', label: 'Run Analysis' },
+                    { id: 'recent-failures', label: 'Recent Failures' }
+                  ].map(section => (
+                    <li key={section.id} className="sg-contents-item">
+                      <button
+                        onClick={() => handleJumpLinkClick(section.id)}
+                        className={`sg-contents-link w-full text-left ${activeSection === section.id ? 'sg-contents-link-active' : ''}`}
+                      >
+                        {section.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            </div>
           </div>
-        </div>
 
-        {/* Main content */}
-        <div className="flex-1 space-y-8">
-          {/* Overview Section */}
-          <section id="overview" className="scroll-mt-16">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Overview
-              </h2>
-            </div>
-            <p className="text-gray-600 mb-6">
-              Key metrics for your workflow performance
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-              <MetricCard
-                value={totalRuns}
-                label="Total Runs"
-                icon={<TrendingUp className="h-5 w-5" />}
-                trend="up"
-              />
-              <MetricCard
-                value={`${successRate.toFixed(1)}%`}
-                label="Success Rate"
-                icon={<Layers className="h-5 w-5" />}
-                trend={successRate >= 90 ? 'up' : 'down'}
-              />
-              <MetricCard
-                value={totalWorkflows}
-                label="Total Workflows"
-                icon={<Clock className="h-5 w-5" />}
-              />
-            </div>
-          </section>
+          {/* Main content - 75% width */}
+          <div className="w-3/4">
+            {/* Overview Section */}
+            <section id="overview" className="mb-12 pt-6">
+              <div className="sg-section-separator">
+                <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+                  Overview
+                </h2>
+              </div>
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Key metrics for your workflow performance
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <MetricCard
+                    value={totalRuns}
+                    label="Total Runs"
+                    icon={<TrendingUp className="h-5 w-5" />}
+                    trend="up"
+                  />
+                  <MetricCard
+                    value={`${successRate}%`}
+                    label="Success Rate"
+                    icon={<Layers className="h-5 w-5" />}
+                    trend={successRate >= 90 ? 'up' : 'down'}
+                  />
+                  <MetricCard
+                    value={totalWorkflows}
+                    label="Total Workflows"
+                    icon={<Clock className="h-5 w-5" />}
+                  />
+                </div>
+              </div>
+            </section>
 
-          {/* Runs Over Time Section */}
-          <section id="runs-over-time" className="scroll-mt-16">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Runs Over Time
-              </h2>
-            </div>
-            <p className="text-gray-600 mb-6">
-              Trends in workflow runs over the past 30 days
-            </p>
-            
-            <Card
-              title="Workflow Runs Over Time"
-              icon={<TrendingUp className="h-5 w-5 text-blue-500" />}
-            >
-              <RunStatsChart data={runStats} />
-            </Card>
-          </section>
+            {/* Runs Over Time Section */}
+            <section id="runs-over-time" className="mb-12">
+              <div className="sg-section-separator">
+                <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+                  Runs Over Time
+                </h2>
+              </div>
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Trends in workflow runs over the past 30 days
+                </p>
+                <Card
+                  title="Workflow Runs Over Time"
+                  icon={<TrendingUp className="h-5 w-5 text-blue-500" />}
+                >
+                  <RunStatsChart data={runStats} />
+                </Card>
+              </div>
+            </section>
 
-          {/* Status Distribution Section */}
-          <section id="status-distribution" className="scroll-mt-16">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Status Distribution
-              </h2>
-            </div>
-            <p className="text-gray-600 mb-6">
-              Breakdown of successful vs failed runs
-            </p>
-            
-            <Card
-              title="Run Status Distribution"
-              icon={<Layers className="h-5 w-5 text-blue-500" />}
-            >
-              <StatusPieChart data={runStats} />
-            </Card>
-          </section>
+            {/* Status Distribution Section */}
+            <section id="status-distribution" className="mb-12">
+              <div className="sg-section-separator">
+                <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+                  Status Distribution
+                </h2>
+              </div>
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Breakdown of successful vs failed runs
+                </p>
+                <Card
+                  title="Run Status Distribution"
+                  icon={<Layers className="h-5 w-5 text-blue-500" />}
+                >
+                  <StatusPieChart data={runStats} />
+                </Card>
+              </div>
+            </section>
 
-          {/* Run Analysis Section */}
-          <section id="run-analysis" className="scroll-mt-16">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Run Analysis
-              </h2>
-            </div>
-            <p className="text-gray-600 mb-6">
-              Performance by individual workflows
-            </p>
-            
-            <Card
-              title="Workflow Run Analysis"
-              icon={<ChevronRight className="h-5 w-5 text-blue-500" />}
-            >
-              <RunAnalysisChart data={runAnalysis} />
-            </Card>
-          </section>
+            {/* Run Analysis Section */}
+            <section id="run-analysis" className="mb-12">
+              <div className="sg-section-separator">
+                <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+                  Run Analysis
+                </h2>
+              </div>
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Performance by individual workflows
+                </p>
+                <Card
+                  title="Workflow Run Analysis"
+                  icon={<ChevronRight className="h-5 w-5 text-blue-500" />}
+                >
+                  <RunAnalysisChart data={runAnalysis} />
+                </Card>
+              </div>
+            </section>
 
-          {/* Recent Failures Section */}
-          <section id="recent-failures" className="scroll-mt-16">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-800">
-                Recent Failures
-              </h2>
-            </div>
-            <p className="text-gray-600 mb-6">
-              Details of recent workflow failures and errors
-            </p>
-            
-            <Card
-              title="Recent Failures"
-              icon={<AlertCircle className="h-5 w-5 text-blue-500" />}
-              className="pb-6"
-            >
-              <FailureTable data={failureAnalysis} navigate={navigate} />
-            </Card>
-          </section>
+            {/* Recent Failures Section */}
+            <section id="recent-failures" className="mb-12">
+              <div className="sg-section-separator">
+                <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+                  Recent Failures
+                </h2>
+              </div>
+              <div className="prose prose-lg max-w-none">
+                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                  Details of recent workflow failures and errors
+                </p>
+                <Card
+                  title="Recent Failures"
+                  icon={<AlertCircle className="h-5 w-5 text-blue-500" />}
+                  className="pb-6"
+                >
+                  <FailureTable data={failureAnalysis} navigate={navigate} />
+                </Card>
+              </div>
+            </section>
+          </div>
         </div>
       </div>
 

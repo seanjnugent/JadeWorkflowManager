@@ -11,7 +11,7 @@ const NewRun = () => {
   const [workflowDetails, setWorkflowDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [runName, setRunName] = useState('');
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState({});
   const [parameters, setParameters] = useState({});
   const [scheduleType, setScheduleType] = useState('none');
   const [error, setError] = useState('');
@@ -33,7 +33,9 @@ const NewRun = () => {
 
   const steps = [
     { id: 'run-configuration', label: 'Run Configuration', icon: <Play className="h-4 w-4" /> },
-    ...(workflowDetails?.workflow?.requires_file ? [{ id: 'input-file', label: 'Input File', icon: <UploadCloud className="h-4 w-4" /> }] : []),
+    ...(workflowDetails?.workflow?.input_file_path && Array.isArray(workflowDetails.workflow.input_file_path) && workflowDetails.workflow.input_file_path.length > 0
+      ? [{ id: 'input-file', label: 'Input Files', icon: <UploadCloud className="h-4 w-4" /> }]
+      : []),
     { id: 'parameters', label: 'Parameters', icon: <Plug className="h-4 w-4" /> },
     { id: 'schedule', label: 'Schedule', icon: <Clock className="h-4 w-4" /> },
     { id: 'review', label: 'Review', icon: <CheckCircle className="h-4 w-4" /> },
@@ -72,17 +74,24 @@ const NewRun = () => {
         }
         const data = await response.json();
         setWorkflowDetails(data);
-        const workflowParams = data.workflow?.parameters || [];
+        
+        // Initialize files state based on input_file_path structure
+        const inputConfig = Array.isArray(data.workflow?.input_file_path) ? data.workflow.input_file_path : [];
+        const initialFiles = {};
+        inputConfig.forEach(fileConfig => {
+          initialFiles[fileConfig.name] = null;
+        });
+        setFiles(initialFiles);
+
+        const workflowParams = Array.isArray(data.workflow?.parameters) ? data.workflow.parameters : [];
         const initialParams = {};
         const initialExpanded = {};
-        if (Array.isArray(workflowParams) && workflowParams.length > 0) {
-          workflowParams.forEach(section => {
-            initialExpanded[section.section] = true;
-            section.parameters.forEach(param => {
-              initialParams[param.name] = param.default ?? '';
-            });
+        workflowParams.forEach(section => {
+          initialExpanded[section.section] = true;
+          section.parameters.forEach(param => {
+            initialParams[param.name] = param.default ?? '';
           });
-        }
+        });
         setParameters(initialParams);
         setExpandedSections(initialExpanded);
         if (data.workflow?.name) {
@@ -111,6 +120,13 @@ const NewRun = () => {
     }));
   };
 
+  const handleFileChange = (fileName, file) => {
+    setFiles(prev => ({
+      ...prev,
+      [fileName]: file
+    }));
+  };
+
   const toggleSection = (sectionName) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -127,47 +143,84 @@ const NewRun = () => {
         }
         break;
       case 'input-file':
-        if (workflowDetails?.workflow?.requires_file && !file) {
-          setError('Please upload an input file');
-          return false;
+        const inputConfig = Array.isArray(workflowDetails?.workflow?.input_file_path) ? workflowDetails.workflow.input_file_path : [];
+        if (inputConfig.length > 0) {
+          for (const fileConfig of inputConfig) {
+            if (fileConfig.required && !files[fileConfig.name]) {
+              setError(`Please upload required file: ${fileConfig.description || fileConfig.name}`);
+              return false;
+            }
+            if (files[fileConfig.name]) {
+              const fileExt = files[fileConfig.name].name.split('.').pop().toLowerCase();
+              const supportedTypes = Array.isArray(fileConfig.supported_types) ? fileConfig.supported_types : ['csv', 'xlsx', 'json'];
+              if (!supportedTypes.includes(fileExt)) {
+                setError(`Unsupported file type for ${fileConfig.description || fileConfig.name}: ${fileExt}. Supported types: ${supportedTypes.join(', ')}`);
+                return false;
+              }
+            }
+          }
         }
         break;
       case 'parameters':
-        const workflowParams = workflowDetails?.workflow?.parameters || [];
-        if (!Array.isArray(workflowParams) || workflowParams.length === 0) {
-          setError('No parameters available for this workflow');
-          return false;
+        const workflowParams = Array.isArray(workflowDetails?.workflow?.parameters) ? workflowDetails.workflow.parameters : [];
+        if (workflowParams.length === 0) {
+          return true; // No parameters to validate
         }
-        let hasError = false;
-        workflowParams.forEach(section => {
-          section.parameters.forEach(param => {
-            if (param.mandatory && (!parameters[param.name] || parameters[param.name].trim() === '')) {
-              setError(`Parameter "${param.name}" is required`);
-              hasError = true;
+        for (const section of workflowParams) {
+          for (const param of section.parameters) {
+            if (param.mandatory && (!parameters[param.name] || parameters[param.name].toString().trim() === '')) {
+              setError(`Parameter "${param.description || param.name}" is required`);
+              return false;
             }
-          });
-        });
-        if (hasError) return false;
+            if (param.type === 'select' && Array.isArray(param.options)) {
+              const validValues = param.options.map(opt => opt.value);
+              if (parameters[param.name] && !validValues.includes(parameters[param.name])) {
+                setError(`Parameter "${param.description || param.name}" must be one of: ${validValues.join(', ')}`);
+                return false;
+              }
+            }
+          }
+        }
         break;
       case 'review':
         if (!runName.trim()) {
           setError('Please complete the run name');
           return false;
         }
-        if (workflowDetails?.workflow?.requires_file && !file) {
-          setError('Please upload an input file');
-          return false;
+        const inputConfigReview = Array.isArray(workflowDetails?.workflow?.input_file_path) ? workflowDetails.workflow.input_file_path : [];
+        if (inputConfigReview.length > 0) {
+          for (const fileConfig of inputConfigReview) {
+            if (fileConfig.required && !files[fileConfig.name]) {
+              setError(`Please upload required file: ${fileConfig.description || fileConfig.name}`);
+              return false;
+            }
+            if (files[fileConfig.name]) {
+              const fileExt = files[fileConfig.name].name.split('.').pop().toLowerCase();
+              const supportedTypes = Array.isArray(fileConfig.supported_types) ? fileConfig.supported_types : ['csv', 'xlsx', 'json'];
+              if (!supportedTypes.includes(fileExt)) {
+                setError(`Unsupported file type for ${fileConfig.description || fileConfig.name}: ${fileExt}. Supported types: ${supportedTypes.join(', ')}`);
+                return false;
+              }
+            }
+          }
         }
-        if (!Array.isArray(workflowDetails?.workflow?.parameters) || workflowDetails.workflow.parameters.length === 0) {
-          setError('No parameters available for this workflow');
-          return false;
-        }
-        const mandatoryError = workflowDetails.workflow.parameters.some(section =>
-          section.parameters.some(param => param.mandatory && (!parameters[param.name] || parameters[param.name].trim() === '')),
-        );
-        if (mandatoryError) {
-          setError('Please complete all required parameters');
-          return false;
+        const workflowParamsReview = Array.isArray(workflowDetails?.workflow?.parameters) ? workflowDetails.workflow.parameters : [];
+        if (workflowParamsReview.length > 0) {
+          for (const section of workflowParamsReview) {
+            for (const param of section.parameters) {
+              if (param.mandatory && (!parameters[param.name] || parameters[param.name].toString().trim() === '')) {
+                setError(`Please complete required parameter: ${param.description || param.name}`);
+                return false;
+              }
+              if (param.type === 'select' && Array.isArray(param.options)) {
+                const validValues = param.options.map(opt => opt.value);
+                if (parameters[param.name] && !validValues.includes(parameters[param.name])) {
+                  setError(`Parameter "${param.description || param.name}" must be one of: ${validValues.join(', ')}`);
+                  return false;
+                }
+              }
+            }
+          }
         }
         break;
       default:
@@ -178,6 +231,7 @@ const NewRun = () => {
 
   const handleNextSection = () => {
     if (!validateCurrentSection()) return;
+    setError('');
     const currentIndex = steps.findIndex(step => step.id === activeSection);
     if (currentIndex < steps.length - 1) {
       const nextSection = steps[currentIndex + 1].id;
@@ -187,66 +241,82 @@ const NewRun = () => {
   };
 
   const handleStartRun = async () => {
-  if (!validateCurrentSection()) return;
-  setIsSubmitting(true);
-  setError('');
-  try {
-    const formData = new FormData();
-    formData.append('workflow_id', workflowId);
-    formData.append('triggered_by', userId);
-    formData.append('run_name', runName); // Already included
-    if (file) {
-      formData.append('file', file);
-    }
-    
-    const workflowParams = workflowDetails?.workflow?.parameters || [];
-    const validParameters = {};
-    if (Array.isArray(workflowParams)) {
-      workflowParams.forEach(section => {
-        section.parameters.forEach(param => {
-          if (parameters[param.name] !== undefined) {
-            validParameters[param.name] = parameters[param.name];
+    if (!validateCurrentSection()) return;
+    setIsSubmitting(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('workflow_id', workflowId);
+      formData.append('triggered_by', userId);
+      formData.append('run_name', runName);
+      
+      const inputConfig = Array.isArray(workflowDetails?.workflow?.input_file_path) ? workflowDetails.workflow.input_file_path : [];
+      const fileMapping = {};
+      if (inputConfig.length > 0) {
+        if (inputConfig.length === 1 && inputConfig[0].name === 'input_file' && files['input_file']) {
+          formData.append('file', files['input_file']);
+        } else {
+          Object.entries(files).forEach(([name, file]) => {
+            if (file) {
+              const fieldName = `file_${name}`;
+              formData.append(fieldName, file);
+              fileMapping[name] = fieldName;
+            }
+          });
+          if (Object.keys(fileMapping).length > 0) {
+            formData.append('file_mapping', JSON.stringify(fileMapping));
           }
+        }
+      }
+      
+      const workflowParams = Array.isArray(workflowDetails?.workflow?.parameters) ? workflowDetails.workflow.parameters : [];
+      const validParameters = {};
+      if (workflowParams.length > 0) {
+        workflowParams.forEach(section => {
+          section.parameters.forEach(param => {
+            if (parameters[param.name] !== undefined && parameters[param.name] !== '') {
+              validParameters[param.name] = parameters[param.name];
+            }
+          });
         });
+      }
+      
+      if (Object.keys(validParameters).length > 0) {
+        formData.append('parameters', JSON.stringify(validParameters));
+      }
+      
+      if (scheduleType !== 'none') {
+        formData.append('schedule', scheduleType);
+      }
+
+      const accessToken = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/runs/trigger`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
       });
-    }
-    
-    if (Object.keys(validParameters).length) {
-      formData.append('parameters', JSON.stringify(validParameters));
-    }
-    
-    if (scheduleType !== 'none') {
-      formData.append('schedule', scheduleType);
-    }
 
-    const accessToken = localStorage.getItem('access_token');
-    const response = await fetch(`${API_BASE_URL}/runs/trigger`, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Run failed');
+      }
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Run failed');
+      const responseData = await response.json();
+      console.log('Run triggered successfully:', responseData);
+      if (responseData.run_name) {
+        console.log(`Run Name saved: ${responseData.run_name}`);
+      }
+      
+      navigate('/runs');
+    } catch (err) {
+      console.error('Submission error:', err);
+      setError(err.message || 'Failed to start run');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const responseData = await response.json();
-    console.log('Run triggered successfully:', responseData); // Log response for debugging
-    if (responseData.run_name) {
-      console.log(`Run Name saved: ${responseData.run_name}`); // Log run_name specifically
-    }
-    
-    navigate('/runs');
-  } catch (err) {
-    console.error('Submission error:', err);
-    setError(err.message || 'Failed to start run');
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   const handleJumpLinkClick = (sectionId) => {
     const currentIndex = steps.findIndex(step => step.id === activeSection);
@@ -258,8 +328,8 @@ const NewRun = () => {
   };
 
   const renderParameters = () => {
-    const workflowParams = workflowDetails?.workflow?.parameters || [];
-    if (!Array.isArray(workflowParams) || workflowParams.length === 0) {
+    const workflowParams = Array.isArray(workflowDetails?.workflow?.parameters) ? workflowDetails.workflow.parameters : [];
+    if (workflowParams.length === 0) {
       return (
         <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
           <Settings className="h-16 w-16 text-gray-300 mx-auto mb-4" />
@@ -297,7 +367,7 @@ const NewRun = () => {
                         <select
                           value={parameters[param.name] ?? ''}
                           onChange={(e) => handleParameterChange(param.name, e.target.value)}
-                          className="w-full pl-10"
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded focus:border-[#0065bd] focus:ring-2 focus:ring-[#d9eeff]"
                         >
                           <option value="" disabled>
                             Select an option
@@ -317,7 +387,7 @@ const NewRun = () => {
                           value={parameters[param.name] ?? ''}
                           onChange={(e) => handleParameterChange(param.name, e.target.value)}
                           placeholder={param.placeholder || `Enter ${param.description || param.name}`}
-                          className="w-full pl-10"
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded focus:border-[#0065bd] focus:ring-2 focus:ring-[#d9eeff]"
                         />
                       </div>
                     )}
@@ -326,6 +396,71 @@ const NewRun = () => {
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderFileUploads = () => {
+    const inputConfig = Array.isArray(workflowDetails?.workflow?.input_file_path) ? workflowDetails.workflow.input_file_path : [];
+    
+    if (inputConfig.length === 0) {
+      return (
+        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+          <p className="text-sm text-gray-500">No file uploads required for this workflow.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {inputConfig.map(fileConfig => (
+          <div key={fileConfig.name} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-900 mb-2">
+              {fileConfig.description || fileConfig.name}
+              {fileConfig.required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+            
+            <div className="sg-dataset-tile p-6 text-center relative">
+              <input
+                type="file"
+                accept={Array.isArray(fileConfig.supported_types) ? fileConfig.supported_types.map(type => `.${type}`).join(',') : '*'}
+                onChange={(e) => handleFileChange(fileConfig.name, e.target.files[0])}
+                disabled={isSubmitting}
+                className="hidden"
+                id={`file-upload-${fileConfig.name}`}
+              />
+              <label
+                htmlFor={`file-upload-${fileConfig.name}`}
+                className={`block text-sm font-medium ${isSubmitting ? 'text-gray-400 cursor-not-allowed' : 'text-gray-600 cursor-pointer hover:text-gray-800'} transition-colors`}
+              >
+                <div className="flex flex-col items-center">
+                  <UploadCloud className="h-8 w-8 mb-2 text-gray-400" />
+                  <span>{isSubmitting ? 'Uploading...' : 'Click to upload or drag and drop'}</span>
+                </div>
+              </label>
+              
+              <p className="text-xs text-gray-500 mt-2">
+                Supported types: {Array.isArray(fileConfig.supported_types) ? fileConfig.supported_types.join(', ') : 'All types'}
+              </p>
+            </div>
+            
+            {files[fileConfig.name] && (
+              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center">
+                <p className="text-blue-900 text-sm">
+                  File selected: {files[fileConfig.name].name} ({(files[fileConfig.name].size / 1024).toFixed(2)} KB)
+                </p>
+                {!isSubmitting && (
+                  <button
+                    onClick={() => handleFileChange(fileConfig.name, null)}
+                    className="text-red-600 hover:text-red-800 text-sm"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -345,7 +480,6 @@ const NewRun = () => {
   return (
     <div className="min-h-screen bg-white">
       <style jsx>{`
-        /* Scottish Government Design System CSS variables */
         :root {
           --sg-blue: #0065bd;
           --sg-blue-dark: #005eb8;
@@ -681,7 +815,7 @@ const NewRun = () => {
                     value={runName}
                     onChange={(e) => setRunName(e.target.value)}
                     placeholder="Enter a unique name for this run"
-                    className="w-full pl-10"
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded focus:border-[#0065bd] focus:ring-2 focus:ring-[#d9eeff]"
                   />
                 </div>
               </div>
@@ -704,7 +838,9 @@ const NewRun = () => {
             </div>
           </section>
 
-          {workflowDetails?.workflow?.requires_file && (
+          {workflowDetails?.workflow?.input_file_path && 
+           Array.isArray(workflowDetails.workflow.input_file_path) && 
+           workflowDetails.workflow.input_file_path.length > 0 && (
             <section
               id="input-file"
               ref={sectionRefs['input-file']}
@@ -713,11 +849,11 @@ const NewRun = () => {
               <div className="sg-section-separator">
                 <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
                   <UploadCloud className="h-5 w-5 text-[#0065bd]" />
-                  Input File
+                  Input Files
                 </h2>
-              </div>
+            </div>
               <p className="sg-dataset-description mb-6">
-                Upload the input file required for this workflow
+                Upload the required files for this workflow
               </p>
               {error && (
                 <div className="sg-error mb-6">
@@ -729,33 +865,9 @@ const NewRun = () => {
                   </div>
                 </div>
               )}
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-2">Input File</label>
-                  <div className="sg-dataset-tile p-6 text-center">
-                    <input
-                      type="file"
-                      onChange={(e) => setFile(e.target.files[0])}
-                      disabled={isSubmitting}
-                      className="hidden"
-                      id="file-upload"
-                    />
-                    <label
-                      htmlFor="file-upload"
-                      className={`block text-sm font-medium ${error ? 'text-red-600' : 'text-gray-600'} cursor-pointer`}
-                    >
-                      {isSubmitting ? 'Uploading...' : 'Click to upload or drag and drop'}
-                    </label>
-                  </div>
-                  {file && (
-                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-blue-900 text-sm">
-                        File selected: {file.name} ({(file.size / 1024).toFixed(2)} KB)
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              
+              {renderFileUploads()}
+              
               <div className="flex justify-between items-center mt-8">
                 <button
                   onClick={() => handleJumpLinkClick('run-configuration')}
@@ -807,7 +919,7 @@ const NewRun = () => {
             </div>
             <div className="flex justify-between items-center mt-8">
               <button
-                onClick={() => handleJumpLinkClick(workflowDetails?.workflow?.requires_file ? 'input-file' : 'run-configuration')}
+                onClick={() => handleJumpLinkClick(workflowDetails?.workflow?.input_file_path && Array.isArray(workflowDetails.workflow.input_file_path) && workflowDetails.workflow.input_file_path.length > 0 ? 'input-file' : 'run-configuration')}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -942,21 +1054,25 @@ const NewRun = () => {
                   </button>
                 </div>
               </div>
-              {workflowDetails?.workflow?.requires_file && (
+              {workflowDetails?.workflow?.input_file_path && Array.isArray(workflowDetails.workflow.input_file_path) && workflowDetails.workflow.input_file_path.length > 0 && (
                 <div className="sg-dataset-tile">
                   <div className="flex justify-between items-center mb-4">
                     <div>
-                      <h3 className="sg-dataset-title">Input File</h3>
-                      <p className="text-base text-gray-700 mt-1">
-                        {file ? (
-                          <>
-                            <Download className="inline h-5 w-5 mr-2 text-gray-600" />
-                            {file.name} ({(file.size / 1024).toFixed(2)} KB)
-                          </>
-                        ) : (
-                          <span className="text-red-600 font-medium">No file uploaded</span>
-                        )}
-                      </p>
+                      <h3 className="sg-dataset-title">Input Files</h3>
+                      <div className="mt-4 space-y-2">
+                        {workflowDetails.workflow.input_file_path.map(fileConfig => (
+                          <p key={fileConfig.name} className="text-base text-gray-700">
+                            {fileConfig.description || fileConfig.name}: {files[fileConfig.name] ? (
+                              <>
+                                <Download className="inline h-5 w-5 mr-2 text-gray-600" />
+                                {files[fileConfig.name].name} ({(files[fileConfig.name].size / 1024).toFixed(2)} KB)
+                              </>
+                            ) : (
+                              <span className="text-red-600 font-medium">No file uploaded</span>
+                            )}
+                          </p>
+                        ))}
+                      </div>
                     </div>
                     <button
                       onClick={() => handleJumpLinkClick('input-file')}
