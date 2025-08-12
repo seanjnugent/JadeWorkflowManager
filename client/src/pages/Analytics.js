@@ -141,7 +141,7 @@ const RunStatsChart = ({ data }) => {
       </div>
       <div className="flex justify-center gap-4 mt-4">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+          <div className="w-2.5 h-2.5 bg-[#0065bd] rounded-full"></div>
           <span className="text-xs text-gray-500">Total Runs</span>
         </div>
         <div className="flex items-center gap-2">
@@ -297,7 +297,7 @@ const RunAnalysisChart = ({ data }) => {
       </div>
       <div className="flex justify-center gap-4 mt-4">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+          <div className="w-2.5 h-2.5 bg-[#0065bd] rounded-full"></div>
           <span className="text-xs text-gray-500">Successful</span>
         </div>
         <div className="flex items-center gap-2">
@@ -315,6 +315,10 @@ const FailureTable = ({ data, navigate }) => {
   const itemsPerPage = 8;
 
   if (!data.failures || data.failures.length === 0) return (
+    <div className="sg-dataset-tile text-center py-12">
+      <AlertCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+      <h3 className="sg-dataset-title text-gray-500 mb-2">No Failures Detected</h3>
+      <p className="sg-dataset-description">All workflows are running smoothly</p>
     <div className="sg-dataset-tile text-center py-12">
       <AlertCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
       <h3 className="sg-dataset-title text-gray-500 mb-2">No Failures Detected</h3>
@@ -362,8 +366,13 @@ const FailureTable = ({ data, navigate }) => {
               <th>Workflow</th>
               <th>Started At</th>
               <th>Error</th>
+              <th>Run ID</th>
+              <th>Workflow</th>
+              <th>Started At</th>
+              <th>Error</th>
             </tr>
           </thead>
+          <tbody>
           <tbody>
             {paginatedFailures.map((failure) => (
               <tr
@@ -382,6 +391,7 @@ const FailureTable = ({ data, navigate }) => {
                     hour12: false,
                   })}
                 </td>
+                <td>
                 <td>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                     {identifyPattern(failure.error_message)}
@@ -434,7 +444,7 @@ const FailureTable = ({ data, navigate }) => {
                   onClick={() => handlePageChange(page)}
                   className={`w-10 h-10 rounded-md text-sm ${
                     currentPage === page
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-[#0065bd] text-white'
                       : 'text-gray-500 hover:bg-gray-100'
                   }`}
                 >
@@ -541,6 +551,8 @@ const Analytics = () => {
     }
   };
 
+  const isActiveSection = (sectionId) => activeSection === sectionId;
+
   const totalRuns = runStats.run_stats.reduce((sum, stat) => sum + stat.total_runs, 0);
   const successRate = totalRuns > 0
     ? (runStats.run_stats.reduce((sum, stat) => sum + stat.successful_runs, 0) / totalRuns * 100).toFixed(1)
@@ -550,10 +562,13 @@ const Analytics = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex justify-center items-center">
+      <div className="min-h-screen bg-white flex justify-center items-center">
         <div className="text-center">
           <div className="flex justify-center items-center">
             <GridLoader color="#0065bd" size={17.5} margin={7.5} />
+            <GridLoader color="#0065bd" size={17.5} margin={7.5} />
           </div>
+          <p className="text-gray-600 text-sm mt-2">Loading analytics data...</p>
           <p className="text-gray-600 text-sm mt-2">Loading analytics data...</p>
         </div>
       </div>
@@ -785,21 +800,28 @@ const Analytics = () => {
       {/* Blue page header section */}
       <div className="sg-page-header">
         <div className="sg-page-header-container">
+      <div className="sg-page-header">
+        <div className="sg-page-header-container">
           {/* Breadcrumb */}
+          <nav className="sg-page-header-breadcrumb">
+            <div className="flex items-center gap-2 text-base">
           <nav className="sg-page-header-breadcrumb">
             <div className="flex items-center gap-2 text-base">
               <button 
                 onClick={() => navigate('/workflows')}
                 className="text-white hover:text-[#d9eeff] hover:no-underline underline cursor-pointer transition-colors duration-200"
+                className="text-white hover:text-[#d9eeff] hover:no-underline underline cursor-pointer transition-colors duration-200"
               >
                 Workflows
               </button>
+              <span className="text-white">&gt;</span>
               <span className="text-white">&gt;</span>
               <span className="text-white">Analytics</span>
             </div>
           </nav>
 
           {/* Page title */}
+          <h1 className="sg-page-header-title">
           <h1 className="sg-page-header-title">
             Analytics Dashboard
           </h1>
