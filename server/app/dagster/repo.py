@@ -578,18 +578,27 @@ def workflow_run_status_sensor(context: SensorEvaluationContext):
                     except (TypeError, ValueError):
                         logger.debug(f"Failed to calculate duration for run {dagster_run_id}")
 
-                output_file_path = None
+                output_file_paths = []
+                seen_paths = set()
+                output_path_keys = ["output_path", "agg_output_path", "detailed_output_path"]
                 if status == "SUCCESS" and run_config:
                     try:
                         config_data = json.loads(run_config) if isinstance(run_config, str) else run_config
                         ops = config_data.get("ops", {})
                         for op_name, op_config in ops.items():
-                            output_path = op_config.get("config", {}).get("output_path")
-                            if output_path:
-                                output_file_path = output_path
-                                break
+                            op_config_data = op_config.get("config", {})
+                            for key in output_path_keys:
+                                output_path = op_config_data.get(key)
+                                if output_path and output_path not in seen_paths:
+                                    seen_paths.add(output_path)
+                                    output_file_paths.append({
+                                        "path": output_path,
+                                        "name": op_name,
+                                        "description": "Job output file"
+                                    })
+                        logger.debug(f"Extracted {len(output_file_paths)} unique output paths for run {dagster_run_id}: {output_file_paths}")
                     except Exception as e:
-                        logger.warning(f"Failed to extract output path for run {dagster_run_id}: {str(e)}")
+                        logger.warning(f"Failed to extract output paths for run {dagster_run_id}: {str(e)}")
 
                 try:
                     conn.execute(
@@ -598,7 +607,7 @@ def workflow_run_status_sensor(context: SensorEvaluationContext):
                             SET status = :status,
                                 finished_at = TO_TIMESTAMP(:end_time),
                                 duration_ms = :duration_ms,
-                                output_file_path = :output_file_path,
+                                output_file_path = CAST(:output_file_path AS jsonb),
                                 updated_at = NOW()
                             WHERE dagster_run_id = :dagster_run_id
                         """),
@@ -606,12 +615,12 @@ def workflow_run_status_sensor(context: SensorEvaluationContext):
                             "status": workflow_status,
                             "end_time": end_time_ms,
                             "duration_ms": duration_ms,
-                            "output_file_path": output_file_path,
+                            "output_file_path": json.dumps(output_file_paths),
                             "dagster_run_id": dagster_run_id,
                         },
                     )
                     conn.commit()
-                    logger.info(f"Updated run {dagster_run_id} to status {workflow_status}, processed {log_count} logs")
+                    logger.info(f"Updated run {dagster_run_id} to status {workflow_status}, processed {log_count} logs, stored {len(output_file_paths)} output paths")
                 except Exception as e:
                     logger.error(f"Failed to update run {dagster_run_id}: {str(e)}")
                     conn.rollback()

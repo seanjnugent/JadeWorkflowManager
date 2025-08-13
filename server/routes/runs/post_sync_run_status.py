@@ -308,18 +308,27 @@ async def sync_run_status_from_dagster(dagster_run_id: str, db: Session = Depend
             except (TypeError, ValueError):
                 pass
 
-        output_file_path = None
+        output_file_paths = []
+        seen_paths = set()
+        output_path_keys = ["output_path", "agg_output_path", "detailed_output_path"]
         if dagster_status == "SUCCESS" and run_config:
             try:
                 config_data = json.loads(run_config) if isinstance(run_config, str) else run_config
                 ops = config_data.get("ops", {})
                 for op_name, op_config in ops.items():
-                    output_path = op_config.get("config", {}).get("output_path")
-                    if output_path:
-                        output_file_path = output_path
-                        break
+                    op_config_data = op_config.get("config", {})
+                    for key in output_path_keys:
+                        output_path = op_config_data.get(key)
+                        if output_path and output_path not in seen_paths:
+                            seen_paths.add(output_path)
+                            output_file_paths.append({
+                                "path": output_path,
+                                "name": op_name,
+                                "description": "Job output file"
+                            })
+                logger.debug(f"Extracted {len(output_file_paths)} unique output paths for run {dagster_run_id}: {output_file_paths}")
             except Exception as e:
-                logger.warning(f"Failed to extract output path: {str(e)}")
+                logger.warning(f"Failed to extract output paths for run {dagster_run_id}: {str(e)}")
 
         logs = run_data.get("eventConnection", {}).get("events", [])
         log_count = insert_run_logs_and_steps(db, dagster_run_id, logs)
@@ -330,7 +339,7 @@ async def sync_run_status_from_dagster(dagster_run_id: str, db: Session = Depend
                 SET status = :status,
                     finished_at = CASE WHEN :end_time IS NOT NULL THEN to_timestamp(:end_time) ELSE NULL END,
                     duration_ms = :duration_ms,
-                    output_file_path = :output_file_path
+                    output_file_path = CAST(:output_file_path AS jsonb)
                 WHERE dagster_run_id = :dagster_run_id
                 RETURNING id, status, finished_at, output_file_path
             """),
@@ -338,7 +347,7 @@ async def sync_run_status_from_dagster(dagster_run_id: str, db: Session = Depend
                 "status": status,
                 "end_time": end_time,
                 "duration_ms": duration_ms,
-                "output_file_path": output_file_path,
+                "output_file_path": json.dumps(output_file_paths),
                 "dagster_run_id": dagster_run_id
             }
         )
@@ -351,6 +360,7 @@ async def sync_run_status_from_dagster(dagster_run_id: str, db: Session = Depend
             )
 
         db.commit()
+        logger.info(f"Updated run {dagster_run_id} to status {status}, processed {log_count} logs, stored {len(output_file_paths)} output paths")
         return {
             "success": True,
             "run_id": updated_record.id,
@@ -358,7 +368,7 @@ async def sync_run_status_from_dagster(dagster_run_id: str, db: Session = Depend
             "status": updated_record.status,
             "finished_at": updated_record.finished_at.isoformat() if updated_record.finished_at else None,
             "duration_ms": duration_ms,
-            "output_file_path": output_file_path,
+            "output_file_path": output_file_paths,
             "log_count": log_count,
             "message": f"Successfully synced status: {updated_record.status} and {log_count} logs"
         }

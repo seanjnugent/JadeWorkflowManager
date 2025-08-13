@@ -859,14 +859,16 @@ const Workflow = () => {
                       Parameters
                     </button>
                   </li>
-                  <li className="sg-contents-item">
-                    <button
-                      onClick={() => handleJumpLinkClick('destination-config')}
-                      className={`sg-contents-link w-full text-left ${isActiveSection('destination-config') ? 'sg-contents-link-active' : ''}`}
-                    >
-                      Destination config
-                    </button>
-                  </li>
+                  {workflow?.destination?.toLowerCase() === 'api' && (
+                    <li className="sg-contents-item">
+                      <button
+                        onClick={() => handleJumpLinkClick('destination-config')}
+                        className={`sg-contents-link w-full text-left ${isActiveSection('destination-config') ? 'sg-contents-link-active' : ''}`}
+                      >
+                        Destination config
+                      </button>
+                    </li>
+                  )}
                   <li className="sg-contents-item">
                     <button
                       onClick={() => handleJumpLinkClick('config-template')}
@@ -1154,55 +1156,56 @@ const Workflow = () => {
 </section>
 
             {/* Destination Config Section */}
-            <section id="destination-config" className="mb-12">
-              <div className="sg-section-separator">
-                <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px]">
-                    Destination config
-                  </h2>
-                  <button 
-                    onClick={() => setShowConfigModal(true)}
-                    className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
-                  >
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit
-                  </button>
+            {workflow?.destination?.toLowerCase() === 'api' && (
+              <section id="destination-config" className="mb-12">
+                <div className="sg-section-separator">
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px]">
+                      Destination config
+                    </h2>
+                    <button 
+                      onClick={() => setShowConfigModal(true)}
+                      className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit
+                    </button>
+                  </div>
                 </div>
-              </div>
-              
-              <div className="prose prose-lg max-w-none">
-                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
-                  Configuration for the API destination. This defines where workflow results are sent.
-                </p>
-                <div className="overflow-x-auto">
-                  <table className="sg-table">
-                    <tbody>
-                      <tr>
-                        <th className="w-1/3">API URL</th>
-                        <td>{workflow?.destination_config?.api_url || 'Not configured'}</td>
-                      </tr>
-                      <tr>
-                        <th>API Token</th>
-                        <td>
-                          <CustomTooltip content="The API token is encrypted at the database level with a Fernet key and is decrypted only at runtime.">
-                            <span className="text-sm text-gray-500">
-                              {workflow?.destination_config?.api_token ? 'Configured (encrypted)' : 'Not configured'}
-                            </span>
-                          </CustomTooltip>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                
+                <div className="prose prose-lg max-w-none">
+                  <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                    Configuration for the API destination. This defines where workflow results are sent.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="sg-table">
+                      <tbody>
+                        <tr>
+                          <th className="w-1/3">API URL</th>
+                          <td>{workflow?.destination_config?.api_url || 'Not configured'}</td>
+                        </tr>
+                        <tr>
+                          <th>API Token</th>
+                          <td>
+                            <CustomTooltip content="The API token is encrypted at the database level with a Fernet key and is decrypted only at runtime.">
+                              <span className="text-sm text-gray-500">
+                                {workflow?.destination_config?.api_token ? 'Configured (encrypted)' : 'N/A'}
+                              </span>
+                            </CustomTooltip>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-              <DestinationConfigModal
-                isOpen={showConfigModal}
-                onClose={() => setShowConfigModal(false)}
-                initialConfig={workflow?.destination_config || {}}
-                onSave={handleSaveDestinationConfig}
-              />
-            </section>
-
+                <DestinationConfigModal
+                  isOpen={showConfigModal}
+                  onClose={() => setShowConfigModal(false)}
+                  initialConfig={workflow?.destination_config || {}}
+                  onSave={handleSaveDestinationConfig}
+                />
+              </section>
+            )}
             {/* Configuration Template Section */}
             <section id="config-template" className="mb-12">
               <div className="sg-section-separator">

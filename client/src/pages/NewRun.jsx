@@ -31,15 +31,15 @@ const NewRun = () => {
 
   const scheduleOptions = ['none', 'daily', 'weekly', 'monthly'];
 
-  const steps = [
-    { id: 'run-configuration', label: 'Run Configuration', icon: <Play className="h-4 w-4" /> },
-    ...(workflowDetails?.workflow?.input_file_path && Array.isArray(workflowDetails.workflow.input_file_path) && workflowDetails.workflow.input_file_path.length > 0
-      ? [{ id: 'input-file', label: 'Input Files', icon: <UploadCloud className="h-4 w-4" /> }]
-      : []),
-    { id: 'parameters', label: 'Parameters', icon: <Plug className="h-4 w-4" /> },
-    { id: 'schedule', label: 'Schedule', icon: <Clock className="h-4 w-4" /> },
-    { id: 'review', label: 'Review', icon: <CheckCircle className="h-4 w-4" /> },
-  ];
+const steps = [
+  { id: 'run-configuration', label: 'Run Configuration', icon: <Play className="h-4 w-4" /> },
+  ...(workflowDetails?.workflow?.requires_file
+    ? [{ id: 'input-file', label: 'Input Files', icon: <UploadCloud className="h-4 w-4" /> }]
+    : []),
+  { id: 'parameters', label: 'Parameters', icon: <Plug className="h-4 w-4" /> },
+  { id: 'schedule', label: 'Schedule', icon: <Clock className="h-4 w-4" /> },
+  { id: 'review', label: 'Review', icon: <CheckCircle className="h-4 w-4" /> },
+];
 
   useEffect(() => {
     document.title = "Jade | New Workflow Run";
@@ -1054,7 +1054,7 @@ const NewRun = () => {
                   </button>
                 </div>
               </div>
-              {workflowDetails?.workflow?.input_file_path && Array.isArray(workflowDetails.workflow.input_file_path) && workflowDetails.workflow.input_file_path.length > 0 && (
+{workflowDetails?.workflow?.requires_file && (
                 <div className="sg-dataset-tile">
                   <div className="flex justify-between items-center mb-4">
                     <div>
