@@ -1021,75 +1021,113 @@ const Workflow = () => {
             </section>
 
             {/* Input Structure Section */}
-            {workflow?.requires_file && (
-              <section id="input-structure" className="mb-12">
-                <div className="sg-section-separator">
-                  <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
-                    Input structure
-                  </h2>
-                </div>
-                
-                <div className="prose prose-lg max-w-none">
-                  <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
-                    Required input files and their formats for this workflow. You can view the structure details or download a template file for each.
-                  </p>
-                  <div className="space-y-6">
-                    {inputFiles.length > 0 ? inputFiles.map((file, index) => (
-                      <div key={file.name || `file-${index}`} className="sg-dataset-tile">
-                        <div className="flex items-start justify-between mb-3">
-                          <h3 className="sg-dataset-title flex-1 mr-4">
-                            {file.name || `Input File ${index + 1}`}
-                          </h3>
-                          <div className="flex gap-3">
-                            {file.structure && (
-                              <button
-                                onClick={() => setShowInputModal({ isOpen: true, fileName: file.name, structure: file.structure })}
-                                className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
-                              >
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Structure
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleDownloadTemplate(file)}
-                              className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
-                            >
-                              <Download className="h-4 w-4 mr-2" />
-                              Download Template
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3">
-                          <span>Format: {file.format.toUpperCase() || 'Unknown'}</span>
-                          <span>Columns: {file.structure?.length || 0}</span>
-                          <span>Required fields: {file.structure?.filter(col => col.required)?.length || 0}</span>
-                        </div>
+           {/* Input Structure Section */}
+{workflow?.requires_file && (
+  <section id="input-structure" className="mb-12">
+    <div className="sg-section-separator">
+      <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+        Input structure
+      </h2>
+    </div>
+    
+    <div className="prose prose-lg max-w-none">
+      <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+        Required input files and their formats for this workflow. You can view the structure details or download a template file for each.
+      </p>
+      
+      <div className="space-y-6">
+        {Array.isArray(inputFiles) && inputFiles.length > 0 ? (
+          inputFiles.map((file, index) => {
+            // Safely extract file properties with defaults
+            const fileName = file?.name || `Input File ${index + 1}`;
+            const fileFormat = (file?.format || file?.supported_types?.[0] || 'unknown').toUpperCase();
+            const fileStructure = Array.isArray(file?.structure) ? file.structure : [];
+            const requiredFieldsCount = fileStructure.filter(col => col?.required).length;
+            const hasStructure = fileStructure.length > 0;
+            const supportedTypes = Array.isArray(file?.supported_types) 
+              ? file.supported_types.join(', ') 
+              : 'Not specified';
 
-                        <p className="sg-dataset-description">
-                          {file.structure ? 
-                            'View the detailed structure of required input columns or download a CSV template with the correct headers.' :
-                            'No structure defined. Download a template with default headers if available.'
-                          }
-                        </p>
-                      </div>
-                    )) : (
-                      <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                        <FileSpreadsheet className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">No input files defined</h3>
-                        <p className="text-sm text-gray-500">This workflow does not specify any input files.</p>
-                      </div>
+            return (
+              <div key={`${fileName}-${index}`} className="sg-dataset-tile">
+                <div className="flex items-start justify-between mb-3">
+                  <h3 className="sg-dataset-title flex-1 mr-4">
+                    {fileName}
+                  </h3>
+                  <div className="flex gap-3 flex-wrap">
+                    {hasStructure && (
+                      <button
+                        onClick={() => setShowInputModal({ 
+                          isOpen: true, 
+                          fileName, 
+                          structure: fileStructure 
+                        })}
+                        className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Structure
+                      </button>
                     )}
+                    <button
+                      onClick={() => handleDownloadTemplate({
+                        name: fileName,
+                        structure: fileStructure,
+                        format: fileFormat.toLowerCase()
+                      })}
+                      className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+                      disabled={!hasStructure}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download Template
+                    </button>
                   </div>
                 </div>
-                <InputStructureModal
-                  isOpen={showInputModal.isOpen}
-                  onClose={() => setShowInputModal({ isOpen: false, fileName: '', structure: [] })}
-                  fileName={showInputModal.fileName}
-                  structure={showInputModal.structure}
-                />
-              </section>
-            )}
+                
+                <div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3 flex-wrap">
+                  <span>Format: {fileFormat}</span>
+                  {hasStructure && (
+                    <>
+                      <span>Columns: {fileStructure.length}</span>
+                      <span>Required fields: {requiredFieldsCount}</span>
+                    </>
+                  )}
+                  <span>Supported types: {supportedTypes}</span>
+                </div>
+
+                <p className="sg-dataset-description">
+                  {hasStructure ? 
+                    'View the detailed structure of required input columns or download a template with the correct headers.' :
+                    'No structure defined. Please contact the workflow maintainer for file specifications.'
+                  }
+                </p>
+              </div>
+            );
+          })
+        ) : (
+          <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+            <FileSpreadsheet className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              {inputFiles === undefined ? 'Loading input structure...' : 'No input files defined'}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {inputFiles === undefined 
+                ? 'Please wait while we load the input requirements' 
+                : 'This workflow does not specify any input files.'}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+
+    {/* Input Structure Modal */}
+    <InputStructureModal
+      isOpen={showInputModal.isOpen}
+      onClose={() => setShowInputModal({ isOpen: false, fileName: '', structure: [] })}
+      fileName={showInputModal.fileName}
+      structure={showInputModal.structure}
+    />
+  </section>
+)}
 
             {/* Parameters Section */}
             <section id="parameters" className="mb-12">

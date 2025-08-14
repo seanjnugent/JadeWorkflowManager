@@ -192,6 +192,159 @@ RELEVANT_EVENT_TYPES = {
     "ExecutionStepSuccessEvent",
 }
 
+# Dynamic Output Path Extraction Functions
+def substitute_template_variables_sensor(template: str, variables: dict) -> str:
+    """Substitute template variables in a string"""
+    if not isinstance(template, str):
+        return template
+        
+    result = template
+    for key, value in variables.items():
+        placeholder = f"{{{key}}}"
+        if placeholder in result:
+            result = result.replace(placeholder, str(value))
+    return result
+
+def extract_template_variables_from_config_sensor(run_config: dict) -> dict:
+    """Extract template variables from run configuration"""
+    template_vars = {}
+    
+    try:
+        config_data = json.loads(run_config) if isinstance(run_config, str) else run_config
+        ops = config_data.get("ops", {})
+        
+        # Extract common template variables from any op config
+        for op_name, op_config in ops.items():
+            op_config_data = op_config.get("config", {})
+            
+            # Common template variables
+            for key in ["workflow_id", "run_uuid", "created_at", "batch_name"]:
+                if key in op_config_data:
+                    template_vars[key] = op_config_data[key]
+        
+        # Add current timestamp if created_at not found
+        if "created_at" not in template_vars:
+            template_vars["created_at"] = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+    except Exception as e:
+        logger.error(f"Failed to extract template variables: {str(e)}")
+    
+    return template_vars
+
+def extract_legacy_output_paths_sensor(run_config: dict) -> List[dict]:
+    """Legacy extraction method for backward compatibility"""
+    output_file_paths = []
+    seen_paths = set()
+    output_path_keys = ["output_path", "agg_output_path", "detailed_output_path", "receipt_output_path", "transformed_file_path", "receipt_file_path"]
+    
+    try:
+        config_data = json.loads(run_config) if isinstance(run_config, str) else run_config
+        ops = config_data.get("ops", {})
+        
+        for op_name, op_config in ops.items():
+            op_config_data = op_config.get("config", {})
+            for key in output_path_keys:
+                output_path = op_config_data.get(key)
+                if output_path and output_path not in seen_paths:
+                    seen_paths.add(output_path)
+                    
+                    # Determine description based on key
+                    if "agg" in key:
+                        description = "Aggregated results"
+                    elif "detailed" in key:
+                        description = "Detailed results"
+                    elif "receipt" in key:
+                        description = "Processing receipt"
+                    elif "transformed" in key:
+                        description = "Transformed data file"
+                    else:
+                        description = "Job output file"
+                    
+                    # Clean up the name
+                    name = key.replace("_path", "").replace("_", " ").title()
+                    if name == "Output":
+                        name = op_name.replace("_", " ").title()
+                    
+                    output_file_paths.append({
+                        "path": output_path,
+                        "name": name,
+                        "description": description
+                    })
+        
+        logger.debug(f"Legacy extraction found {len(output_file_paths)} output paths")
+        return output_file_paths
+        
+    except Exception as e:
+        logger.warning(f"Legacy output path extraction failed: {str(e)}")
+        return []
+
+def extract_dynamic_output_paths_sensor(db_engine, dagster_run_id: str, run_config: dict) -> List[dict]:
+    """Extract output paths dynamically based on workflow configuration"""
+    try:
+        with db_engine.connect() as conn:
+            # Get workflow configuration from database
+            workflow_result = conn.execute(
+                text("""
+                    SELECT w.output_file_paths, w.config_template, w.output_file_pattern
+                    FROM workflow.workflow w
+                    JOIN workflow.run r ON w.id = r.workflow_id
+                    WHERE r.dagster_run_id = :dagster_run_id
+                """),
+                {"dagster_run_id": dagster_run_id}
+            ).fetchone()
+            
+            if not workflow_result:
+                logger.warning(f"No workflow found for dagster_run_id {dagster_run_id}")
+                return extract_legacy_output_paths_sensor(run_config)
+            
+            output_file_paths = workflow_result.output_file_paths
+            output_file_pattern = workflow_result.output_file_pattern
+            
+            # Parse output_file_paths if it's a string
+            if isinstance(output_file_paths, str):
+                try:
+                    output_file_paths = json.loads(output_file_paths)
+                except json.JSONDecodeError:
+                    output_file_paths = []
+            
+            # If we have the new dynamic output configuration, use it
+            if output_file_paths:
+                # Extract template variables from run_config
+                template_vars = extract_template_variables_from_config_sensor(run_config)
+                
+                extracted_paths = []
+                for output_config in output_file_paths:
+                    path_template = output_config.get("path", "")
+                    if path_template:
+                        # Substitute template variables
+                        actual_path = substitute_template_variables_sensor(path_template, template_vars)
+                        extracted_paths.append({
+                            "path": actual_path,
+                            "name": output_config.get("name", "output_file"),
+                            "description": output_config.get("description", "Output file")
+                        })
+                
+                logger.info(f"Extracted {len(extracted_paths)} dynamic output paths for run {dagster_run_id}")
+                return extracted_paths
+            
+            # Fallback to legacy pattern if available
+            elif output_file_pattern:
+                template_vars = extract_template_variables_from_config_sensor(run_config)
+                actual_path = substitute_template_variables_sensor(output_file_pattern, template_vars)
+                return [{
+                    "path": actual_path,
+                    "name": "primary_output",
+                    "description": "Primary output file"
+                }]
+            
+            # Final fallback to legacy extraction
+            else:
+                return extract_legacy_output_paths_sensor(run_config)
+        
+    except Exception as e:
+        logger.error(f"Failed to extract dynamic output paths for {dagster_run_id}: {str(e)}")
+        return extract_legacy_output_paths_sensor(run_config)
+
 def insert_run_logs_and_steps(db, dagster_run_id: str, logs: list, db_run_id: int) -> int:
     """Insert or update logs and step statuses in the database for new events only, excluding LogMessageEvent."""
     logger.info(f"Starting log insertion for run {dagster_run_id} with {len(logs)} logs")
@@ -578,27 +731,11 @@ def workflow_run_status_sensor(context: SensorEvaluationContext):
                     except (TypeError, ValueError):
                         logger.debug(f"Failed to calculate duration for run {dagster_run_id}")
 
+                # ENHANCED DYNAMIC OUTPUT PATH EXTRACTION - This is the key change!
                 output_file_paths = []
-                seen_paths = set()
-                output_path_keys = ["output_path", "agg_output_path", "detailed_output_path"]
                 if status == "SUCCESS" and run_config:
-                    try:
-                        config_data = json.loads(run_config) if isinstance(run_config, str) else run_config
-                        ops = config_data.get("ops", {})
-                        for op_name, op_config in ops.items():
-                            op_config_data = op_config.get("config", {})
-                            for key in output_path_keys:
-                                output_path = op_config_data.get(key)
-                                if output_path and output_path not in seen_paths:
-                                    seen_paths.add(output_path)
-                                    output_file_paths.append({
-                                        "path": output_path,
-                                        "name": op_name,
-                                        "description": "Job output file"
-                                    })
-                        logger.debug(f"Extracted {len(output_file_paths)} unique output paths for run {dagster_run_id}: {output_file_paths}")
-                    except Exception as e:
-                        logger.warning(f"Failed to extract output paths for run {dagster_run_id}: {str(e)}")
+                    output_file_paths = extract_dynamic_output_paths_sensor(db_engine, dagster_run_id, run_config)
+                    logger.debug(f"Extracted {len(output_file_paths)} dynamic output paths for run {dagster_run_id}: {output_file_paths}")
 
                 try:
                     conn.execute(

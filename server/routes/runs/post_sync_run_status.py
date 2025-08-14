@@ -6,6 +6,7 @@ import logging
 import requests
 import os
 from sqlalchemy import text
+from datetime import datetime
 from ..get_health_check import get_db
 
 logger = logging.getLogger(__name__)
@@ -35,9 +36,160 @@ status_mapping = {
     "CANCELING": "Cancelling",
 }
 
+def substitute_template_variables(template: str, variables: Dict[str, Any]) -> str:
+    """Substitute template variables in a string"""
+    if not isinstance(template, str):
+        return template
+        
+    result = template
+    for key, value in variables.items():
+        placeholder = f"{{{key}}}"
+        if placeholder in result:
+            result = result.replace(placeholder, str(value))
+    return result
+
+def extract_template_variables_from_config(run_config: Dict) -> Dict[str, Any]:
+    """Extract template variables from run configuration"""
+    template_vars = {}
+    
+    try:
+        config_data = json.loads(run_config) if isinstance(run_config, str) else run_config
+        ops = config_data.get("ops", {})
+        
+        # Extract common template variables from any op config
+        for op_name, op_config in ops.items():
+            op_config_data = op_config.get("config", {})
+            
+            # Common template variables
+            for key in ["workflow_id", "run_uuid", "created_at", "batch_name"]:
+                if key in op_config_data:
+                    template_vars[key] = op_config_data[key]
+        
+        # Add current timestamp if created_at not found
+        if "created_at" not in template_vars:
+            template_vars["created_at"] = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+    except Exception as e:
+        logger.error(f"Failed to extract template variables: {str(e)}")
+    
+    return template_vars
+
+def extract_dynamic_output_paths(db: Session, dagster_run_id: str, run_config: Dict) -> List[Dict[str, str]]:
+    """Extract output paths dynamically based on workflow configuration"""
+    try:
+        # Get workflow configuration from database
+        workflow_result = db.execute(
+            text("""
+                SELECT w.output_file_paths, w.config_template, w.output_file_pattern
+                FROM workflow.workflow w
+                JOIN workflow.run r ON w.id = r.workflow_id
+                WHERE r.dagster_run_id = :dagster_run_id
+            """),
+            {"dagster_run_id": dagster_run_id}
+        ).fetchone()
+        
+        if not workflow_result:
+            logger.warning(f"No workflow found for dagster_run_id {dagster_run_id}")
+            return extract_legacy_output_paths(run_config)
+        
+        output_file_paths = workflow_result.output_file_paths
+        output_file_pattern = workflow_result.output_file_pattern
+        
+        # Parse output_file_paths if it's a string
+        if isinstance(output_file_paths, str):
+            try:
+                output_file_paths = json.loads(output_file_paths)
+            except json.JSONDecodeError:
+                output_file_paths = []
+        
+        # If we have the new dynamic output configuration, use it
+        if output_file_paths:
+            # Extract template variables from run_config
+            template_vars = extract_template_variables_from_config(run_config)
+            
+            extracted_paths = []
+            for output_config in output_file_paths:
+                path_template = output_config.get("path", "")
+                if path_template:
+                    # Substitute template variables
+                    actual_path = substitute_template_variables(path_template, template_vars)
+                    extracted_paths.append({
+                        "path": actual_path,
+                        "name": output_config.get("name", "output_file"),
+                        "description": output_config.get("description", "Output file")
+                    })
+            
+            logger.info(f"Extracted {len(extracted_paths)} dynamic output paths for run {dagster_run_id}")
+            return extracted_paths
+        
+        # Fallback to legacy pattern if available
+        elif output_file_pattern:
+            template_vars = extract_template_variables_from_config(run_config)
+            actual_path = substitute_template_variables(output_file_pattern, template_vars)
+            return [{
+                "path": actual_path,
+                "name": "primary_output",
+                "description": "Primary output file"
+            }]
+        
+        # Final fallback to legacy extraction
+        else:
+            return extract_legacy_output_paths(run_config)
+        
+    except Exception as e:
+        logger.error(f"Failed to extract dynamic output paths for {dagster_run_id}: {str(e)}")
+        return extract_legacy_output_paths(run_config)
+
+def extract_legacy_output_paths(run_config: Dict) -> List[Dict[str, str]]:
+    """Legacy extraction method for backward compatibility"""
+    output_file_paths = []
+    seen_paths = set()
+    output_path_keys = ["output_path", "agg_output_path", "detailed_output_path", "receipt_output_path", "transformed_file_path", "receipt_file_path"]
+    
+    try:
+        config_data = json.loads(run_config) if isinstance(run_config, str) else run_config
+        ops = config_data.get("ops", {})
+        
+        for op_name, op_config in ops.items():
+            op_config_data = op_config.get("config", {})
+            for key in output_path_keys:
+                output_path = op_config_data.get(key)
+                if output_path and output_path not in seen_paths:
+                    seen_paths.add(output_path)
+                    
+                    # Determine description based on key
+                    if "agg" in key:
+                        description = "Aggregated results"
+                    elif "detailed" in key:
+                        description = "Detailed results"
+                    elif "receipt" in key:
+                        description = "Processing receipt"
+                    elif "transformed" in key:
+                        description = "Transformed data file"
+                    else:
+                        description = "Job output file"
+                    
+                    # Clean up the name
+                    name = key.replace("_path", "").replace("_", " ").title()
+                    if name == "Output":
+                        name = op_name.replace("_", " ").title()
+                    
+                    output_file_paths.append({
+                        "path": output_path,
+                        "name": name,
+                        "description": description
+                    })
+        
+        logger.debug(f"Legacy extraction found {len(output_file_paths)} output paths")
+        return output_file_paths
+        
+    except Exception as e:
+        logger.warning(f"Legacy output path extraction failed: {str(e)}")
+        return []
+
 def insert_run_logs_and_steps(db: Session, dagster_run_id: str, logs: List[Dict[str, Any]]) -> int:
     """Insert or update logs into run_log and steps into run_step_status"""
-    log_count = 0  # Initialize log_count at the start of the function
+    log_count = 0
 
     try:
         # Get run_id from workflow.run table
@@ -192,7 +344,7 @@ def insert_run_logs_and_steps(db: Session, dagster_run_id: str, logs: List[Dict[
 
 @router.post("/sync/{dagster_run_id}")
 async def sync_run_status_from_dagster(dagster_run_id: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Sync run status and logs from Dagster GraphQL API for Dagster"""
+    """Sync run status and logs from Dagster GraphQL API with dynamic output extraction"""
     try:
         query = """
         query RunLogsQuery($runId: ID!) {
@@ -296,8 +448,7 @@ async def sync_run_status_from_dagster(dagster_run_id: str, db: Session = Depend
             raise HTTPException(status_code=500, detail="Unexpected response type")
 
         dagster_status = run_data.get("status")
-        # Map Dagster status to application status
-        status = status_mapping.get(dagster_status, dagster_status)  # Fallback to original status if not in mapping
+        status = status_mapping.get(dagster_status, dagster_status)
         start_time = run_data.get("startTime")
         end_time = run_data.get("endTime")
         run_config = run_data.get("runConfig")
@@ -308,27 +459,11 @@ async def sync_run_status_from_dagster(dagster_run_id: str, db: Session = Depend
             except (TypeError, ValueError):
                 pass
 
+        # Enhanced dynamic output path extraction
         output_file_paths = []
-        seen_paths = set()
-        output_path_keys = ["output_path", "agg_output_path", "detailed_output_path"]
         if dagster_status == "SUCCESS" and run_config:
-            try:
-                config_data = json.loads(run_config) if isinstance(run_config, str) else run_config
-                ops = config_data.get("ops", {})
-                for op_name, op_config in ops.items():
-                    op_config_data = op_config.get("config", {})
-                    for key in output_path_keys:
-                        output_path = op_config_data.get(key)
-                        if output_path and output_path not in seen_paths:
-                            seen_paths.add(output_path)
-                            output_file_paths.append({
-                                "path": output_path,
-                                "name": op_name,
-                                "description": "Job output file"
-                            })
-                logger.debug(f"Extracted {len(output_file_paths)} unique output paths for run {dagster_run_id}: {output_file_paths}")
-            except Exception as e:
-                logger.warning(f"Failed to extract output paths for run {dagster_run_id}: {str(e)}")
+            output_file_paths = extract_dynamic_output_paths(db, dagster_run_id, run_config)
+            logger.debug(f"Extracted {len(output_file_paths)} output paths for run {dagster_run_id}: {output_file_paths}")
 
         logs = run_data.get("eventConnection", {}).get("events", [])
         log_count = insert_run_logs_and_steps(db, dagster_run_id, logs)

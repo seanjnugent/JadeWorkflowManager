@@ -4,6 +4,7 @@ import base64
 import uuid
 import tempfile
 import os
+import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -15,7 +16,6 @@ from botocore.exceptions import ClientError
 
 # FastAPI imports
 from fastapi import APIRouter, HTTPException, File, UploadFile, Form, Request, Depends
-from fastapi.responses import JSONResponse
 
 # Pydantic imports
 from pydantic import BaseModel
@@ -24,25 +24,34 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-# Dagster imports
-from dagster import logger
+# Environment
+from dotenv import load_dotenv
 
-# Your application imports (these would need to be defined in your project)
-from .database import get_db  # Database session dependency
-from .config import (  # Configuration constants
-    S3_BUCKET, 
-    S3_REGION, 
-    GITHUB_REPO, 
-    GITHUB_TOKEN, 
-    GITHUB_DAG_PATH
+# Local imports
+from app.file_parser import parser_map
+from ..get_health_check import get_db
+
+load_dotenv()
+logger = logging.getLogger(__name__)
+
+# Configuration
+S3_BUCKET = os.getenv("S3_BUCKET", "jade-files")
+S3_REGION = os.getenv("S3_REGION", "eu-west-2")
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+GITHUB_TOKEN = os.getenv("GITHUB_ACCESS_TOKEN")
+GITHUB_REPO = f"{os.getenv('GITHUB_REPO_OWNER')}/{os.getenv('GITHUB_REPO_NAME')}"
+GITHUB_DAG_PATH = "DAGs"
+
+# Initialize S3 client
+s3_client = boto3.client(
+    's3',
+    region_name=S3_REGION,
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY
 )
-from .parsers import parser_map  # File parser mapping
-from .models import Destination  # Destination model (referenced but not defined in the code)
 
-# AWS S3 client (this would typically be initialized elsewhere)
-# s3_client = boto3.client('s3', ...)  # This needs to be properly configured
-
-
+# Models
 class ParameterOption(BaseModel):
     label: str
     value: str
@@ -63,6 +72,26 @@ class ApiSourceConfig(BaseModel):
     authToken: Optional[str] = None
     method: str = "GET"
     headers: Optional[Dict[str, str]] = {}
+
+class CsvDestinationConfig(BaseModel):
+    delimiter: Optional[str] = ","
+    includeHeaders: Optional[bool] = True
+
+class ApiDestinationConfig(BaseModel):
+    endpoint: str
+    authToken: Optional[str] = None
+    method: str = "POST"
+    headers: Optional[Dict[str, str]] = {}
+
+class DatabaseDestinationConfig(BaseModel):
+    connectionString: str
+    tableName: str
+    mode: str = "append"  # append, overwrite, upsert
+
+class Destination(BaseModel):
+    name: str
+    type: str  # csv, api, database
+    config: Optional[Dict[str, Any]] = {}
 
 class DagConfig(BaseModel):
     name: str
@@ -491,8 +520,8 @@ def save_api_{workflow_id}_{i}(context, processed_data: dict):
             config_template["ops"][f"save_csv_{workflow_id}_{i}"] = {
                 "config": {
                     "output_path": f"jade-files/outputs/{dest.name}",
-                    "delimiter": dest.config.delimiter or ",",
-                    "include_headers": dest.config.includeHeaders if dest.config.includeHeaders is not None else True,
+                    "delimiter": dest.config.get("delimiter", ","),
+                    "include_headers": dest.config.get("includeHeaders", True),
                     "workflow_id": workflow_id,
                     "bucket": "jade-files"
                 }
@@ -500,9 +529,9 @@ def save_api_{workflow_id}_{i}(context, processed_data: dict):
         elif dest.type == "api":
             config_template["ops"][f"save_api_{workflow_id}_{i}"] = {
                 "config": {
-                    "api_endpoint": dest.config.endpoint or "",
-                    "auth_token": dest.config.authToken or "",
-                    "method": dest.config.method or "POST",
+                    "api_endpoint": dest.config.get("endpoint", ""),
+                    "auth_token": dest.config.get("authToken", ""),
+                    "method": dest.config.get("method", "POST"),
                     "workflow_id": workflow_id
                 }
             }
@@ -692,7 +721,7 @@ async def create_new_workflow(
             db.commit()
             logger.info("Workflow inserted successfully")
             
-            # Create minimal DAG in GitHub (will be updated later)
+            # Create DAG in GitHub (will be updated later)
             try:
                 dag_info = create_github_dag(workflow, workflow_record.id)
                 

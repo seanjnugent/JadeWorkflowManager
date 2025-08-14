@@ -34,6 +34,7 @@ if S3_ENDPOINT:
 
 s3_client = boto3.client('s3', **s3_client_config)
 
+# Update the validate_workflow function
 def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
     """Validate and retrieve workflow configuration from database"""
     try:
@@ -42,7 +43,8 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
                 SELECT id, name, input_file_path, input_structure, destination,
                        config_template, default_parameters, parameters, resources_config,
                        dagster_location_name, dagster_repository_name, requires_file,
-                       output_file_pattern, supported_file_types, destination_config, source_config
+                       output_file_pattern, output_file_paths, supported_file_types, 
+                       destination_config, source_config
                 FROM workflow.workflow
                 WHERE id = :workflow_id AND status = 'Active'
             """),
@@ -66,14 +68,16 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
             "dagster_location_name": workflow_row.dagster_location_name or "server.app.dagster.repo",
             "dagster_repository_name": workflow_row.dagster_repository_name or "__repository__",
             "requires_file": workflow_row.requires_file,
-            "output_file_pattern": workflow_row.output_file_pattern,
+            "output_file_pattern": workflow_row.output_file_pattern,  # Keep for backward compatibility
+            "output_file_paths": workflow_row.output_file_paths,      # New dynamic output config
             "supported_file_types": workflow_row.supported_file_types,
             "destination_config": workflow_row.destination_config,
             "source_config": workflow_row.source_config
         }
 
         json_fields = ["input_structure", "config_template", "default_parameters", "parameters", 
-                       "resources_config", "supported_file_types", "destination_config", "source_config"]
+                       "resources_config", "supported_file_types", "destination_config", 
+                       "source_config", "output_file_paths"]
         for field in json_fields:
             if workflow[field] and isinstance(workflow[field], str):
                 try:
@@ -86,7 +90,7 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
                     workflow[field] = []
                 elif field == "supported_file_types":
                     workflow[field] = ["csv", "xlsx", "json"]
-                elif field == "input_file_path":
+                elif field in ["input_file_path", "output_file_paths"]:
                     workflow[field] = []
                 else:
                     workflow[field] = {}
@@ -95,7 +99,7 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error validating workflow {workflow_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Workflow validation failed: {str(e)}")
-
+    
 async def handle_single_file_upload(file: UploadFile, workflow: Dict[str, Any], 
                                   file_config: Dict[str, Any] = None) -> Dict[str, Any]:
     """Handle single file upload without structure validation"""
@@ -286,7 +290,7 @@ def substitute_template_variables(obj, vars_dict):
 
 def build_dagster_config(workflow: Dict[str, Any], input_paths: List[Dict[str, Any]], 
                         parameters: Dict[str, Any]) -> Dict[str, Any]:
-    """Build Dagster configuration from workflow template with multiple file support"""
+    """Build Dagster configuration from workflow template with dynamic output support"""
     workflow_id = workflow["id"]
     run_uuid = str(uuid.uuid4())
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -308,6 +312,7 @@ def build_dagster_config(workflow: Dict[str, Any], input_paths: List[Dict[str, A
         template_vars["input_file_path"] = ""
         template_vars["input_paths"] = {}
 
+    # Add source config to template variables
     source_config = workflow.get("source_config", {})
     if isinstance(source_config, str):
         try:
@@ -320,6 +325,7 @@ def build_dagster_config(workflow: Dict[str, Any], input_paths: List[Dict[str, A
         template_vars.update(source_config)
         logger.info(f"Added source_config to template vars: {source_config}")
     
+    # Handle destination config for API workflows
     if workflow["destination"] == "API" and workflow.get("destination_config"):
         dest_config = workflow["destination_config"]
         if isinstance(dest_config, dict):
@@ -327,17 +333,38 @@ def build_dagster_config(workflow: Dict[str, Any], input_paths: List[Dict[str, A
                 f"ckan_{k}": v for k, v in dest_config.items()
             })
 
+    # Handle dynamic output paths
+    output_file_paths = workflow.get("output_file_paths", [])
+    if output_file_paths:
+        # Add each output path to template variables
+        for output_config in output_file_paths:
+            path_template = output_config.get("path", "")
+            if path_template:
+                output_path = substitute_template_variables(path_template, template_vars)
+                output_name = output_config.get("name", "output")
+                template_vars[f"{output_name}_path"] = output_path
+        
+        # For backward compatibility, set primary output path
+        if output_file_paths:
+            primary_output = substitute_template_variables(
+                output_file_paths[0].get("path", ""), 
+                template_vars
+            )
+            template_vars["output_file_path"] = primary_output
+    else:
+        # Fallback to legacy output_file_pattern
+        output_pattern = workflow.get("output_file_pattern")
+        if output_pattern:
+            output_file_path = substitute_template_variables(output_pattern, template_vars)
+            template_vars["output_file_path"] = output_file_path
+
     config_template = workflow.get("config_template", {})
     logger.info(f"Config template before substitution: {json.dumps(config_template, indent=2)}")
     logger.info(f"Template variables: {json.dumps(template_vars, indent=2, default=str)}")
-
-    output_pattern = workflow.get("output_file_pattern")
-    if output_pattern:
-        output_file_path = substitute_template_variables(output_pattern, template_vars)
-        template_vars["output_file_path"] = output_file_path
         
     dagster_config = substitute_template_variables(config_template, template_vars)
     
+    # Add default resources if not present
     dagster_config.setdefault("resources", {}).update(workflow.get("resources_config", {
         "s3": {
             "config": {
