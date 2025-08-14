@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class FileParser:
-    async def parse(self, file_content: bytes) -> pd.DataFrame:
+    async def parse(self, file_content: bytes, **kwargs) -> pd.DataFrame:
         """Parse file content into a DataFrame"""
         raise NotImplementedError("Subclasses must implement this method")
 
@@ -158,17 +158,17 @@ class FileParser:
             return None
 
 class CSVParser(FileParser):
-    async def parse(self, file_content: bytes) -> pd.DataFrame:
-        """Parse CSV file content"""
+    async def parse(self, file_content: bytes, **kwargs) -> pd.DataFrame:
+        """Parse CSV file content with optional row sampling"""
         try:
             logger.info("Parsing CSV file")
-            return pd.read_csv(io.BytesIO(file_content))
+            return pd.read_csv(io.BytesIO(file_content), **kwargs)
         except Exception as e:
             logger.error(f"Failed to parse CSV: {str(e)}")
             raise ValueError(f"Invalid CSV file: {str(e)}")
 
 class ExcelParser(FileParser):
-    async def parse(self, file_content: bytes) -> pd.DataFrame:
+    async def parse(self, file_content: bytes, **kwargs) -> pd.DataFrame:
         """Parse Excel file content"""
         try:
             logger.info("Parsing Excel file")
@@ -178,7 +178,7 @@ class ExcelParser(FileParser):
             raise ValueError(f"Invalid Excel file: {str(e)}")
 
 class ParquetParser(FileParser):
-    async def parse(self, file_content: bytes) -> pd.DataFrame:
+    async def parse(self, file_content: bytes, **kwargs) -> pd.DataFrame:
         """Parse Parquet file content"""
         try:
             logger.info("Parsing Parquet file")
@@ -188,7 +188,7 @@ class ParquetParser(FileParser):
             raise ValueError(f"Invalid Parquet file: {str(e)}")
 
 class JSONParser(FileParser):
-    async def parse(self, file_content: bytes) -> pd.DataFrame:
+    async def parse(self, file_content: bytes, **kwargs) -> pd.DataFrame:
         """Parse JSON file content"""
         try:
             logger.info("Parsing JSON file")

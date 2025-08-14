@@ -40,6 +40,7 @@ from routes.runs.get_run import router as get_run_router
 from routes.runs.get_runs import router as get_runs_router
 from routes.runs.post_run_step_status import router as post_run_step_status_router
 from routes.runs.post_trigger_workflow import router as post_trigger_workflow_router
+from routes.runs.post_validate_file import router as post_validate_file_router
 from routes.runs.post_sync_run_status import router as post_sync_run_status_router
 from routes.runs.get_run_status import router as get_run_status_router
 
@@ -73,7 +74,7 @@ app.include_router(get_run_router)
 app.include_router(get_runs_router)
 app.include_router(post_run_step_status_router)
 app.include_router(get_analytics_router)
-
+app.include_router(post_validate_file_router)
 app.include_router(connections_router)
 app.include_router(update_workflow_router)
 app.include_router(post_new_dag_router)

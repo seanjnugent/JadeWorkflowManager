@@ -1,9 +1,44 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Play, UploadCloud, Plug, Clock, CheckCircle, Download, ChevronDown, ChevronUp, X, ChevronRight, Settings } from 'lucide-react';
+import { ChevronLeft, Play, UploadCloud, Plug, Clock, CheckCircle, Download, ChevronDown, ChevronUp, X, ChevronRight, Settings, CircleCheck, AlertCircle } from 'lucide-react';
 import { GridLoader } from 'react-spinners';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+
+const ValidationModal = ({ isOpen, status, message, onClose }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white max-w-md w-full rounded-lg shadow-xl border border-gray-200 p-6 flex flex-col items-center">
+        {status === 'validating' && (
+          <>
+            <GridLoader color="#0065bd" size={10} margin={2} />
+            <p className="mt-4 text-lg font-medium text-gray-900">Validating file structure...</p>
+          </>
+        )}
+        {status === 'success' && (
+          <>
+            <CircleCheck className="h-12 w-12 text-green-600" />
+            <p className="mt-4 text-lg font-medium text-gray-900">File structure validated successfully!</p>
+          </>
+        )}
+        {status === 'error' && (
+          <>
+            <AlertCircle className="h-12 w-12 text-red-600" />
+            <p className="mt-4 text-lg font-medium text-gray-900">Validation failed</p>
+            <p className="mt-2 text-sm text-gray-600 text-center">{message}</p>
+            <button
+              onClick={onClose}
+              className="mt-6 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors"
+            >
+              Try Again
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const NewRun = () => {
   const navigate = useNavigate();
@@ -20,6 +55,7 @@ const NewRun = () => {
   const [expandedSections, setExpandedSections] = useState({});
   const [activeSection, setActiveSection] = useState('run-configuration');
   const [isScrolledIntoView, setIsScrolledIntoView] = useState(false);
+  const [validationState, setValidationState] = useState({ isOpen: false, status: 'validating', message: '' });
 
   const sectionRefs = {
     'run-configuration': useRef(null),
@@ -31,15 +67,15 @@ const NewRun = () => {
 
   const scheduleOptions = ['none', 'daily', 'weekly', 'monthly'];
 
-const steps = [
-  { id: 'run-configuration', label: 'Run Configuration', icon: <Play className="h-4 w-4" /> },
-  ...(workflowDetails?.workflow?.requires_file
-    ? [{ id: 'input-file', label: 'Input Files', icon: <UploadCloud className="h-4 w-4" /> }]
-    : []),
-  { id: 'parameters', label: 'Parameters', icon: <Plug className="h-4 w-4" /> },
-  { id: 'schedule', label: 'Schedule', icon: <Clock className="h-4 w-4" /> },
-  { id: 'review', label: 'Review', icon: <CheckCircle className="h-4 w-4" /> },
-];
+  const steps = [
+    { id: 'run-configuration', label: 'Run Configuration', icon: <Play className="h-4 w-4" /> },
+    ...(workflowDetails?.workflow?.requires_file
+      ? [{ id: 'input-file', label: 'Input Files', icon: <UploadCloud className="h-4 w-4" /> }]
+      : []),
+    { id: 'parameters', label: 'Parameters', icon: <Plug className="h-4 w-4" /> },
+    { id: 'schedule', label: 'Schedule', icon: <Clock className="h-4 w-4" /> },
+    { id: 'review', label: 'Review', icon: <CheckCircle className="h-4 w-4" /> },
+  ];
 
   useEffect(() => {
     document.title = "Jade | New Workflow Run";
@@ -75,7 +111,6 @@ const steps = [
         const data = await response.json();
         setWorkflowDetails(data);
         
-        // Initialize files state based on input_file_path structure
         const inputConfig = Array.isArray(data.workflow?.input_file_path) ? data.workflow.input_file_path : [];
         const initialFiles = {};
         inputConfig.forEach(fileConfig => {
@@ -134,6 +169,44 @@ const steps = [
     }));
   };
 
+  const validateFileStructure = async () => {
+    const inputConfig = Array.isArray(workflowDetails?.workflow?.input_file_path) ? workflowDetails.workflow.input_file_path : [];
+    if (inputConfig.length === 0) return { success: true };
+
+    const formData = new FormData();
+    const fileMapping = {};
+    Object.entries(files).forEach(([name, file]) => {
+      if (file) {
+        const fieldName = `file_${name}`;
+        formData.append(fieldName, file);
+        fileMapping[name] = fieldName;
+      }
+    });
+    formData.append('file_mapping', JSON.stringify(fileMapping));
+    formData.append('workflow_id', workflowId);
+
+    try {
+      const accessToken = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/runs/validate_file`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return { success: false, message: errorData.detail || 'File structure validation failed' };
+      }
+
+      const result = await response.json();
+      return { success: true, message: '' };
+    } catch (err) {
+      return { success: false, message: err.message || 'Failed to validate file structure' };
+    }
+  };
+
   const validateCurrentSection = () => {
     switch (activeSection) {
       case 'run-configuration':
@@ -164,7 +237,7 @@ const steps = [
       case 'parameters':
         const workflowParams = Array.isArray(workflowDetails?.workflow?.parameters) ? workflowDetails.workflow.parameters : [];
         if (workflowParams.length === 0) {
-          return true; // No parameters to validate
+          return true;
         }
         for (const section of workflowParams) {
           for (const param of section.parameters) {
@@ -229,14 +302,34 @@ const steps = [
     return true;
   };
 
-  const handleNextSection = () => {
+  const handleNextSection = async () => {
     if (!validateCurrentSection()) return;
     setError('');
-    const currentIndex = steps.findIndex(step => step.id === activeSection);
-    if (currentIndex < steps.length - 1) {
-      const nextSection = steps[currentIndex + 1].id;
-      setActiveSection(nextSection);
-      setIsScrolledIntoView(true);
+
+    if (activeSection === 'input-file') {
+      setValidationState({ isOpen: true, status: 'validating', message: '' });
+      const validationResult = await validateFileStructure();
+      if (validationResult.success) {
+        setValidationState({ isOpen: true, status: 'success', message: '' });
+        setTimeout(() => {
+          setValidationState({ isOpen: false, status: 'validating', message: '' });
+          const currentIndex = steps.findIndex(step => step.id === activeSection);
+          if (currentIndex < steps.length - 1) {
+            const nextSection = steps[currentIndex + 1].id;
+            setActiveSection(nextSection);
+            setIsScrolledIntoView(true);
+          }
+        }, 1000);
+      } else {
+        setValidationState({ isOpen: true, status: 'error', message: validationResult.message });
+      }
+    } else {
+      const currentIndex = steps.findIndex(step => step.id === activeSection);
+      if (currentIndex < steps.length - 1) {
+        const nextSection = steps[currentIndex + 1].id;
+        setActiveSection(nextSection);
+        setIsScrolledIntoView(true);
+      }
     }
   };
 
@@ -851,7 +944,7 @@ const steps = [
                   <UploadCloud className="h-5 w-5 text-[#0065bd]" />
                   Input Files
                 </h2>
-            </div>
+              </div>
               <p className="sg-dataset-description mb-6">
                 Upload the required files for this workflow
               </p>
@@ -878,12 +971,23 @@ const steps = [
                 </button>
                 <button
                   onClick={handleNextSection}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors duration-200"
+                  disabled={validationState.isOpen}
+                  className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded transition-colors ${
+                    validationState.isOpen 
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      : 'bg-[#0065bd] hover:bg-[#004a9f]'
+                  }`}
                 >
                   Next
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
+              <ValidationModal
+                isOpen={validationState.isOpen}
+                status={validationState.status}
+                message={validationState.message}
+                onClose={() => setValidationState({ isOpen: false, status: 'validating', message: '' })}
+              />
             </section>
           )}
 
@@ -1054,7 +1158,7 @@ const steps = [
                   </button>
                 </div>
               </div>
-{workflowDetails?.workflow?.requires_file && (
+              {workflowDetails?.workflow?.requires_file && (
                 <div className="sg-dataset-tile">
                   <div className="flex justify-between items-center mb-4">
                     <div>

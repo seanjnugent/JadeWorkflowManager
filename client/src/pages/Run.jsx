@@ -21,7 +21,8 @@ import {
   FileJson,
   File,
   CircleCheckBig,
-  CircleAlert
+  CircleAlert,
+  FilePieChart
 } from 'lucide-react';
 import { GridLoader, ClipLoader } from 'react-spinners';
 import { Link } from 'react-router-dom';
@@ -139,6 +140,9 @@ const DurationDisplay = ({ start, end }) => {
 const FileDownloadComponent = ({ file, onDownload, isLoading = false }) => {
   const getFileIcon = (type) => {
     if (type === 'json') return <FileJson className="h-6 w-6 text-blue-600" />;
+    if (type === 'csv') return <FileText className="h-6 w-6 text-orange-600" />;
+    if (type === 'pdf') return <FilePieChart className="h-6 w-6 text-green-600" />;
+    
     return <File className="h-6 w-6 text-gray-600" />;
   };
   const getFileTypeDisplay = (type) => {
