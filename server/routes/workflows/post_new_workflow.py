@@ -1,5 +1,6 @@
 from dagster import logger
 from fastapi import HTTPException
+from pydantic import BaseModel
 
 
 class ParameterOption(BaseModel):
