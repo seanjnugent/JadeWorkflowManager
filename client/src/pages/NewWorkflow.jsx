@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, FileInput, File, Settings2, Database, Waypoints, FileSpreadsheet, FileX, CheckCircle2, GitBranch, ChevronRight, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, FileInput, File, Settings2, Database, Waypoints, FileSpreadsheet, FileX, CheckCircle2, GitBranch, ChevronRight, X, ChevronDown, ChevronUp, Upload, Link, Plus, Trash2 } from 'lucide-react';
 import { GridLoader } from 'react-spinners';
 import axios from 'axios';
+import { generateDAGTemplate, generateConfigTemplate } from '../components/dagTemplateGenerator';
 
 // Placeholder database connections
 const DATABASE_CONNECTIONS = [
@@ -41,40 +42,51 @@ const NewWorkflow = () => {
   const [uploadError, setUploadError] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [parameterSections, setParameterSections] = useState([]);
-  const [destinationType, setDestinationType] = useState('csv');
-  const [databaseConfig, setDatabaseConfig] = useState({
-    connectionId: '',
-    schema: '',
-    tableName: '',
-    createIfNotExists: false,
+  
+  // Source configuration
+  const [sourceType, setSourceType] = useState('file');
+  const [sourceConfig, setSourceConfig] = useState({
+    file: { supportedTypes: ['csv', 'xlsx', 'json'] },
+    api: { endpoint: '', authToken: '', method: 'GET' },
+    database: { connectionId: '', query: '' }
   });
-  const [apiConfig, setApiConfig] = useState({
-    endpoint: '',
-    authToken: '',
-  });
+  
+  // Destination configuration
+  const [destinationOutputs, setDestinationOutputs] = useState([
+    { 
+      id: 1, 
+      name: 'output', 
+      type: 'csv', 
+      config: {
+        csv: { filename: 'output.csv', path: 'outputs/' },
+        api: { endpoint: '', authToken: '', method: 'POST' },
+        database: { connectionId: '', schema: '', tableName: '', createIfNotExists: false }
+      }
+    }
+  ]);
+  
   const [dagPath, setDagPath] = useState('');
   const [successMessage, setSuccessMessage] = useState(null);
-  const [skipFileUpload, setSkipFileUpload] = useState(false);
   const [expandedSections, setExpandedSections] = useState({});
   const [isScrolledIntoView, setIsScrolledIntoView] = useState(false);
 
   const sectionRefs = {
     'workflow-details': useRef(null),
-    'input-file': useRef(null),
+    'source-configuration': useRef(null),
     'structure-preview': useRef(null),
     'parameters': useRef(null),
+    'destination-configuration': useRef(null),
     'dag-configuration': useRef(null),
-    'destination': useRef(null),
     'review': useRef(null),
   };
 
   const steps = [
     { id: 'workflow-details', title: 'Workflow Details', icon: <FileInput className="h-4 w-4" /> },
-    { id: 'input-file', title: 'Input File', icon: <File className="h-4 w-4" /> },
+    { id: 'source-configuration', title: 'Source Configuration', icon: <Upload className="h-4 w-4" /> },
     { id: 'structure-preview', title: 'Structure Preview', icon: <File className="h-4 w-4" /> },
     { id: 'parameters', title: 'Parameters', icon: <Settings2 className="h-4 w-4" /> },
+    { id: 'destination-configuration', title: 'Destination Configuration', icon: <Database className="h-4 w-4" /> },
     { id: 'dag-configuration', title: 'DAG Configuration', icon: <GitBranch className="h-4 w-4" /> },
-    { id: 'destination', title: 'Destination', icon: <Database className="h-4 w-4" /> },
     { id: 'review', title: 'Review', icon: <CheckCircle2 className="h-4 w-4" /> },
   ];
 
@@ -96,11 +108,11 @@ const NewWorkflow = () => {
   const handleFileUpload = useCallback(
     async (file) => {
       if (!workflowName) {
-        setUploadError('Please enter a workflow name');
+        setUploadError('Please enter a workflow name first');
         return;
       }
       if (!workflowDescription) {
-        setUploadError('Please enter a workflow description');
+        setUploadError('Please enter a workflow description first');
         return;
       }
 
@@ -108,24 +120,20 @@ const NewWorkflow = () => {
 
       try {
         const formData = new FormData();
-        if (!skipFileUpload && file) {
-          formData.append('file', file);
-        }
+        formData.append('file', file);
         formData.append('name', workflowName);
         formData.append('description', workflowDescription);
         formData.append('created_by', userId);
         formData.append('status', 'Draft');
-        formData.append('skip_structure', skipFileUpload);
 
         const response = await api.post('/workflows/workflow/new', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
 
         const { workflow, file_info } = response.data;
-        setDagPath(workflow.dag_path || '');
         setWorkflowId(workflow.id);
 
-        if (!skipFileUpload && file_info) {
+        if (file_info) {
           const structure = Object.entries(file_info.schema).map(([column, typeInfo]) => ({
             column,
             detectedType: typeInfo.type,
@@ -147,8 +155,36 @@ const NewWorkflow = () => {
         setIsUploading(false);
       }
     },
-    [workflowName, workflowDescription, userId, skipFileUpload]
+    [workflowName, workflowDescription, userId]
   );
+
+  const generateDagTemplate = () => {
+    const workflowConfig = {
+      workflowId,
+      workflowName,
+      sourceType,
+      sourceConfig: sourceConfig[sourceType],
+      destinationType: destinationOutputs[0]?.type || 'csv',
+      destinationConfig: destinationOutputs[0]?.config || {},
+      parameters: parameterSections
+    };
+
+    return generateDAGTemplate(workflowConfig);
+  };
+
+  const generateWorkflowConfig = () => {
+    const workflowConfig = {
+      workflowId,
+      workflowName,
+      sourceType,
+      sourceConfig: sourceConfig[sourceType],
+      destinationType: destinationOutputs[0]?.type || 'csv',
+      destinationConfig: destinationOutputs[0]?.config || {},
+      parameters: parameterSections
+    };
+
+    return generateConfigTemplate(workflowConfig);
+  };
 
   const handleSaveWorkflow = async () => {
     if (!workflowName) {
@@ -159,16 +195,11 @@ const NewWorkflow = () => {
       setUploadError('Workflow description is required');
       return;
     }
-    if (currentStep === 7 && destinationType === 'database' && (!databaseConfig.connectionId || !databaseConfig.schema || !databaseConfig.tableName)) {
-      setUploadError('Please complete all database configuration fields');
-      return;
-    }
-    if (currentStep === 7 && destinationType === 'api' && (!apiConfig.endpoint || !apiConfig.authToken)) {
-      setUploadError('Please complete all API configuration fields');
-      return;
-    }
 
     try {
+      const configTemplate = generateWorkflowConfig();
+      const dagTemplate = generateDagTemplate();
+
       const response = await api.post('/workflows/workflow/update', {
         workflow_id: workflowId,
         name: workflowName,
@@ -179,27 +210,17 @@ const NewWorkflow = () => {
           ...param,
           section: section.name
         }))),
-        destination: destinationType,
-        destination_config: destinationType === 'database' ? databaseConfig : destinationType === 'api' ? apiConfig : null,
-        skip_structure: skipFileUpload,
+        source_type: sourceType,
+        source_config: sourceConfig[sourceType],
+        destination_outputs: destinationOutputs,
         dag_path: dagPath,
+        config_template: configTemplate,
+        dag_template: dagTemplate
       });
 
       setSuccessMessage('Workflow saved successfully!');
       setTimeout(() => {
-        setCurrentStep(1);
-        setWorkflowName('');
-        setWorkflowDescription('');
-        setParsedFileStructure([]);
-        setIsFileUploaded(false);
-        setParameterSections([]);
-        setWorkflowId(null);
-        setDestinationType('csv');
-        setDatabaseConfig({ connectionId: '', schema: '', tableName: '', createIfNotExists: false });
-        setApiConfig({ endpoint: '', authToken: '' });
-        setDagPath('');
-        setSuccessMessage(null);
-        setSkipFileUpload(false);
+        navigate('/workflows');
       }, 2000);
     } catch (error) {
       console.error('Save error:', error);
@@ -278,6 +299,57 @@ const NewWorkflow = () => {
     });
   };
 
+  const handleAddDestination = () => {
+    const newId = Math.max(...destinationOutputs.map(d => d.id)) + 1;
+    setDestinationOutputs(prev => [...prev, {
+      id: newId,
+      name: `output_${newId}`,
+      type: 'csv',
+      config: {
+        csv: { filename: `output_${newId}.csv`, path: 'outputs/' },
+        api: { endpoint: '', authToken: '', method: 'POST' },
+        database: { connectionId: '', schema: '', tableName: '', createIfNotExists: false }
+      }
+    }]);
+  };
+
+  const handleRemoveDestination = (id) => {
+    if (destinationOutputs.length > 1) {
+      setDestinationOutputs(prev => prev.filter(d => d.id !== id));
+    }
+  };
+
+  const handleDestinationChange = (id, field, value) => {
+    setDestinationOutputs(prev => prev.map(dest => 
+      dest.id === id ? { ...dest, [field]: value } : dest
+    ));
+  };
+
+  const handleDestinationConfigChange = (id, configType, field, value) => {
+    setDestinationOutputs(prev => prev.map(dest => 
+      dest.id === id ? {
+        ...dest,
+        config: {
+          ...dest.config,
+          [configType]: {
+            ...dest.config[configType],
+            [field]: value
+          }
+        }
+      } : dest
+    ));
+  };
+
+  const handleSourceConfigChange = (field, value) => {
+    setSourceConfig(prev => ({
+      ...prev,
+      [sourceType]: {
+        ...prev[sourceType],
+        [field]: value
+      }
+    }));
+  };
+
   const toggleSection = (sectionName) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -298,8 +370,12 @@ const NewWorkflow = () => {
         }
         break;
       case 2:
-        if (!skipFileUpload && !isFileUploaded) {
-          setUploadError('Please upload a file or skip file upload');
+        if (sourceType === 'file' && !isFileUploaded) {
+          setUploadError('Please upload a file or choose a different source type');
+          return false;
+        }
+        if (sourceType === 'api' && !sourceConfig.api.endpoint.trim()) {
+          setUploadError('Please enter an API endpoint');
           return false;
         }
         break;
@@ -322,28 +398,29 @@ const NewWorkflow = () => {
         }
         break;
       case 5:
-        if (!dagPath || !workflowId) {
-          setUploadError('DAG path and workflow ID are required');
-          return false;
+        for (const dest of destinationOutputs) {
+          if (!dest.name.trim()) {
+            setUploadError('All destinations must have a name');
+            return false;
+          }
+          if (dest.type === 'api' && !dest.config.api.endpoint.trim()) {
+            setUploadError('Please complete API endpoint configuration');
+            return false;
+          }
+          if (dest.type === 'database' && (!dest.config.database.connectionId || !dest.config.database.schema || !dest.config.database.tableName)) {
+            setUploadError('Please complete database configuration');
+            return false;
+          }
         }
         break;
       case 6:
-        if (destinationType === 'database' && (!databaseConfig.connectionId || !databaseConfig.schema || !databaseConfig.tableName)) {
-          setUploadError('Please complete all database configuration fields');
-          return false;
-        }
-        if (destinationType === 'api' && (!apiConfig.endpoint || !apiConfig.authToken)) {
-          setUploadError('Please complete all API configuration fields');
-          return false;
-        }
-        break;
-      case 7:
-        if (!workflowName.trim() || !workflowDescription.trim() || (!skipFileUpload && !isFileUploaded)) {
-          setUploadError('Please complete all required fields');
+        if (!workflowId) {
+          setUploadError('Workflow must be created before generating DAG');
           return false;
         }
         break;
     }
+    setUploadError('');
     return true;
   };
 
@@ -652,7 +729,7 @@ const NewWorkflow = () => {
           </h1>
           <div className="w-3/4">
             <p className="sg-page-header-description">
-              Create a new workflow by defining its details, inputs, parameters, and destination
+              Create a new workflow by defining its details, source, parameters, and destinations
             </p>
           </div>
         </div>
@@ -688,6 +765,7 @@ const NewWorkflow = () => {
         </div>
 
         <div className="w-3/4 space-y-8">
+          {/* Workflow Details */}
           <section
             id="workflow-details"
             ref={sectionRefs['workflow-details']}
@@ -763,19 +841,20 @@ const NewWorkflow = () => {
             </div>
           </section>
 
+          {/* Source Configuration */}
           <section
-            id="input-file"
-            ref={sectionRefs['input-file']}
+            id="source-configuration"
+            ref={sectionRefs['source-configuration']}
             className={`sg-dataset-tile ${currentStep !== 2 ? 'sg-hidden' : ''}`}
           >
             <div className="sg-section-separator">
               <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
-                <File className="h-5 w-5 text-[#0065bd]" />
-                Input File
+                <Upload className="h-5 w-5 text-[#0065bd]" />
+                Source Configuration
               </h2>
             </div>
             <p className="sg-dataset-description mb-6">
-              Upload an input file or skip for flexible structure
+              Configure the data source for your workflow
             </p>
             {uploadError && (
               <div className="sg-error mb-6">
@@ -789,38 +868,97 @@ const NewWorkflow = () => {
             )}
             <div className="space-y-6">
               <div>
-                <div className="sg-dataset-tile p-4">
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-900">
-                    <input
-                      type="checkbox"
-                      id="skipFileUpload"
-                      checked={skipFileUpload}
-                      onChange={(e) => setSkipFileUpload(e.target.checked)}
-                      className="h-4 w-4 border-gray-300 text-[#0065bd] focus:ring-[#0065bd]"
-                    />
-                    <FileX className="h-4 w-4 text-gray-500" />
-                    No fixed file structure (skip file upload)
-                  </label>
-                </div>
-                {!skipFileUpload && (
-                  <div className="sg-dataset-tile p-6 text-center">
-                    <input
-                      type="file"
-                      accept=".csv,.xlsx,.json"
-                      onChange={(e) => handleFileUpload(e.target.files[0])}
-                      disabled={isUploading}
-                      className="hidden"
-                      id="file-upload"
-                    />
-                    <label
-                      htmlFor="file-upload"
-                      className={`block text-sm font-medium ${uploadError ? 'text-red-600' : 'text-gray-600'} cursor-pointer`}
-                    >
-                      {isUploading ? 'Uploading...' : 'Click to upload or drag and drop (CSV, XLSX, JSON)'}
-                    </label>
+                <label className="block text-sm font-medium text-gray-900 mb-2">Source Type</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div
+                    onClick={() => setSourceType('file')}
+                    className={`sg-dataset-tile p-4 text-center cursor-pointer transition-colors ${
+                      sourceType === 'file' ? 'border-[#0065bd] bg-[#e6f3ff]' : 'border-gray-300'
+                    }`}
+                  >
+                    <File className="w-6 h-6 mb-2 text-gray-600 mx-auto" />
+                    <span className="text-sm font-medium text-gray-900">File Upload</span>
                   </div>
-                )}
+                  <div
+                    onClick={() => setSourceType('api')}
+                    className={`sg-dataset-tile p-4 text-center cursor-pointer transition-colors ${
+                      sourceType === 'api' ? 'border-[#0065bd] bg-[#e6f3ff]' : 'border-gray-300'
+                    }`}
+                  >
+                    <Link className="w-6 h-6 mb-2 text-gray-600 mx-auto" />
+                    <span className="text-sm font-medium text-gray-900">API Endpoint</span>
+                  </div>
+                  <div
+                    className="sg-dataset-tile p-4 text-center opacity-50 cursor-not-allowed"
+                  >
+                    <Database className="w-6 h-6 mb-2 text-gray-400 mx-auto" />
+                    <span className="text-sm font-medium text-gray-400">Database (Coming Soon)</span>
+                  </div>
+                </div>
               </div>
+
+              {sourceType === 'file' && (
+                <div className="sg-dataset-tile p-6">
+                  <h3 className="text-lg font-medium mb-4">File Upload Configuration</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">Upload File</label>
+                      <input
+                        type="file"
+                        accept=".csv,.xlsx,.json"
+                        onChange={(e) => handleFileUpload(e.target.files[0])}
+                        disabled={isUploading}
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      <p className="text-sm text-gray-600 mt-1">Supported formats: CSV, XLSX, JSON</p>
+                    </div>
+                    {isFileUploaded && (
+                      <div className="p-4 bg-green-50 border border-green-200 rounded">
+                        <p className="text-sm text-green-800">✓ File uploaded successfully</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {sourceType === 'api' && (
+                <div className="sg-dataset-tile p-6">
+                  <h3 className="text-lg font-medium mb-4">API Configuration</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">API Endpoint</label>
+                      <input
+                        type="url"
+                        value={sourceConfig.api.endpoint}
+                        onChange={(e) => handleSourceConfigChange('endpoint', e.target.value)}
+                        placeholder="https://api.example.com/data"
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">Authorization Token (Optional)</label>
+                      <input
+                        type="password"
+                        value={sourceConfig.api.authToken}
+                        onChange={(e) => handleSourceConfigChange('authToken', e.target.value)}
+                        placeholder="Bearer token or API key"
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">HTTP Method</label>
+                      <select
+                        value={sourceConfig.api.method}
+                        onChange={(e) => handleSourceConfigChange('method', e.target.value)}
+                        className="w-full"
+                      >
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex justify-between items-center mt-8">
               <button
@@ -845,6 +983,7 @@ const NewWorkflow = () => {
             </div>
           </section>
 
+          {/* Structure Preview */}
           <section
             id="structure-preview"
             ref={sectionRefs['structure-preview']}
@@ -857,7 +996,7 @@ const NewWorkflow = () => {
               </h2>
             </div>
             <p className="sg-dataset-description mb-6">
-              Review and adjust the file structure
+              Review and adjust the data structure
             </p>
             {uploadError && (
               <div className="sg-error mb-6">
@@ -871,14 +1010,8 @@ const NewWorkflow = () => {
             )}
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">File Structure Preview</label>
-                {skipFileUpload ? (
-                  <div className="sg-dataset-tile p-6 text-center">
-                    <FileX className="mx-auto h-8 w-8 text-gray-400" />
-                    <h3 className="sg-dataset-title mt-2">No file structure preview</h3>
-                    <p className="text-sm text-gray-600 mt-1">This workflow doesn't require a fixed file structure.</p>
-                  </div>
-                ) : parsedFileStructure.length > 0 ? (
+                <label className="block text-sm font-medium text-gray-900 mb-2">Data Structure Preview</label>
+                {sourceType === 'file' && parsedFileStructure.length > 0 ? (
                   <div className="sg-table">
                     <table className="w-full">
                       <thead>
@@ -913,9 +1046,19 @@ const NewWorkflow = () => {
                   </div>
                 ) : (
                   <div className="sg-dataset-tile p-6 text-center">
-                    <File className="mx-auto h-8 w-8 text-gray-400" />
-                    <h3 className="sg-dataset-title mt-2">No file uploaded</h3>
-                    <p className="text-sm text-gray-600 mt-1">Upload a file to preview its structure.</p>
+                    {sourceType === 'api' ? (
+                      <>
+                        <Link className="mx-auto h-8 w-8 text-gray-400" />
+                        <h3 className="sg-dataset-title mt-2">API Data Structure</h3>
+                        <p className="text-sm text-gray-600 mt-1">Data structure will be determined at runtime from the API response.</p>
+                      </>
+                    ) : (
+                      <>
+                        <File className="mx-auto h-8 w-8 text-gray-400" />
+                        <h3 className="sg-dataset-title mt-2">No file uploaded</h3>
+                        <p className="text-sm text-gray-600 mt-1">Upload a file to preview its structure.</p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -942,6 +1085,7 @@ const NewWorkflow = () => {
             </div>
           </section>
 
+          {/* Parameters */}
           <section
             id="parameters"
             ref={sectionRefs['parameters']}
@@ -1147,19 +1291,20 @@ const NewWorkflow = () => {
             </div>
           </section>
 
+          {/* Destination Configuration */}
           <section
-            id="dag-configuration"
-            ref={sectionRefs['dag-configuration']}
+            id="destination-configuration"
+            ref={sectionRefs['destination-configuration']}
             className={`sg-dataset-tile ${currentStep !== 5 ? 'sg-hidden' : ''}`}
           >
             <div className="sg-section-separator">
               <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
-                <GitBranch className="h-5 w-5 text-[#0065bd]" />
-                DAG Configuration
+                <Database className="h-5 w-5 text-[#0065bd]" />
+                Destination Configuration
               </h2>
             </div>
             <p className="sg-dataset-description mb-6">
-              Configure the DAG location in GitHub
+              Configure output destinations for your workflow
             </p>
             {uploadError && (
               <div className="sg-error mb-6">
@@ -1172,19 +1317,140 @@ const NewWorkflow = () => {
               </div>
             )}
             <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">DAG Configuration</label>
-                <div className="sg-dataset-tile">
-                  <p className="text-sm text-gray-600 mb-2">
-                    A default DAG will be created in the GitHub repository at:
-                  </p>
-                  <p className="text-sm font-medium text-gray-900">{dagPath || 'Path will be generated after file upload'}</p>
-                  <p className="text-sm text-gray-600 mt-2">
-                    The DAG will be stored in <code>dags/workflow_job_{workflowId || 'ID'}.py</code> in the repository
-                    <code>seanjnugent/DataWorkflowTool-Workflows</code>. You can edit the DAG code directly in GitHub after creation.
-                  </p>
+              {destinationOutputs.map((destination, index) => (
+                <div key={destination.id} className="sg-dataset-tile p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-medium">Output {index + 1}</h3>
+                    {destinationOutputs.length > 1 && (
+                      <button
+                        onClick={() => handleRemoveDestination(destination.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">Output Name</label>
+                      <input
+                        type="text"
+                        value={destination.name}
+                        onChange={(e) => handleDestinationChange(destination.id, 'name', e.target.value)}
+                        placeholder="e.g., processed_data"
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-2">Destination Type</label>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div
+                          onClick={() => handleDestinationChange(destination.id, 'type', 'csv')}
+                          className={`sg-dataset-tile p-4 text-center cursor-pointer transition-colors ${
+                            destination.type === 'csv' ? 'border-[#0065bd] bg-[#e6f3ff]' : 'border-gray-300'
+                          }`}
+                        >
+                          <FileSpreadsheet className="w-6 h-6 mb-2 text-gray-600 mx-auto" />
+                          <span className="text-sm font-medium text-gray-900">CSV File</span>
+                        </div>
+                        <div
+                          onClick={() => handleDestinationChange(destination.id, 'type', 'api')}
+                          className={`sg-dataset-tile p-4 text-center cursor-pointer transition-colors ${
+                            destination.type === 'api' ? 'border-[#0065bd] bg-[#e6f3ff]' : 'border-gray-300'
+                          }`}
+                        >
+                          <Waypoints className="w-6 h-6 mb-2 text-gray-600 mx-auto" />
+                          <span className="text-sm font-medium text-gray-900">API Endpoint</span>
+                        </div>
+                        <div
+                          className="sg-dataset-tile p-4 text-center opacity-50 cursor-not-allowed"
+                        >
+                          <Database className="w-6 h-6 mb-2 text-gray-400 mx-auto" />
+                          <span className="text-sm font-medium text-gray-400">Database (Coming Soon)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {destination.type === 'csv' && (
+                      <div className="space-y-4 p-4 bg-gray-50 rounded">
+                        <h4 className="font-medium">CSV Configuration</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2">Filename</label>
+                            <input
+                              type="text"
+                              value={destination.config.csv.filename}
+                              onChange={(e) => handleDestinationConfigChange(destination.id, 'csv', 'filename', e.target.value)}
+                              placeholder="output.csv"
+                              className="w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2">Path</label>
+                            <input
+                              type="text"
+                              value={destination.config.csv.path}
+                              onChange={(e) => handleDestinationConfigChange(destination.id, 'csv', 'path', e.target.value)}
+                              placeholder="outputs/"
+                              className="w-full"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {destination.type === 'api' && (
+                      <div className="space-y-4 p-4 bg-gray-50 rounded">
+                        <h4 className="font-medium">API Configuration</h4>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2">API Endpoint</label>
+                            <input
+                              type="url"
+                              value={destination.config.api.endpoint}
+                              onChange={(e) => handleDestinationConfigChange(destination.id, 'api', 'endpoint', e.target.value)}
+                              placeholder="https://api.example.com/data"
+                              className="w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2">Authorization Token</label>
+                            <input
+                              type="password"
+                              value={destination.config.api.authToken}
+                              onChange={(e) => handleDestinationConfigChange(destination.id, 'api', 'authToken', e.target.value)}
+                              placeholder="Bearer token or API key"
+                              className="w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-900 mb-2">HTTP Method</label>
+                            <select
+                              value={destination.config.api.method}
+                              onChange={(e) => handleDestinationConfigChange(destination.id, 'api', 'method', e.target.value)}
+                              className="w-full"
+                            >
+                              <option value="POST">POST</option>
+                              <option value="PUT">PUT</option>
+                              <option value="PATCH">PATCH</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              ))}
+              
+              <button
+                onClick={handleAddDestination}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#0065bd] border border-[#0065bd] rounded hover:bg-[#0065bd] hover:text-white transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Add Output Destination
+              </button>
             </div>
             <div className="flex justify-between items-center mt-8">
               <button
@@ -1208,19 +1474,20 @@ const NewWorkflow = () => {
             </div>
           </section>
 
+          {/* DAG Configuration */}
           <section
-            id="destination"
-            ref={sectionRefs['destination']}
+            id="dag-configuration"
+            ref={sectionRefs['dag-configuration']}
             className={`sg-dataset-tile ${currentStep !== 6 ? 'sg-hidden' : ''}`}
           >
             <div className="sg-section-separator">
               <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] flex items-center gap-2">
-                <Database className="h-5 w-5 text-[#0065bd]" />
-                Destination
+                <GitBranch className="h-5 w-5 text-[#0065bd]" />
+                DAG Configuration
               </h2>
             </div>
             <p className="sg-dataset-description mb-6">
-              Configure the output destination
+              Review the generated DAG configuration
             </p>
             {uploadError && (
               <div className="sg-error mb-6">
@@ -1233,125 +1500,36 @@ const NewWorkflow = () => {
               </div>
             )}
             <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-2">Output Destination</label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div
-                    onClick={() => setDestinationType('csv')}
-                    className={`sg-dataset-tile p-4 text-center cursor-pointer transition-colors ${
-                      destinationType === 'csv' ? 'border-[#0065bd] bg-[#e6f3ff]' : 'border-gray-300'
-                    }`}
-                  >
-                    <FileSpreadsheet className="w-6 h-6 mb-2 text-gray-600 mx-auto" />
-                    <span className="text-sm font-medium text-gray-900">CSV File</span>
+              <div className="sg-dataset-tile">
+                <h3 className="text-lg font-medium mb-4">DAG Template Preview</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  A DAG template will be generated based on your configuration. The workflow will include:
+                </p>
+                <ul className="list-disc list-inside space-y-2 text-sm text-gray-700">
+                  <li><strong>Source Operation:</strong> {sourceType === 'file' ? 'Load data from uploaded file' : sourceType === 'api' ? 'Fetch data from API endpoint' : 'Load data from database'}</li>
+                  <li><strong>Processing Operation:</strong> Transform and process the data with your defined parameters</li>
+                  <li><strong>Output Operations:</strong> Save results to {destinationOutputs.length} destination{destinationOutputs.length > 1 ? 's' : ''}</li>
+                </ul>
+                
+                {workflowId && (
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
+                    <p className="text-sm text-blue-800">
+                      ✓ DAG will be created at: <code>dags/workflow_job_{workflowId}.py</code>
+                    </p>
+                    <p className="text-sm text-blue-700 mt-1">
+                      Repository: <code>seanjnugent/DataWorkflowTool-Workflows</code>
+                    </p>
                   </div>
-                  <div
-                    onClick={() => setDestinationType('database')}
-                    className={`sg-dataset-tile p-4 text-center cursor-pointer transition-colors ${
-                      destinationType === 'database' ? 'border-[#0065bd] bg-[#e6f3ff]' : 'border-gray-300'
-                    }`}
-                  >
-                    <Database className="w-6 h-6 mb-2 text-gray-600 mx-auto" />
-                    <span className="text-sm font-medium text-gray-900">Database</span>
-                  </div>
-                  <div
-                    onClick={() => setDestinationType('api')}
-                    className={`sg-dataset-tile p-4 text-center cursor-pointer transition-colors ${
-                      destinationType === 'api' ? 'border-[#0065bd] bg-[#e6f3ff]' : 'border-gray-300'
-                    }`}
-                  >
-                    <Waypoints className="w-6 h-6 mb-2 text-gray-600 mx-auto" />
-                    <span className="text-sm font-medium text-gray-900">API</span>
+                )}
+
+                <div className="mt-4">
+                  <h4 className="font-medium mb-2">Configuration Summary:</h4>
+                  <div className="bg-gray-50 p-3 rounded text-sm">
+                    <div><strong>Source:</strong> {sourceType}</div>
+                    <div><strong>Parameters:</strong> {parameterSections.length} section{parameterSections.length !== 1 ? 's' : ''}</div>
+                    <div><strong>Outputs:</strong> {destinationOutputs.map(d => `${d.name} (${d.type})`).join(', ')}</div>
                   </div>
                 </div>
-                {destinationType === 'database' && (
-                  <div className="sg-dataset-tile mt-4 space-y-4">
-                    <label className="block text-sm font-medium text-gray-900 mb-2">Database Configuration</label>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-2">Database Connection</label>
-                      <div className="relative">
-                        <Database className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
-                        <select
-                          value={databaseConfig.connectionId}
-                          onChange={(e) => setDatabaseConfig((prev) => ({ ...prev, connectionId: e.target.value }))}
-                          className="w-full pl-10"
-                        >
-                          <option value="">Select a connection</option>
-                          {DATABASE_CONNECTIONS.map((conn) => (
-                            <option key={conn.id} value={conn.id}>{conn.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-2">Schema</label>
-                      <div className="relative">
-                        <Database className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
-                        <input
-                          type="text"
-                          value={databaseConfig.schema}
-                          onChange={(e) => setDatabaseConfig((prev) => ({ ...prev, schema: e.target.value }))}
-                          placeholder="e.g., public"
-                          className="w-full pl-10"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-2">Table Name</label>
-                      <div className="relative">
-                        <Database className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
-                        <input
-                          type="text"
-                          value={databaseConfig.tableName}
-                          onChange={(e) => setDatabaseConfig((prev) => ({ ...prev, tableName: e.target.value }))}
-                          placeholder="e.g., sales_data"
-                          className="w-full pl-10"
-                        />
-                      </div>
-                    </div>
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-900">
-                      <input
-                        type="checkbox"
-                        checked={databaseConfig.createIfNotExists}
-                        onChange={(e) => setDatabaseConfig((prev) => ({ ...prev, createIfNotExists: e.target.checked }))}
-                        className="h-4 w-4 border-gray-300 text-[#0065bd] focus:ring-[#0065bd]"
-                      />
-                      Create table if it doesn't exist
-                    </label>
-                    <p className="text-sm text-gray-600">Note: If the table exists, records will be appended.</p>
-                  </div>
-                )}
-                {destinationType === 'api' && (
-                  <div className="sg-dataset-tile mt-4 space-y-4">
-                    <label className="block text-sm font-medium text-gray-900 mb-2">API Configuration</label>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-2">API Endpoint</label>
-                      <div className="relative">
-                        <Waypoints className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
-                        <input
-                          type="text"
-                          value={apiConfig.endpoint}
-                          onChange={(e) => setApiConfig((prev) => ({ ...prev, endpoint: e.target.value }))}
-                          placeholder="e.g., https://api.example.com/endpoint"
-                          className="w-full pl-10"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-900 mb-2">Authorization Token</label>
-                      <div className="relative">
-                        <Waypoints className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
-                        <input
-                          type="text"
-                          value={apiConfig.authToken}
-                          onChange={(e) => setApiConfig((prev) => ({ ...prev, authToken: e.target.value }))}
-                          placeholder="e.g., Bearer xyz123..."
-                          className="w-full pl-10"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
             <div className="flex justify-between items-center mt-8">
@@ -1376,6 +1554,7 @@ const NewWorkflow = () => {
             </div>
           </section>
 
+          {/* Review */}
           <section
             id="review"
             ref={sectionRefs['review']}
@@ -1388,7 +1567,7 @@ const NewWorkflow = () => {
               </h2>
             </div>
             <p className="sg-dataset-description mb-6">
-              Review your workflow configuration
+              Review your workflow configuration before saving
             </p>
             {uploadError && (
               <div className="sg-error mb-6">
@@ -1404,9 +1583,12 @@ const NewWorkflow = () => {
               <div className="sg-dataset-tile">
                 <div className="flex justify-between items-center mb-4">
                   <div>
-                    <h3 className="sg-dataset-title">Workflow Name</h3>
+                    <h3 className="sg-dataset-title">Workflow Details</h3>
                     <p className="text-base text-gray-700 mt-1">
-                      {workflowName || <span className="text-red-600 font-medium">Not set</span>}
+                      <strong>Name:</strong> {workflowName || <span className="text-red-600 font-medium">Not set</span>}
+                    </p>
+                    <p className="text-base text-gray-700 mt-1">
+                      <strong>Description:</strong> {workflowDescription || <span className="text-red-600 font-medium">Not set</span>}
                     </p>
                   </div>
                   <button
@@ -1417,84 +1599,52 @@ const NewWorkflow = () => {
                   </button>
                 </div>
               </div>
+
               <div className="sg-dataset-tile">
                 <div className="flex justify-between items-center mb-4">
                   <div>
-                    <h3 className="sg-dataset-title">Description</h3>
+                    <h3 className="sg-dataset-title">Source Configuration</h3>
                     <p className="text-base text-gray-700 mt-1">
-                      {workflowDescription || <span className="text-red-600 font-medium">Not set</span>}
+                      <strong>Type:</strong> {sourceType}
                     </p>
+                    {sourceType === 'file' && (
+                      <p className="text-base text-gray-700 mt-1">
+                        <strong>Status:</strong> {isFileUploaded ? 'File uploaded' : <span className="text-red-600 font-medium">No file uploaded</span>}
+                      </p>
+                    )}
+                    {sourceType === 'api' && (
+                      <p className="text-base text-gray-700 mt-1">
+                        <strong>Endpoint:</strong> {sourceConfig.api.endpoint || <span className="text-red-600 font-medium">Not set</span>}
+                      </p>
+                    )}
                   </div>
                   <button
-                    onClick={() => handleJumpLinkClick('workflow-details')}
+                    onClick={() => handleJumpLinkClick('source-configuration')}
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
                   >
                     Edit
                   </button>
                 </div>
               </div>
-              <div className="sg-dataset-tile">
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <h3 className="sg-dataset-title">User ID</h3>
-                    <p className="text-base text-gray-700 mt-1">
-                      {userId || <span className="text-red-600 font-medium">Not set</span>}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleJumpLinkClick('workflow-details')}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-                  >
-                    Edit
-                  </button>
-                </div>
-              </div>
-              <div className="sg-dataset-tile">
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <h3 className="sg-dataset-title">Input File</h3>
-                    <p className="text-base text-gray-700 mt-1">
-                      {skipFileUpload ? 'Skipped (no fixed structure)' : isFileUploaded ? 'File uploaded' : <span className="text-red-600 font-medium">No file uploaded</span>}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleJumpLinkClick('input-file')}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-                  >
-                    Edit
-                  </button>
-                </div>
-              </div>
+
               <div className="sg-dataset-tile">
                 <div className="flex justify-between items-center mb-4">
                   <div>
                     <h3 className="sg-dataset-title">Parameters</h3>
-                    <div className="mt-4 space-y-5">
-                      {parameterSections.length === 0 ? (
-                        <p className="text-base text-gray-700 mt-1">No parameters set</p>
-                      ) : (
-                        parameterSections.map((section, sectionIndex) => (
-                          <div key={sectionIndex}>
-                            <h4 className="text-md font-medium text-gray-800 mb-2 border-b border-gray-200 pb-1">
-                              {section.name || `Section ${sectionIndex + 1}`}
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                              {section.parameters.map((param, paramIndex) => (
-                                <div key={paramIndex}>
-                                  <p className="text-sm font-medium text-gray-600">{param.description || param.name}</p>
-                                  <p className="text-base text-gray-800 mt-0.5">
-                                    {param.name} ({param.type}, {param.mandatory ? 'Required' : 'Optional'})
-                                    {param.type === 'select' && param.options?.length > 0 && (
-                                      <span> [Options: {param.options.map(opt => `${opt.label} (${opt.value})`).join(', ')}]</span>
-                                    )}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
+                    {parameterSections.length === 0 ? (
+                      <p className="text-base text-gray-700 mt-1">No parameters configured</p>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        {parameterSections.map((section, index) => (
+                          <div key={index}>
+                            <p className="text-sm font-medium text-gray-800">{section.name}</p>
+                            <p className="text-sm text-gray-600 ml-4">
+                              {section.parameters.length} parameter{section.parameters.length !== 1 ? 's' : ''}
+                            </p>
                           </div>
-                        ))
-                      )}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => handleJumpLinkClick('parameters')}
@@ -1504,56 +1654,50 @@ const NewWorkflow = () => {
                   </button>
                 </div>
               </div>
+
               <div className="sg-dataset-tile">
                 <div className="flex justify-between items-center mb-4">
                   <div>
-                    <h3 className="sg-dataset-title">DAG Path</h3>
+                    <h3 className="sg-dataset-title">Destination Configuration</h3>
                     <p className="text-base text-gray-700 mt-1">
-                      {dagPath || <span className="text-red-600 font-medium">Not set</span>}
+                      <strong>Number of outputs:</strong> {destinationOutputs.length}
                     </p>
+                    <div className="mt-2 space-y-2">
+                      {destinationOutputs.map((dest, index) => (
+                        <div key={dest.id} className="text-sm">
+                          <span className="font-medium">{dest.name}</span> ({dest.type})
+                          {dest.type === 'csv' && dest.config.csv.filename && (
+                            <span className="text-gray-600 ml-2">→ {dest.config.csv.path}{dest.config.csv.filename}</span>
+                          )}
+                          {dest.type === 'api' && dest.config.api.endpoint && (
+                            <span className="text-gray-600 ml-2">→ {dest.config.api.endpoint}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <button
-                    onClick={() => handleJumpLinkClick('dag-configuration')}
+                    onClick={() => handleJumpLinkClick('destination-configuration')}
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
                   >
                     Edit
                   </button>
                 </div>
               </div>
+
               <div className="sg-dataset-tile">
                 <div className="flex justify-between items-center mb-4">
                   <div>
-                    <h3 className="sg-dataset-title">Output Destination</h3>
-                    <p className="text-base text-gray-700 mt-1 capitalize">{destinationType}</p>
-                    {destinationType === 'database' && (
-                      <div className="space-y-2 mt-2">
-                        <p className="text-base text-gray-700">
-                          Connection: {DATABASE_CONNECTIONS.find((conn) => conn.id === databaseConfig.connectionId)?.name || <span className="text-red-600 font-medium">Not set</span>}
-                        </p>
-                        <p className="text-base text-gray-700">
-                          Schema: {databaseConfig.schema || <span className="text-red-600 font-medium">Not set</span>}
-                        </p>
-                        <p className="text-base text-gray-700">
-                          Table: {databaseConfig.tableName || <span className="text-red-600 font-medium">Not set</span>}
-                        </p>
-                        <p className="text-base text-gray-700">
-                          Create if not exists: {databaseConfig.createIfNotExists ? 'Yes' : 'No'}
-                        </p>
-                      </div>
-                    )}
-                    {destinationType === 'api' && (
-                      <div className="space-y-2 mt-2">
-                        <p className="text-base text-gray-700">
-                          Endpoint: {apiConfig.endpoint || <span className="text-red-600 font-medium">Not set</span>}
-                        </p>
-                        <p className="text-base text-gray-700">
-                          Token: {apiConfig.authToken ? 'Set' : <span className="text-red-600 font-medium">Not set</span>}
-                        </p>
-                      </div>
-                    )}
+                    <h3 className="sg-dataset-title">DAG Configuration</h3>
+                    <p className="text-base text-gray-700 mt-1">
+                      <strong>Template:</strong> Auto-generated based on configuration
+                    </p>
+                    <p className="text-base text-gray-700 mt-1">
+                      <strong>Operations:</strong> Load → Process → Save ({destinationOutputs.length} output{destinationOutputs.length !== 1 ? 's' : ''})
+                    </p>
                   </div>
                   <button
-                    onClick={() => handleJumpLinkClick('destination')}
+                    onClick={() => handleJumpLinkClick('dag-configuration')}
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
                   >
                     Edit

@@ -26,13 +26,13 @@ const CustomTooltip = ({ content, children }) => {
 };
 
 // Input Structure Modal Component
-const InputStructureModal = ({ isOpen, onClose, inputStructure }) => {
+const InputStructureModal = ({ isOpen, onClose, fileName, structure }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white max-w-4xl w-full max-h-[90vh] flex flex-col rounded-lg shadow-xl border border-gray-200">
         <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-          <h4 className="text-xl font-semibold text-gray-900">Input File Structure</h4>
+          <h4 className="text-xl font-semibold text-gray-900">Input File Structure: {fileName}</h4>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X className="h-5 w-5" />
           </button>
@@ -49,8 +49,8 @@ const InputStructureModal = ({ isOpen, onClose, inputStructure }) => {
                 </tr>
               </thead>
               <tbody>
-                {inputStructure.columns.map((col, index) => (
-                  <tr key={col.name}>
+                {(structure || []).map((col, index) => (
+                  <tr key={`${fileName}-${col.name}-${index}`}>
                     <td className="font-medium">{col.name}</td>
                     <td>{col.type}</td>
                     <td>
@@ -373,7 +373,7 @@ const Workflow = () => {
   const [workflowDetails, setWorkflowDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
-  const [showInputModal, setShowInputModal] = useState(false);
+  const [showInputModal, setShowInputModal] = useState({ isOpen: false, fileName: '', structure: [] });
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showParamsModal, setShowParamsModal] = useState(false);
   const [showConfigTemplateModal, setShowConfigTemplateModal] = useState(false);
@@ -383,7 +383,7 @@ const Workflow = () => {
   const [activeSection, setActiveSection] = useState('overview');
 
   useEffect(() => {
-    const sections = ['overview', 'run-history', 'input-structure', 'parameters', 'destination-config', 'config-template'];
+    const sections = ['overview', 'run-history', 'input-structure', 'parameters', 'destination-config', 'config-template', 'version-control'];
     const observerOptions = {
       root: null,
       rootMargin: '-45px 0px -60% 0px',
@@ -451,13 +451,13 @@ const Workflow = () => {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    const headers = workflowDetails?.workflow?.input_structure?.columns.map(col => col.name).join(',');
+  const handleDownloadTemplate = (file) => {
+    const headers = file?.structure?.map(col => col.name).join(',');
     const blob = new Blob([headers], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${workflowDetails?.workflow?.name}_template.csv`;
+    a.download = `${file.name}_template.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -567,11 +567,11 @@ const Workflow = () => {
   const { workflow, recent_runs } = workflowDetails;
   const isDagReady = workflow?.dag_status === 'ready';
   const isActiveSection = (sectionId) => activeSection === sectionId;
+  const inputFiles = Array.isArray(workflow?.input_file_path) ? workflow.input_file_path : [];
 
   return (
     <div className="min-h-screen bg-white">
       <style jsx>{`
-        /* Scottish Government Design System CSS variables */
         :root {
           --sg-blue: #0065bd;
           --sg-blue-dark: #005eb8;
@@ -859,14 +859,16 @@ const Workflow = () => {
                       Parameters
                     </button>
                   </li>
-                  <li className="sg-contents-item">
-                    <button
-                      onClick={() => handleJumpLinkClick('destination-config')}
-                      className={`sg-contents-link w-full text-left ${isActiveSection('destination-config') ? 'sg-contents-link-active' : ''}`}
-                    >
-                      Destination config
-                    </button>
-                  </li>
+                  {workflow?.destination?.toLowerCase() === 'api' && (
+                    <li className="sg-contents-item">
+                      <button
+                        onClick={() => handleJumpLinkClick('destination-config')}
+                        className={`sg-contents-link w-full text-left ${isActiveSection('destination-config') ? 'sg-contents-link-active' : ''}`}
+                      >
+                        Destination config
+                      </button>
+                    </li>
+                  )}
                   <li className="sg-contents-item">
                     <button
                       onClick={() => handleJumpLinkClick('config-template')}
@@ -875,7 +877,7 @@ const Workflow = () => {
                       Config template
                     </button>
                   </li>
-                                    <li className="sg-contents-item">
+                  <li className="sg-contents-item">
                     <button
                       onClick={() => handleJumpLinkClick('version-control')}
                       className={`sg-contents-link w-full text-left ${isActiveSection('version-control') ? 'sg-contents-link-active' : ''}`}
@@ -1019,149 +1021,123 @@ const Workflow = () => {
             </section>
 
             {/* Input Structure Section */}
-            {workflow?.requires_file && (
-              <section id="input-structure" className="mb-12">
-                <div className="sg-section-separator">
-                  <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
-                    Input structure
-                  </h2>
-                </div>
-                
-                <div className="prose prose-lg max-w-none">
-                  <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
-                    Required input format for this workflow. You can view the structure details or download a template file.
-                  </p>
-                  <div className="space-y-6">
-                    <div className="sg-dataset-tile">
-                      <div className="flex items-start justify-between mb-3">
-                        <h3 className="sg-dataset-title flex-1 mr-4">
-                          Input file structure
-                        </h3>
-                        <div className="flex gap-3">
-                          <button
-                            onClick={() => setShowInputModal(true)}
-                            className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Structure
-                          </button>
-                          <button
-                            onClick={handleDownloadTemplate}
-                            className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
-                          >
-                            <Download className="h-4 w-4 mr-2" />
-                            Download Template
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3">
-                        <span>Format: CSV</span>
-                        <span>Columns: {workflow?.input_structure?.columns?.length || 0}</span>
-                        <span>Required fields: {workflow?.input_structure?.columns?.filter(col => col.required)?.length || 0}</span>
-                      </div>
+           {/* Input Structure Section */}
+{workflow?.requires_file && (
+  <section id="input-structure" className="mb-12">
+    <div className="sg-section-separator">
+      <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px] mb-2">
+        Input structure
+      </h2>
+    </div>
+    
+    <div className="prose prose-lg max-w-none">
+      <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+        Required input files and their formats for this workflow. You can view the structure details or download a template file for each.
+      </p>
+      
+      <div className="space-y-6">
+        {Array.isArray(inputFiles) && inputFiles.length > 0 ? (
+          inputFiles.map((file, index) => {
+            // Safely extract file properties with defaults
+            const fileName = file?.name || `Input File ${index + 1}`;
+            const fileFormat = (file?.format || file?.supported_types?.[0] || 'unknown').toUpperCase();
+            const fileStructure = Array.isArray(file?.structure) ? file.structure : [];
+            const requiredFieldsCount = fileStructure.filter(col => col?.required).length;
+            const hasStructure = fileStructure.length > 0;
+            const supportedTypes = Array.isArray(file?.supported_types) 
+              ? file.supported_types.join(', ') 
+              : 'Not specified';
 
-                      <p className="sg-dataset-description">
-                        View the detailed structure of required input columns or download a CSV template with the correct headers.
-                      </p>
-                    </div>
+            return (
+              <div key={`${fileName}-${index}`} className="sg-dataset-tile">
+                <div className="flex items-start justify-between mb-3">
+                  <h3 className="sg-dataset-title flex-1 mr-4">
+                    {fileName}
+                  </h3>
+                  <div className="flex gap-3 flex-wrap">
+                    {hasStructure && (
+                      <button
+                        onClick={() => setShowInputModal({ 
+                          isOpen: true, 
+                          fileName, 
+                          structure: fileStructure 
+                        })}
+                        className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Structure
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDownloadTemplate({
+                        name: fileName,
+                        structure: fileStructure,
+                        format: fileFormat.toLowerCase()
+                      })}
+                      className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+                      disabled={!hasStructure}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download Template
+                    </button>
                   </div>
                 </div>
-                <InputStructureModal
-                  isOpen={showInputModal}
-                  onClose={() => setShowInputModal(false)}
-                  inputStructure={workflow?.input_structure || { columns: [] }}
-                />
-              </section>
-            )}
+                
+                <div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3 flex-wrap">
+                  <span>Format: {fileFormat}</span>
+                  {hasStructure && (
+                    <>
+                      <span>Columns: {fileStructure.length}</span>
+                      <span>Required fields: {requiredFieldsCount}</span>
+                    </>
+                  )}
+                  <span>Supported types: {supportedTypes}</span>
+                </div>
 
-            {/* Parameters Section */}
-            {/* Parameters Section */}
-<section id="parameters" className="mb-12">
-  <div className="sg-section-separator">
-    <div className="flex items-center justify-between mb-2">
-      <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px]">
-        Parameters
-      </h2>
-      <button 
-        onClick={() => setShowParamsModal(true)}
-        className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
-      >
-        <Pencil className="h-4 w-4 mr-2" />
-        Edit
-      </button>
-    </div>
-  </div>
-  
-  <div className="prose prose-lg max-w-none">
-    <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
-      Configuration parameters for this workflow. These parameters control the workflow execution behavior.
-    </p>
-    {workflow?.parameters?.length > 0 && workflow.parameters.some(section => section.parameters?.length > 0) ? (
-      <div className="overflow-x-auto">
-        {workflow.parameters.map((section, index) => (
-          <div key={index} className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">{section.section || 'Unnamed Section'}</h3>
-            <table className="sg-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Requirement</th>
-                  <th>Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {section.parameters.map((param) => (
-                  <tr key={param.name}>
-                    <td className="font-medium">{param.name}</td>
-                    <td>{param.type}</td>
-                    <td>
-                      <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${param.mandatory ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {param.mandatory ? 'Required' : 'Optional'}
-                      </span>
-                    </td>
-                    <td>
-                      {param.description || 'No description'}
-                      {param.options && (
-                        <p className="text-sm text-gray-600 mt-1">
-                          Options: {param.options.map(opt => opt.label).join(', ')}
-                        </p>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                <p className="sg-dataset-description">
+                  {hasStructure ? 
+                    'View the detailed structure of required input columns or download a template with the correct headers.' :
+                    'No structure defined. Please contact the workflow maintainer for file specifications.'
+                  }
+                </p>
+              </div>
+            );
+          })
+        ) : (
+          <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+            <FileSpreadsheet className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              {inputFiles === undefined ? 'Loading input structure...' : 'No input files defined'}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {inputFiles === undefined 
+                ? 'Please wait while we load the input requirements' 
+                : 'This workflow does not specify any input files.'}
+            </p>
           </div>
-        ))}
+        )}
       </div>
-    ) : (
-      <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-        <Settings className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No parameters configured</h3>
-        <p className="text-sm text-gray-500">This workflow does not have any configurable parameters.</p>
-      </div>
-    )}
-  </div>
-  <JsonEditModal
-    isOpen={showParamsModal}
-    onClose={() => setShowParamsModal(false)}
-    title="Edit Workflow Parameters"
-    jsonData={workflow?.parameters || []}
-    onSave={handleSaveParameters}
-  />
-</section>
+    </div>
 
-            {/* Destination Config Section */}
-            <section id="destination-config" className="mb-12">
+    {/* Input Structure Modal */}
+    <InputStructureModal
+      isOpen={showInputModal.isOpen}
+      onClose={() => setShowInputModal({ isOpen: false, fileName: '', structure: [] })}
+      fileName={showInputModal.fileName}
+      structure={showInputModal.structure}
+    />
+  </section>
+)}
+
+            {/* Parameters Section */}
+            <section id="parameters" className="mb-12">
               <div className="sg-section-separator">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px]">
-                    Destination config
+                    Parameters
                   </h2>
                   <button 
-                    onClick={() => setShowConfigModal(true)}
+                    onClick={() => setShowParamsModal(true)}
                     className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
                   >
                     <Pencil className="h-4 w-4 mr-2" />
@@ -1172,36 +1148,115 @@ const Workflow = () => {
               
               <div className="prose prose-lg max-w-none">
                 <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
-                  Configuration for the API destination. This defines where workflow results are sent.
+                  Configuration parameters for this workflow. These parameters control the workflow execution behavior.
                 </p>
-                <div className="overflow-x-auto">
-                  <table className="sg-table">
-                    <tbody>
-                      <tr>
-                        <th className="w-1/3">API URL</th>
-                        <td>{workflow?.destination_config?.api_url || 'Not configured'}</td>
-                      </tr>
-                      <tr>
-                        <th>API Token</th>
-                        <td>
-                          <CustomTooltip content="The API token is encrypted at the database level with a Fernet key and is decrypted only at runtime.">
-                            <span className="text-sm text-gray-500">
-                              {workflow?.destination_config?.api_token ? 'Configured (encrypted)' : 'Not configured'}
-                            </span>
-                          </CustomTooltip>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                {workflow?.parameters?.length > 0 && workflow.parameters.some(section => section.parameters?.length > 0) ? (
+                  <div className="overflow-x-auto">
+                    {workflow.parameters.map((section, index) => (
+                      <div key={index} className="mb-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">{section.section || 'Unnamed Section'}</h3>
+                        <table className="sg-table">
+                          <thead>
+                            <tr>
+                              <th>Name</th>
+                              <th>Type</th>
+                              <th>Requirement</th>
+                              <th>Description</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {section.parameters.map((param) => (
+                              <tr key={param.name}>
+                                <td className="font-medium">{param.name}</td>
+                                <td>{param.type}</td>
+                                <td>
+                                  <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${param.mandatory ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                                    {param.mandatory ? 'Required' : 'Optional'}
+                                  </span>
+                                </td>
+                                <td>
+                                  {param.description || 'No description'}
+                                  {param.options && (
+                                    <p className="text-sm text-gray-600 mt-1">
+                                      Options: {param.options.map(opt => opt.label).join(', ')}
+                                    </p>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+                    <Settings className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No parameters configured</h3>
+                    <p className="text-sm text-gray-500">This workflow does not have any configurable parameters.</p>
+                  </div>
+                )}
               </div>
-              <DestinationConfigModal
-                isOpen={showConfigModal}
-                onClose={() => setShowConfigModal(false)}
-                initialConfig={workflow?.destination_config || {}}
-                onSave={handleSaveDestinationConfig}
+              <JsonEditModal
+                isOpen={showParamsModal}
+                onClose={() => setShowParamsModal(false)}
+                title="Edit Workflow Parameters"
+                jsonData={workflow?.parameters || []}
+                onSave={handleSaveParameters}
               />
             </section>
+
+            {/* Destination Config Section */}
+            {workflow?.destination?.toLowerCase() === 'api' && (
+              <section id="destination-config" className="mb-12">
+                <div className="sg-section-separator">
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-[24px] font-bold text-black leading-[32px] tracking-[0.15px]">
+                      Destination config
+                    </h2>
+                    <button 
+                      onClick={() => setShowConfigModal(true)}
+                      className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="prose prose-lg max-w-none">
+                  <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                    Configuration for the API destination. This defines where workflow results are sent.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="sg-table">
+                      <tbody>
+                        <tr>
+                          <th className="w-1/3">API URL</th>
+                          <td>{workflow?.destination_config?.api_url || 'Not configured'}</td>
+                        </tr>
+                        <tr>
+                          <th>API Token</th>
+                          <td>
+                            <CustomTooltip content="The API token is encrypted at the database level with a Fernet key and is decrypted only at runtime.">
+                              <span className="text-sm text-gray-500">
+                                {workflow?.destination_config?.api_token ? 'Configured (encrypted)' : 'N/A'}
+                              </span>
+                            </CustomTooltip>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <DestinationConfigModal
+                  isOpen={showConfigModal}
+                  onClose={() => setShowConfigModal(false)}
+                  initialConfig={workflow?.destination_config || {}}
+                  onSave={handleSaveDestinationConfig}
+                />
+              </section>
+            )}
 
             {/* Configuration Template Section */}
             <section id="config-template" className="mb-12">
@@ -1300,38 +1355,35 @@ const Workflow = () => {
                       Access the source code and version history for this workflow on GitHub. View commits, changes, and collaborate with the development team.
                     </p>
                     <div className="mt-4">
-                <ul className="list-disc list-inside space-y-2 mb-8 ml-4 text-[19px] leading-[32px] tracking-[0.15px] text-[#333333]">
-                  <li>
-                    <a 
-                      href="#/github-workflow" 
-                      className="text-[#0065bd] hover:text-[#004a9f] underline hover:no-underline transition-colors duration-200"
-                    >
-                      GitHub repository: {workflow?.name} workflow
-                    </a>
-                  </li>
-                  <li>
-                    <a 
-                      href="#/github-platform" 
-                      className="text-[#0065bd] hover:text-[#004a9f] underline hover:no-underline transition-colors duration-200"
-                    >
-                      GitHub repository: Workflow manager platform
-                    </a>
-                  </li>
-                  <li>
-                    <a 
-                      href="#/github-guide" 
-                      className="text-[#0065bd] hover:text-[#004a9f] underline hover:no-underline transition-colors duration-200"
-                    >
-                      GitHub user guide
-                    </a>
-                  </li>
-                </ul>
-                                  </div>
-
+                      <ul className="list-disc list-inside space-y-2 mb-8 ml-4 text-[19px] leading-[32px] tracking-[0.15px] text-[#333333]">
+                        <li>
+                          <a 
+                            href="#/github-workflow" 
+                            className="text-[#0065bd] hover:text-[#004a9f] underline hover:no-underline transition-colors duration-200"
+                          >
+                            GitHub repository: {workflow?.name} workflow
+                          </a>
+                        </li>
+                        <li>
+                          <a 
+                            href="#/github-platform" 
+                            className="text-[#0065bd] hover:text-[#004a9f] underline hover:no-underline transition-colors duration-200"
+                          >
+                            GitHub repository: Workflow manager platform
+                          </a>
+                        </li>
+                        <li>
+                          <a 
+                            href="#/github-guide" 
+                            className="text-[#0065bd] hover:text-[#004a9f] underline hover:no-underline transition-colors duration-200"
+                          >
+                            GitHub user guide
+                          </a>
+                        </li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
-
-
               </div>
             </section>
           </div>

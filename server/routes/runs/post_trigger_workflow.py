@@ -1,17 +1,17 @@
 from fastapi import APIRouter, File, UploadFile, Form, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import text  
 from typing import Dict, Any, List
 import json
 import uuid
 import logging
 import os
-import pandas as pd
-from sqlalchemy import text
-import requests
 import boto3
 from botocore.exceptions import ClientError
 from app.file_parser import parser_map
 from ..get_health_check import get_db  
+import datetime
+import requests
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/runs", tags=["runs"])
@@ -34,6 +34,7 @@ if S3_ENDPOINT:
 
 s3_client = boto3.client('s3', **s3_client_config)
 
+# Update the validate_workflow function
 def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
     """Validate and retrieve workflow configuration from database"""
     try:
@@ -42,7 +43,8 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
                 SELECT id, name, input_file_path, input_structure, destination,
                        config_template, default_parameters, parameters, resources_config,
                        dagster_location_name, dagster_repository_name, requires_file,
-                       output_file_pattern, supported_file_types, destination_config, source_config
+                       output_file_pattern, output_file_paths, supported_file_types, 
+                       destination_config, source_config
                 FROM workflow.workflow
                 WHERE id = :workflow_id AND status = 'Active'
             """),
@@ -66,14 +68,16 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
             "dagster_location_name": workflow_row.dagster_location_name or "server.app.dagster.repo",
             "dagster_repository_name": workflow_row.dagster_repository_name or "__repository__",
             "requires_file": workflow_row.requires_file,
-            "output_file_pattern": workflow_row.output_file_pattern,
+            "output_file_pattern": workflow_row.output_file_pattern,  # Keep for backward compatibility
+            "output_file_paths": workflow_row.output_file_paths,      # New dynamic output config
             "supported_file_types": workflow_row.supported_file_types,
             "destination_config": workflow_row.destination_config,
             "source_config": workflow_row.source_config
         }
 
         json_fields = ["input_structure", "config_template", "default_parameters", "parameters", 
-                       "resources_config", "supported_file_types", "destination_config", "source_config"]
+                       "resources_config", "supported_file_types", "destination_config", 
+                       "source_config", "output_file_paths"]
         for field in json_fields:
             if workflow[field] and isinstance(workflow[field], str):
                 try:
@@ -86,7 +90,7 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
                     workflow[field] = []
                 elif field == "supported_file_types":
                     workflow[field] = ["csv", "xlsx", "json"]
-                elif field == "input_file_path":
+                elif field in ["input_file_path", "output_file_paths"]:
                     workflow[field] = []
                 else:
                     workflow[field] = {}
@@ -95,14 +99,15 @@ def validate_workflow(workflow_id: int, db: Session) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error validating workflow {workflow_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Workflow validation failed: {str(e)}")
-
+    
 async def handle_single_file_upload(file: UploadFile, workflow: Dict[str, Any], 
-                                  file_config: Dict[str, Any] = None) -> str:
-    """Handle single file upload with optional file config validation"""
+                                  file_config: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Handle single file upload without structure validation"""
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
     file_ext = file.filename.split('.')[-1].lower()
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # Use file_config supported types if provided, otherwise workflow default
     if file_config and "supported_types" in file_config:
@@ -116,19 +121,11 @@ async def handle_single_file_upload(file: UploadFile, workflow: Dict[str, Any],
             detail=f"Unsupported file type: {file_ext}. Supported types: {', '.join(supported_types)}"
         )
 
-    if file_ext not in parser_map:
-        raise HTTPException(status_code=400, detail=f"No parser available for file type: {file_ext}")
-
     try:
         content = await file.read()
-        df = await parser_map[file_ext].parse(content)
-
-        if workflow.get("input_structure"):
-            validate_file_structure(df, workflow["input_structure"])
-
         workflow_id = workflow["id"]
         file_name_part = file_config["name"] if file_config else "input"
-        s3_key = f"runs/{workflow_id}/{file_name_part}_{uuid.uuid4()}.{file_ext}"
+        s3_key = f"runs/{workflow_id}/{file_name_part}_{timestamp}.{file_ext}"
 
         s3_client.put_object(
             Bucket=S3_BUCKET,
@@ -138,8 +135,11 @@ async def handle_single_file_upload(file: UploadFile, workflow: Dict[str, Any],
         )
 
         logger.info(f"File uploaded to S3: {S3_BUCKET}/{s3_key}")
-        return f"{S3_BUCKET}/{s3_key}"
-
+        return {
+            "path": f"{S3_BUCKET}/{s3_key}",
+            "name": file_name_part,
+            "description": file_config.get("description", f"{file_name_part.replace('_', ' ').title()} input file") if file_config else "Input file"
+        }
     except ClientError as e:
         logger.error(f"S3 upload failed: {e.response['Error']['Message']}")
         raise HTTPException(
@@ -151,28 +151,28 @@ async def handle_single_file_upload(file: UploadFile, workflow: Dict[str, Any],
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
 async def handle_multiple_file_uploads(workflow: Dict[str, Any], single_file: UploadFile, 
-                                     file_mapping: str, request: Request) -> Dict[str, str]:
+                                     file_mapping: str, request: Request) -> List[Dict[str, Any]]:
     """Handle multiple file uploads with backward compatibility"""
     input_config = workflow.get("input_file_path", [])
     
     # Handle backward compatibility - single file workflows
     if not isinstance(input_config, list):
         if single_file and single_file.filename:
-            path = await handle_single_file_upload(single_file, workflow)
-            return {"input_file": path}
-        return {}
+            file_info = await handle_single_file_upload(single_file, workflow)
+            return [file_info]
+        return []
     
     # Handle new multi-file structure
     if len(input_config) == 0:
-        return {}
+        return []
     
     # If only one file config and it's the legacy 'input_file', use single file upload
     if len(input_config) == 1 and input_config[0].get("name") == "input_file" and single_file:
-        path = await handle_single_file_upload(single_file, workflow)
-        return {"input_file": path}
+        file_info = await handle_single_file_upload(single_file, workflow, input_config[0])
+        return [file_info]
     
     # Handle multiple files
-    file_paths = {}
+    file_paths = []
     
     try:
         mapping = json.loads(file_mapping) if file_mapping else {}
@@ -189,33 +189,11 @@ async def handle_multiple_file_uploads(workflow: Dict[str, Any], single_file: Up
         if form_field in form:
             uploaded_file = form[form_field]
             if hasattr(uploaded_file, 'filename') and uploaded_file.filename:
-                file_path = await handle_single_file_upload(uploaded_file, workflow, file_config)
-                file_paths[file_name] = file_path
+                file_info = await handle_single_file_upload(uploaded_file, workflow, file_config)
+                file_paths.append(file_info)
     
+    logger.debug(f"Processed {len(file_paths)} input files: {file_paths}")
     return file_paths
-
-def validate_file_structure(df: pd.DataFrame, expected_structure: Dict[str, Any]) -> None:
-    """Validate uploaded file structure against expected schema"""
-    if not expected_structure.get("columns"):
-        return
-
-    try:
-        actual_columns = set(df.columns)
-        expected_columns = {col["name"] for col in expected_structure["columns"]}
-
-        if actual_columns != expected_columns:
-            missing = expected_columns - actual_columns
-            extra = actual_columns - expected_columns
-            errors = []
-            if missing:
-                errors.append(f"Missing columns: {', '.join(missing)}")
-            if extra:
-                errors.append(f"Unexpected columns: {', '.join(extra)}")
-            if errors:
-                raise HTTPException(status_code=400, detail="; ".join(errors))
-    except Exception as e:
-        logger.error(f"File structure validation failed: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"File structure validation failed: {str(e)}")
 
 def validate_parameters(input_params: Dict[str, Any], parameters: List[Dict[str, Any]]) -> None:
     """Validate input parameters against workflow requirements"""
@@ -268,7 +246,7 @@ def validate_parameters(input_params: Dict[str, Any], parameters: List[Dict[str,
         logger.error(f"Parameter validation failed: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Parameter validation failed: {str(e)}")
 
-def validate_required_files(workflow: Dict[str, Any], input_paths: Dict[str, str]) -> None:
+def validate_required_files(workflow: Dict[str, Any], input_paths: List[Dict[str, Any]]) -> None:
     """Validate that all required files have been uploaded"""
     input_config = workflow.get("input_file_path", [])
     
@@ -282,7 +260,7 @@ def validate_required_files(workflow: Dict[str, Any], input_paths: Dict[str, str
     for file_config in input_config:
         if file_config.get("required", False):
             file_name = file_config["name"]
-            if file_name not in input_paths or not input_paths[file_name]:
+            if not any(file_info["name"] == file_name for file_info in input_paths):
                 description = file_config.get("description", file_name)
                 raise HTTPException(
                     status_code=400, 
@@ -310,42 +288,31 @@ def substitute_template_variables(obj, vars_dict):
         return result
     return obj
 
-def build_dagster_config(workflow: Dict[str, Any], input_paths: Dict[str, str], 
+def build_dagster_config(workflow: Dict[str, Any], input_paths: List[Dict[str, Any]], 
                         parameters: Dict[str, Any]) -> Dict[str, Any]:
-    """Build Dagster configuration from workflow template with multiple file support"""
+    """Build Dagster configuration from workflow template with dynamic output support"""
     workflow_id = workflow["id"]
     run_uuid = str(uuid.uuid4())
-    output_pattern = workflow.get("output_file_pattern", "workflow-files/outputs/output_{workflow_id}_{run_uuid}.json")
-    output_extension = workflow.get("destination", "json").lower()
-    output_path = output_pattern.replace("{workflow_id}", str(workflow_id)) \
-                                .replace("{run_uuid}", run_uuid) \
-                                .replace("{output_extension}", output_extension)
-
-    # Build template variables with file paths
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Create template variables with timestamp
     template_vars = {
         "workflow_id": int(workflow_id),
         "run_uuid": run_uuid,
-        "output_file_path": output_path,
+        "created_at": timestamp,
         **parameters
     }
     
     # Add file paths to template variables
     if input_paths:
-        # For backward compatibility, if there's a single file called 'input_file', 
-        # also set 'input_file_path'
-        if len(input_paths) == 1 and "input_file" in input_paths:
-            template_vars["input_file_path"] = input_paths["input_file"]
-        
-        # Add all file paths with their names
-        for file_name, file_path in input_paths.items():
-            template_vars[f"{file_name}_path"] = file_path
-        
-        # Also add the full input_paths dict for more complex workflows
-        template_vars["input_paths"] = input_paths
+        for file_info in input_paths:
+            template_vars[f"{file_info['name']}_path"] = file_info["path"]
+        template_vars["input_paths"] = {file["name"]: file["path"] for file in input_paths}
     else:
         template_vars["input_file_path"] = ""
         template_vars["input_paths"] = {}
 
+    # Add source config to template variables
     source_config = workflow.get("source_config", {})
     if isinstance(source_config, str):
         try:
@@ -358,6 +325,7 @@ def build_dagster_config(workflow: Dict[str, Any], input_paths: Dict[str, str],
         template_vars.update(source_config)
         logger.info(f"Added source_config to template vars: {source_config}")
     
+    # Handle destination config for API workflows
     if workflow["destination"] == "API" and workflow.get("destination_config"):
         dest_config = workflow["destination_config"]
         if isinstance(dest_config, dict):
@@ -365,12 +333,38 @@ def build_dagster_config(workflow: Dict[str, Any], input_paths: Dict[str, str],
                 f"ckan_{k}": v for k, v in dest_config.items()
             })
 
+    # Handle dynamic output paths
+    output_file_paths = workflow.get("output_file_paths", [])
+    if output_file_paths:
+        # Add each output path to template variables
+        for output_config in output_file_paths:
+            path_template = output_config.get("path", "")
+            if path_template:
+                output_path = substitute_template_variables(path_template, template_vars)
+                output_name = output_config.get("name", "output")
+                template_vars[f"{output_name}_path"] = output_path
+        
+        # For backward compatibility, set primary output path
+        if output_file_paths:
+            primary_output = substitute_template_variables(
+                output_file_paths[0].get("path", ""), 
+                template_vars
+            )
+            template_vars["output_file_path"] = primary_output
+    else:
+        # Fallback to legacy output_file_pattern
+        output_pattern = workflow.get("output_file_pattern")
+        if output_pattern:
+            output_file_path = substitute_template_variables(output_pattern, template_vars)
+            template_vars["output_file_path"] = output_file_path
+
     config_template = workflow.get("config_template", {})
     logger.info(f"Config template before substitution: {json.dumps(config_template, indent=2)}")
     logger.info(f"Template variables: {json.dumps(template_vars, indent=2, default=str)}")
-
+        
     dagster_config = substitute_template_variables(config_template, template_vars)
     
+    # Add default resources if not present
     dagster_config.setdefault("resources", {}).update(workflow.get("resources_config", {
         "s3": {
             "config": {
@@ -385,7 +379,7 @@ def build_dagster_config(workflow: Dict[str, Any], input_paths: Dict[str, str],
     logger.info(f"Final Dagster config: {json.dumps(dagster_config, indent=2, default=str)}")
     return dagster_config
 
-def create_run_record(db: Session, workflow_id: int, triggered_by: int, file_mapping: Dict[str, str], 
+def create_run_record(db: Session, workflow_id: int, triggered_by: int, file_mapping: List[Dict[str, Any]], 
                      dagster_run_id: str, status: str, config: Dict[str, Any], run_name: str) -> Dict[str, Any]:
     """Create run record in database"""
     try:
@@ -417,6 +411,7 @@ def create_run_record(db: Session, workflow_id: int, triggered_by: int, file_map
         run_id, run_status, run_dagster_run_id, run_name = run_record
         db.commit()
 
+        logger.info(f"Created run record with ID {run_id}, input_file_path: {file_mapping}")
         return {
             "id": run_id,
             "status": run_status,
@@ -579,8 +574,8 @@ async def trigger_workflow_run(
     triggered_by: int = Form(...),
     run_name: str = Form(...),
     parameters: str = Form("{}"),
-    file: UploadFile = File(None),  # Keep for backward compatibility
-    file_mapping: str = Form("{}"),  # JSON string mapping file names to form field names
+    file: UploadFile = File(None),
+    file_mapping: str = Form("{}"),
     request: Request = None,
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:

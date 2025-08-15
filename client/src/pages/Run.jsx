@@ -21,7 +21,8 @@ import {
   FileJson,
   File,
   CircleCheckBig,
-  CircleAlert
+  CircleAlert,
+  FilePieChart
 } from 'lucide-react';
 import { GridLoader, ClipLoader } from 'react-spinners';
 import { Link } from 'react-router-dom';
@@ -135,10 +136,13 @@ const DurationDisplay = ({ start, end }) => {
   );
 };
 
-// FileDownloadComponent
-const FileDownloadComponent = ({ filePath, fileName, fileType, onDownload, isLoading = false }) => {
+// Updated FileDownloadComponent
+const FileDownloadComponent = ({ file, onDownload, isLoading = false }) => {
   const getFileIcon = (type) => {
     if (type === 'json') return <FileJson className="h-6 w-6 text-blue-600" />;
+    if (type === 'csv') return <FileText className="h-6 w-6 text-orange-600" />;
+    if (type === 'pdf') return <FilePieChart className="h-6 w-6 text-green-600" />;
+    
     return <File className="h-6 w-6 text-gray-600" />;
   };
   const getFileTypeDisplay = (type) => {
@@ -149,22 +153,28 @@ const FileDownloadComponent = ({ filePath, fileName, fileType, onDownload, isLoa
       default: return 'File';
     }
   };
-  if (!filePath) return null;
+  if (!file || !file.path) return null;
+
+  // Extract filename from path for display
+  const displayName = file.path.split('/').pop() || 'Unnamed file';
+
   return (
     <div className="sg-dataset-tile">
       <div className="flex items-center gap-4">
         <div className="flex items-center justify-center bg-gray-50 w-12 h-12 border border-gray-200 rounded-lg">
-          {getFileIcon(fileType)}
+          {getFileIcon(file.type)}
         </div>
         <div className="flex-1">
           <button
-            onClick={() => onDownload(filePath, fileType)}
+            onClick={() => onDownload(file.path, file.type)}
             disabled={isLoading}
             className="sg-dataset-title text-left disabled:opacity-50"
           >
-            {fileName}
+            {displayName}
           </button>
-          <p className="sg-dataset-description text-sm">{getFileTypeDisplay(fileType)}</p>
+          <p className="sg-dataset-description text-sm">
+            {file.description || getFileTypeDisplay(file.type)}
+          </p>
         </div>
         {isLoading && (
           <div className="ml-auto">
@@ -244,7 +254,7 @@ const Run = () => {
   const [runData, setRunData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [syncLoading, setSyncLoading] = useState(false);
-  const [downloadLoading, setDownloadLoading] = useState({ input: false, output: false });
+  const [downloadLoading, setDownloadLoading] = useState({});
   const [error, setError] = useState(null);
   const [expandedLogs, setExpandedLogs] = useState({});
   const [activeSection, setActiveSection] = useState('summary');
@@ -384,9 +394,9 @@ const Run = () => {
   };
 
   const getFileNameFromPath = (path) => {
-    if (!path) return null;
+    if (!path) return 'Unnamed file';
     const parts = path.split('/');
-    return parts[parts.length - 1] || 'Unknown file';
+    return parts[parts.length - 1] || 'Unnamed file';
   };
 
   const getFileType = (path) => {
@@ -395,10 +405,10 @@ const Run = () => {
     return extension || 'unknown';
   };
 
-  const handleDownload = async (filePath, type) => {
+  const handleDownload = async (filePath, type, fileIndex) => {
     if (!filePath) return;
     try {
-      setDownloadLoading(prev => ({ ...prev, [type]: true }));
+      setDownloadLoading(prev => ({ ...prev, [`${type}_${fileIndex}`]: true }));
       const accessToken = localStorage.getItem('access_token');
       const response = await fetch(`${API_BASE_URL}/files/download-url`, {
         method: 'POST',
@@ -422,7 +432,7 @@ const Run = () => {
     } catch (err) {
       setError(`Failed to download ${type} file: ${err.message}`);
     } finally {
-      setDownloadLoading(prev => ({ ...prev, [type]: false }));
+      setDownloadLoading(prev => ({ ...prev, [`${type}_${fileIndex}`]: false }));
     }
   };
 
@@ -489,6 +499,42 @@ const Run = () => {
   const { dagsterRunId, status, pipeline, executionPlan, eventConnection } = runData;
   const steps = executionPlan?.steps || [];
   const events = eventConnection?.events || [];
+
+  // Parse input_file_path and output_file_path
+  let inputFiles = [];
+  let outputFiles = [];
+
+  try {
+    // Handle input files
+    if (Array.isArray(runData.input_file_path)) {
+      inputFiles = runData.input_file_path.filter(file => file.path).map(file => ({
+        path: file.path,
+        name: file.name || getFileNameFromPath(file.path),
+        description: file.description || 'Input file',
+        type: file.type || getFileType(file.path)
+      }));
+    } else if (runData.input_file_path && typeof runData.input_file_path === 'object') {
+      // Backward compatibility for dictionary format
+      inputFiles = Object.entries(runData.input_file_path).map(([name, path]) => ({
+        path,
+        name: name || getFileNameFromPath(path),
+        description: `${name.charAt(0).toUpperCase() + name.slice(1)} input file`,
+        type: getFileType(path)
+      }));
+    }
+
+    // Handle output files
+    if (Array.isArray(runData.output_file_path)) {
+      outputFiles = runData.output_file_path.filter(file => file.path).map(file => ({
+        path: file.path,
+        name: file.name || getFileNameFromPath(file.path),
+        description: file.description || 'Output file',
+        type: file.type || getFileType(file.path)
+      }));
+    }
+  } catch (err) {
+    console.error('Failed to parse file paths:', err);
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -836,7 +882,7 @@ const Run = () => {
                       <th className="w-1/2">Run ID</th>
                       <td>#{runId}</td>
                     </tr>
-                                    <tr>
+                    <tr>
                       <th>Status</th>
                       <td><StatusBadge status={status} /></td>
                     </tr>
@@ -848,32 +894,31 @@ const Run = () => {
                       <th>Workflow Name</th>
                       <td>{pipeline?.name || 'Untitled Workflow'}</td>
                     </tr>
-<tr>
-  <th>Workflow ID</th>
-  <td>
-    {runData.workflow_id ? (
-      <Link to={`/workflows/workflow/${runData.workflow_id}`}>
-        {`WF${String(runData.workflow_id).padStart(4, '0')}`}
-      </Link>
-    ) : (
-      'N/A'
-    )}
-  </td>
-</tr>
-
+                    <tr>
+                      <th>Workflow ID</th>
+                      <td>
+                        {runData.workflow_id ? (
+                          <Link to={`/workflows/workflow/${runData.workflow_id}`}>
+                            {`WF${String(runData.workflow_id).padStart(4, '0')}`}
+                          </Link>
+                        ) : (
+                          'N/A'
+                        )}
+                      </td>
+                    </tr>
                     <tr>
                       <th>Dagster Run ID</th>
                       <td>{dagsterRunId || 'N/A'}</td>
                     </tr>
-  
                     <tr>
                       <th>Triggered By</th>
                       <td>
                         <div className="flex flex-col">
-<span className="font-medium">
-  {runData.triggered_by_username}{' '}
-  <span className="text-gray-500">{'('}{runData.triggered_by_email}{')'}</span>
-</span>                      </div>
+                          <span className="font-medium">
+                            {runData.triggered_by_username}{' '}
+                            <span className="text-gray-500">{'('}{runData.triggered_by_email}{')'}</span>
+                          </span>
+                        </div>
                       </td>
                     </tr>
                     <tr>
@@ -909,46 +954,56 @@ const Run = () => {
               </div>
               
               <div className="prose prose-lg max-w-none">
-                <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
-                  Input and output files associated with this workflow run. Click to download available files.
-                </p>
+                {(inputFiles.length > 0 || outputFiles.length > 0) && (
+                  <p className="text-[19px] leading-[32px] tracking-[0.15px] text-[#333333] mb-6">
+                    Input and output files associated with this workflow run. Click to download available files.
+                  </p>
+                )}
+                
                 <div className="space-y-6">
-                  <div>
-                    <h3 className="sg-dataset-title flex-1 mr-4 mb-3">
-                      Input file
-                    </h3>
-                    {runData.input_file_path ? (
-                      <FileDownloadComponent
-                        filePath={runData.input_file_path}
-                        fileName={getFileNameFromPath(runData.input_file_path)}
-                        fileType={getFileType(runData.input_file_path)}
-                        onDownload={handleDownload}
-                        isLoading={downloadLoading.input}
-                      />
-                    ) : (
-                      <div className="sg-dataset-tile">
-                        <p className="sg-dataset-description italic">No input file available</p>
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="sg-dataset-title flex-1 mr-4 mb-3">
-                      Output file
-                    </h3>
-                    {runData.output_file_path ? (
-                      <FileDownloadComponent
-                        filePath={runData.output_file_path}
-                        fileName={getFileNameFromPath(runData.output_file_path)}
-                        fileType={getFileType(runData.output_file_path)}
-                        onDownload={handleDownload}
-                        isLoading={downloadLoading.output}
-                      />
-                    ) : (
-                      <div className="sg-dataset-tile">
-                        <p className="sg-dataset-description italic">No output file generated</p>
-                      </div>
-                    )}
-                  </div>
+                  {/* Input files section */}
+                  {inputFiles.length > 0 && (
+                    <div>
+                      <h3 className="sg-dataset-title flex-1 mr-4 mb-3">
+                        Input files
+                      </h3>
+                      {inputFiles.map((file, index) => (
+                        <FileDownloadComponent
+                          key={`input_${index}`}
+                          file={{
+                            path: file.path,
+                            name: file.name,
+                            description: file.description,
+                            type: file.type
+                          }}
+                          onDownload={(path, type) => handleDownload(path, 'input', index)}
+                          isLoading={downloadLoading[`input_${index}`]}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Output files section */}
+                  {outputFiles.length > 0 && (
+                    <div>
+                      <h3 className="sg-dataset-title flex-1 mr-4 mb-3">
+                        Output files
+                      </h3>
+                      {outputFiles.map((file, index) => (
+                        <FileDownloadComponent
+                          key={`output_${index}`}
+                          file={{
+                            path: file.path,
+                            name: file.name,
+                            description: file.description,
+                            type: file.type
+                          }}
+                          onDownload={(path, type) => handleDownload(path, 'output', index)}
+                          isLoading={downloadLoading[`output_${index}`]}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </section>
@@ -1081,9 +1136,7 @@ const Run = () => {
                             </div>
                           </button>
                           {expandedLogs[event.id] && (
-  
-                              <LogEventDetails event={event} />
-        
+                            <LogEventDetails event={event} />
                           )}
                         </div>
                       );
