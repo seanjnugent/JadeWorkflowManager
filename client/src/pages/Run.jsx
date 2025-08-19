@@ -139,24 +139,44 @@ const DurationDisplay = ({ start, end }) => {
 // Updated FileDownloadComponent
 const FileDownloadComponent = ({ file, onDownload, isLoading = false }) => {
   const getFileIcon = (type) => {
-    if (type === 'json') return <FileJson className="h-6 w-6 text-blue-600" />;
-    if (type === 'csv') return <FileText className="h-6 w-6 text-orange-600" />;
-    if (type === 'pdf') return <FilePieChart className="h-6 w-6 text-green-600" />;
-    
+    if (type === "json") return <FileJson className="h-6 w-6 text-blue-600" />;
+    if (type === "csv") return <FileText className="h-6 w-6 text-orange-600" />;
+    if (type === "pdf") return <FilePieChart className="h-6 w-6 text-green-600" />;
     return <File className="h-6 w-6 text-gray-600" />;
   };
+
   const getFileTypeDisplay = (type) => {
     switch (type) {
-      case 'json': return 'JSON file';
-      case 'csv': return 'CSV file';
-      case 'txt': return 'Text file';
-      default: return 'File';
+      case "json": return "JSON file";
+      case "csv": return "CSV file";
+      case "txt": return "Text file";
+      default: return "File";
     }
   };
+
   if (!file || !file.path) return null;
 
-  // Extract filename from path for display
-  const displayName = file.path.split('/').pop() || 'Unnamed file';
+  // Extract filename from path for display + download
+  const displayName = file.path.split("/").pop() || "Unnamed file";
+
+  const handleDownloadClick = async () => {
+    try {
+      // Let parent handler fetch the file
+      const blob = await onDownload(file.path, file.type);
+
+      // Create a blob link and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name || displayName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Download failed", err);
+    }
+  };
 
   return (
     <div className="sg-dataset-tile">
@@ -166,7 +186,7 @@ const FileDownloadComponent = ({ file, onDownload, isLoading = false }) => {
         </div>
         <div className="flex-1">
           <button
-            onClick={() => onDownload(file.path, file.type)}
+            onClick={handleDownloadClick}
             disabled={isLoading}
             className="sg-dataset-title text-left disabled:opacity-50"
           >
@@ -185,6 +205,7 @@ const FileDownloadComponent = ({ file, onDownload, isLoading = false }) => {
     </div>
   );
 };
+
 
 // LogEventDetails Component
 const LogEventDetails = ({ event }) => {
