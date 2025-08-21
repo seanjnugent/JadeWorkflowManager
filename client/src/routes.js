@@ -1,6 +1,7 @@
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Connections from './pages/Connections';
+import Contact from './pages/Contact';
 import NewWorkflow from './pages/NewWorkflow';
 import NewRun from './pages/NewRun';
 import NewUser from './pages/NewUser';
@@ -20,6 +21,7 @@ import ManagePermissions from './pages/ManagePermissions';
 const routes = [
   { path: '/', element: <Home />, protected: true },
   { path: '/connections', element: <Connections />, protected: true },
+  { path: '/contact', element: <Contact />, protected: true },
   { path: '/home', element: <Home />, protected: true },
   { path: '/login', element: <Login />, protected: false },
   { path: '/runs', element: <Runs />, protected: true },
