@@ -1,6 +1,6 @@
 import React from 'react';
 
-const ContactPage = () => {
+const Contact = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
@@ -113,4 +113,4 @@ const ContactPage = () => {
   );
 };
 
-export default ContactPage;
+export default Contact;
