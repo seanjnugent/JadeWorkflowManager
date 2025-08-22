@@ -6,6 +6,7 @@ from github import Github, GithubException
 from dagster import (
     Definitions,
     JobDefinition,
+    ScheduleDefinition,
     resource,
     Field,
     StringSource,
@@ -788,136 +789,165 @@ def workflow_run_status_sensor(context: SensorEvaluationContext):
         run_requests=[]
     )
 
-def load_jobs_from_github(directory: str = "DAGs") -> List[JobDefinition]:
-    """Load Dagster job definitions from GitHub repository."""
+def load_jobs_and_schedules_from_github(directories: List[str] = ["DAGs", "maintenance"]) -> tuple[List[JobDefinition], List[ScheduleDefinition]]:
+    """Load Dagster job and schedule definitions from GitHub repository directories."""
     jobs = []
+    schedules = []
+    
     if not GITHUB_ACCESS_TOKEN:
-        logger.error("GITHUB_ACCESS_TOKEN is not set. Cannot load jobs from GitHub.")
-        return jobs
-        
+        logger.error("GITHUB_ACCESS_TOKEN is not set. Cannot load jobs and schedules from GitHub.")
+        return jobs, schedules
+
     try:
         g = Github(GITHUB_ACCESS_TOKEN)
         repo = g.get_repo(f"{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}")
         logger.info(f"Successfully accessed repo {GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}")
 
-        try:
-            contents = repo.get_contents(directory, ref=GITHUB_BRANCH)
-            if not contents:
-                logger.warning(f"No files found in directory {directory}")
-                return jobs
-        except GithubException as e:
-            if e.status == 404:
-                logger.error(f"Directory '{directory}' not found in repository.")
-                return jobs
-            logger.error(f"GitHub API error: {str(e)}")
-            return jobs
-
-        for content in contents:
-            if content.type == "file" and content.path.endswith(".py"):
-                module_name = content.name.replace(".py", "")
-                try:
-                    file_content = content.decoded_content.decode('utf-8')
-                    logger.debug(f"Loading job from {content.path}")
-                    
-                    # Create a clean module namespace
-                    module_globals = {
-                        '__name__': module_name,
-                        '__file__': f'<github:{content.path}>',
-                        'sys': sys,
-                        'os': os,
-                        'json': __import__('json'),
-                        'io': __import__('io'),
-                        'datetime': __import__('datetime'),
-                        'load_dotenv': load_dotenv,
-                        'pd': __import__('pandas'),
-                        'boto3': boto3,
-                        'create_engine': create_engine,
-                        'text': text,
-                        'job': job,
-                        'op': op,
-                        'graph': graph,
-                        'GraphDefinition': GraphDefinition,
-                        'OpExecutionContext': OpExecutionContext,
-                        'Out': __import__('dagster').Out,
-                        'In': __import__('dagster').In,
-                        'Field': Field,
-                        'Int': __import__('dagster').Int,
-                        'String': __import__('dagster').String,
-                        'Permissive': __import__('dagster').Permissive,
-                        'Dict': dict,
-                        'Optional': type(None),
-                        'List': list,
-                    }
-                    
-                    try:
-                        from botocore.config import Config as BotoConfig
-                        module_globals['BotoConfig'] = BotoConfig
-                    except ImportError:
-                        pass
-                    
-                    # Execute the file content
-                    exec(file_content, module_globals)
-                    
-                    # Look for JobDefinition objects
-                    found_job = False
-                    for name, obj in module_globals.items():
-                        if isinstance(obj, JobDefinition):
-                            # Set job name
-                            workflow_id = module_name.split('_')[-1] if module_name.startswith('workflow_job_') else name
-                            obj._name = f"workflow_job_{workflow_id}"
-                            
-                            # Assign resources
-                            obj._resource_defs = {
-                                "s3": s3_resource,
-                                "db_engine": db_engine_resource
-                            }
-                            
-                            # Assign hooks
-                            obj._hooks = {log_success, log_failure}
-                            
-                            # Assign tags
-                            obj.tags = obj.tags or {}
-                            obj.tags["workflow_id"] = workflow_id
-                            
-                            jobs.append(obj)
-                            logger.info(f"Successfully loaded job: {obj.name} from {content.path}")
-                            found_job = True
-                            break
-                    
-                    if not found_job:
-                        logger.warning(f"No JobDefinition found in {content.path}")
-                        
-                except Exception as e:
-                    logger.error(f"Failed to load job from {content.path}: {str(e)}")
-                    import traceback
-                    logger.error(f"Traceback: {traceback.format_exc()}")
+        for directory in directories:
+            try:
+                contents = repo.get_contents(directory, ref=GITHUB_BRANCH)
+                if not contents:
+                    logger.warning(f"No files found in directory {directory}")
                     continue
-                
+            except GithubException as e:
+                if e.status == 404:
+                    logger.error(f"Directory '{directory}' not found in repository.")
+                    continue
+                logger.error(f"GitHub API error for directory {directory}: {str(e)}")
+                continue
+
+            for content in contents:
+                if content.type == "file" and content.path.endswith(".py"):
+                    module_name = content.name.replace(".py", "")
+                    try:
+                        file_content = content.decoded_content.decode('utf-8')
+                        logger.debug(f"Loading job/schedule from {content.path}")
+
+                        # Create a clean module namespace
+                        module_globals = {
+                            '__name__': module_name,
+                            '__file__': f'<github:{content.path}>',
+                            'sys': sys,
+                            'os': os,
+                            'json': __import__('json'),
+                            'io': __import__('io'),
+                            'datetime': __import__('datetime'),
+                            'timezone': timezone,
+                            'load_dotenv': load_dotenv,
+                            'pd': __import__('pandas'),
+                            'boto3': boto3,
+                            'create_engine': create_engine,
+                            'text': text,
+                            'job': job,
+                            'op': op,
+                            'graph': graph,
+                            'GraphDefinition': GraphDefinition,
+                            'OpExecutionContext': OpExecutionContext,
+                            'ScheduleDefinition': ScheduleDefinition,
+                            'Out': __import__('dagster').Out,
+                            'In': __import__('dagster').In,
+                            'Field': Field,
+                            'Int': __import__('dagster').Int,
+                            'String': __import__('dagster').String,
+                            'Permissive': __import__('dagster').Permissive,
+                            'Dict': dict,
+                            'Optional': type(None),
+                            'List': list,
+                        }
+
+                        try:
+                            from botocore.config import Config as BotoConfig
+                            module_globals['BotoConfig'] = BotoConfig
+                        except ImportError:
+                            pass
+
+                        # Execute the file content
+                        exec(file_content, module_globals)
+
+                        # Look for JobDefinition and ScheduleDefinition objects
+                        found_job = False
+                        found_schedule = False
+                        
+                        for name, obj in module_globals.items():
+                            # Handle JobDefinition objects
+                            if isinstance(obj, JobDefinition):
+                                # Set job name based on directory
+                                if directory == "maintenance":
+                                    job_prefix = "maintenance_job"
+                                else:
+                                    job_prefix = "workflow_job"
+                                workflow_id = module_name.split('_')[-1] if module_name.startswith(f'{job_prefix}_') else name
+                                obj._name = f"{job_prefix}_{workflow_id}"
+
+                                # Assign resources
+                                obj._resource_defs = {
+                                    "s3": s3_resource,
+                                    "db_engine": db_engine_resource
+                                }
+
+                                # Assign hooks
+                                obj._hooks = {log_success, log_failure}
+
+                                # Assign tags
+                                obj.tags = obj.tags or {}
+                                obj.tags["workflow_id"] = workflow_id
+                                obj.tags["job_type"] = job_prefix
+
+                                jobs.append(obj)
+                                logger.info(f"Successfully loaded job: {obj.name} from {content.path}")
+                                found_job = True
+                                
+                            # Handle ScheduleDefinition objects
+                            elif isinstance(obj, ScheduleDefinition):
+                                # Update schedule to use resources if the job doesn't have them
+                                if hasattr(obj.job, '_resource_defs') and not obj.job._resource_defs:
+                                    obj.job._resource_defs = {
+                                        "s3": s3_resource,
+                                        "db_engine": db_engine_resource
+                                    }
+                                
+                                # Add hooks if not present
+                                if hasattr(obj.job, '_hooks') and not obj.job._hooks:
+                                    obj.job._hooks = {log_success, log_failure}
+
+                                schedules.append(obj)
+                                logger.info(f"Successfully loaded schedule: {obj.name} from {content.path}")
+                                found_schedule = True
+
+                        if not found_job and not found_schedule:
+                            logger.warning(f"No JobDefinition or ScheduleDefinition found in {content.path}")
+
+                    except Exception as e:
+                        logger.error(f"Failed to load job/schedule from {content.path}: {str(e)}")
+                        import traceback
+                        logger.error(f"Traceback: {traceback.format_exc()}")
+                        continue
+
     except GithubException as e:
         logger.error(f"GitHub API error: {str(e)}")
-        return jobs
+        return jobs, schedules
     except Exception as e:
-        logger.error(f"Unexpected error loading jobs: {str(e)}")
+        logger.error(f"Unexpected error loading jobs and schedules: {str(e)}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
-        return jobs
-    
-    return jobs
+        return jobs, schedules
 
-def get_all_jobs() -> List[JobDefinition]:
-    """Get all jobs from GitHub sources only."""
+    return jobs, schedules
+
+def get_all_jobs_and_schedules() -> tuple[List[JobDefinition], List[ScheduleDefinition]]:
+    """Get all jobs and schedules from GitHub sources (DAGs and maintenance directories)."""
     try:
-        jobs = load_jobs_from_github(directory="DAGs")
-        if not jobs:
-            logger.warning("No jobs loaded from GitHub, check GITHUB_ACCESS_TOKEN or DAGs/ directory")
+        jobs, schedules = load_jobs_and_schedules_from_github(directories=["DAGs", "maintenance"])
+        if not jobs and not schedules:
+            logger.warning("No jobs or schedules loaded from GitHub, check GITHUB_ACCESS_TOKEN or directories")
         else:
-            logger.info(f"Successfully loaded {len(jobs)} jobs from GitHub")
-        return jobs
+            logger.info(f"Successfully loaded {len(jobs)} jobs and {len(schedules)} schedules from GitHub")
+        return jobs, schedules
     except Exception as e:
-        logger.error(f"Failed to load jobs: {str(e)}")
+        logger.error(f"Failed to load jobs and schedules: {str(e)}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
-        return []
+        return [], []
 
 # --- Fallback job to ensure repository is valid ---
 @op
@@ -934,9 +964,13 @@ def noop_op(context: OpExecutionContext):
 def fallback_job():
     noop_op()
 
+# Load jobs and schedules
+all_jobs, all_schedules = get_all_jobs_and_schedules()
+
 # Define the repository
 defs = Definitions(
-    jobs=get_all_jobs() or [fallback_job],  # Ensure at least one job exists
+    jobs=all_jobs or [fallback_job],  # Ensure at least one job exists
+    schedules=all_schedules,  # Add schedules to definitions
     resources={
         "s3": s3_resource,
         "db_engine": db_engine_resource

@@ -550,13 +550,12 @@ const Analytics = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex justify-center items-center">
-        <div className="text-center">
-          <div className="flex justify-center items-center">
-            <GridLoader color="#0065bd" size={17.5} margin={7.5} />
-          </div>
-          <p className="text-gray-600 text-sm mt-2">Loading analytics data...</p>
-        </div>
-      </div>
+                                <div className="text-center">
+                                  <div className="flex justify-center items-center">
+                                    <GridLoader color="#0065bd" size={17.5} margin={7.5} />
+                                  </div>
+                                </div>
+                              </div>
     );
   }
 

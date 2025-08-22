@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, RefreshCw, Clock, ChevronLeft, Play, FileText, CircleCheckBig, CircleAlert, GitBranch, CircleHelp, Github, X, Pencil, FileSpreadsheet, Download, Eye, Settings, ArrowRight } from 'lucide-react';
+import { GridLoader } from 'react-spinners';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
@@ -218,51 +219,81 @@ const DestinationConfigModal = ({ isOpen, onClose, initialConfig, onSave }) => {
 };
 
 // GitHub DAG Link Component
+// GitHub DAG Link Component - FIXED VERSION
 const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
   const [dagInfo, setDagInfo] = useState({ authorized: false });
   const [loading, setLoading] = useState(true);
 
   const extractJobName = (path) => {
     if (!path) return null;
+    
+    // Try to extract workflow_job_X pattern from the path
     const match = path.match(/workflow_job_(\d+)/);
     if (match) return match[0];
+    
+    // If no match, try to extract from filename or segments
     const segments = [...path.split('.'), ...path.replace(/\\/g, '/').split('/')];
     for (let seg of segments.reverse()) {
       const jobMatch = seg.match(/workflow_job_\d+/);
       if (jobMatch) return jobMatch[0];
     }
+    
     return null;
   };
 
   const dagJobName = extractJobName(dagPath);
   const filePath = dagJobName || 'unknown';
+  
+  // Build the correct GitHub URL
   const githubUrl = `https://github.com/${repoOwner}/${repoName}/blob/main/DAGs/${filePath}.py`;
 
   useEffect(() => {
     const fetchDagInfo = async () => {
+      if (!dagJobName) {
+        console.warn('No valid DAG job name extracted from path:', dagPath);
+        setDagInfo({ authorized: false });
+        setLoading(false);
+        return;
+      }
+
       try {
-        const response = await fetch(`${API_BASE_URL}/workflows/github-dag-info?dag_path=${filePath}`, {
-          headers: { 'Accept': 'application/json' }
+        // Updated API call with proper error handling
+        const accessToken = localStorage.getItem('access_token');
+        const response = await fetch(`${API_BASE_URL}/api/api/github-dag-info?dag_path=${filePath}`, {
+          headers: { 
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${accessToken}` // Add auth header if needed
+          }
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        if (!response.ok) {
+          console.error(`GitHub API error: HTTP ${response.status}`);
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
         const data = await response.json();
+        console.log('GitHub DAG info received:', data); // Debug log
+        
         setDagInfo(data);
-        if (data.authorized && setVersionControl) {
+        
+        // Update version control info if data is available and authorized
+        if (data.authorized && setVersionControl && data.last_updated) {
           setVersionControl({
-            version: 'v' + data.version,
-            lastModified: new Date(data.last_updated).toLocaleDateString(),
-            modifiedBy: data.author
+            version: data.version ? `v${data.version}` : 'N/A',
+            lastModified: new Date(data.last_updated).toLocaleDateString('en-GB'),
+            modifiedBy: data.author || 'Unknown'
           });
         }
       } catch (error) {
         console.error('Error fetching GitHub DAG info:', error);
-        setDagInfo({ authorized: false });
+        setDagInfo({ authorized: false, error: error.message });
       } finally {
         setLoading(false);
       }
     };
+
     fetchDagInfo();
-  }, [filePath, repoOwner, repoName]);
+  }, [dagPath, filePath, repoOwner, repoName, setVersionControl]); // Add dagPath to dependencies
 
   if (loading) {
     return (
@@ -272,26 +303,42 @@ const GitHubDagLink = ({ dagPath, repoOwner, repoName, setVersionControl }) => {
     );
   }
 
+  // Enhanced tooltip content with better error handling
   const tooltipContent = dagInfo.authorized ? (
     <div className="space-y-1">
       <p>View DAG in GitHub</p>
-      <p className="text-xs">Last updated: {new Date(dagInfo.last_updated).toLocaleString()}</p>
-      <p className="text-xs">Author: {dagInfo.author}</p>
-      <p className="text-xs">Commit: {dagInfo.commit_message?.split('\n')[0]}</p>
+      {dagInfo.last_updated && (
+        <p className="text-xs">Last updated: {new Date(dagInfo.last_updated).toLocaleString('en-GB')}</p>
+      )}
+      {dagInfo.author && (
+        <p className="text-xs">Author: {dagInfo.author}</p>
+      )}
+      {dagInfo.commit_message && (
+        <p className="text-xs">Commit: {dagInfo.commit_message?.split('\n')[0]}</p>
+      )}
+      <p className="text-xs">File: {filePath}.py</p>
     </div>
   ) : (
-    'No access to GitHub repository'
+    <div className="space-y-1">
+      <p>GitHub repository access</p>
+      <p className="text-xs">File: {filePath}.py</p>
+      {dagInfo.error && (
+        <p className="text-xs text-red-300">Error: {dagInfo.error}</p>
+      )}
+      <p className="text-xs">Click to view on GitHub</p>
+    </div>
   );
 
   return (
     <CustomTooltip content={tooltipContent}>
       <a
-        href={dagInfo.authorized ? githubUrl : '#'}
-        target={dagInfo.authorized ? '_blank' : undefined}
-        rel={dagInfo.authorized ? 'noopener noreferrer' : undefined}
-        className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors duration-200 ${!dagInfo.authorized ? 'opacity-50 cursor-not-allowed' : ''}`}
+        href={githubUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0065bd] rounded hover:bg-[#004a9f] transition-colors duration-200`}
         onClick={(e) => {
-          if (!dagInfo.authorized) e.preventDefault();
+          // Always allow the click to go through to GitHub
+          console.log('GitHub link clicked:', githubUrl);
         }}
       >
         <Github className="h-4 w-4" />
@@ -381,6 +428,9 @@ const Workflow = () => {
   const [versionControl, setVersionControl] = useState(null);
   const [error, setError] = useState(null);
   const [activeSection, setActiveSection] = useState('overview');
+  const userId = localStorage.getItem('userId');
+
+
 
   useEffect(() => {
     const sections = ['overview', 'run-history', 'input-structure', 'parameters', 'destination-config', 'config-template', 'version-control'];
@@ -389,6 +439,9 @@ const Workflow = () => {
       rootMargin: '-45px 0px -60% 0px',
       threshold: 0
     };
+   
+     
+    
 
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
@@ -461,6 +514,15 @@ const Workflow = () => {
     a.click();
     window.URL.revokeObjectURL(url);
   };
+
+
+   useEffect(() => {
+        document.title = "Jade | Workflow";
+        if (!userId) {
+          navigate('/login', { replace: true });
+        }
+      }, [userId, navigate]);
+
 
   const handleSaveParameters = async (updatedParams) => {
     try {
@@ -545,13 +607,18 @@ const Workflow = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex justify-center items-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+if (loading) {
+  return (
+              <div className="min-h-screen bg-white flex justify-center items-center">
+                      <div className="text-center">
+                        <div className="flex justify-center items-center">
+                          <GridLoader color="#0065bd" size={17.5} margin={7.5} />
+                        </div>
+                      </div>
+                    </div>
+  );
+}
+
 
   if (!workflowDetails) {
     return (
@@ -1054,33 +1121,37 @@ const Workflow = () => {
                   <h3 className="sg-dataset-title flex-1 mr-4">
                     {fileName}
                   </h3>
-                  <div className="flex gap-3 flex-wrap">
-                    {hasStructure && (
-                      <button
-                        onClick={() => setShowInputModal({ 
-                          isOpen: true, 
-                          fileName, 
-                          structure: fileStructure 
-                        })}
-                        className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Structure
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleDownloadTemplate({
-                        name: fileName,
-                        structure: fileStructure,
-                        format: fileFormat.toLowerCase()
-                      })}
-                      className="px-4 py-2 bg-[#0065bd] text-white font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
-                      disabled={!hasStructure}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Download Template
-                    </button>
-                  </div>
+                  <div className="flex gap-3 flex-wrap justify-end">
+  {hasStructure && (
+    <button
+      onClick={() => setShowInputModal({
+        isOpen: true,
+        fileName,
+        structure: fileStructure
+      })}
+      className="px-4 py-2 bg-[#0065bd] text-white text-sm font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+    >
+      <Eye className="h-4 w-4 mr-2" />
+      View Structure
+    </button>
+  )}
+  {hasStructure && (
+    <button
+      onClick={() => handleDownloadTemplate({
+        name: fileName,
+        structure: fileStructure,
+        format: fileFormat.toLowerCase()
+      })}
+      className="px-4 py-2 bg-[#0065bd] text-white text-sm font-medium rounded hover:bg-[#004a9f] transition-colors duration-200 flex items-center"
+      disabled={!hasStructure}
+    >
+      <Download className="h-4 w-4 mr-2" />
+      Download Template
+    </button>
+  )}
+</div>
+
+
                 </div>
                 
                 <div className="flex items-center gap-4 text-[14px] text-[#5e5e5e] leading-[24px] tracking-[0.15px] mb-3 flex-wrap">

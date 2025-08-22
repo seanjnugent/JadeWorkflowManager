@@ -23,6 +23,7 @@ const Hero = ({ user }) => {
 const Home = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const userId = localStorage.getItem('userId');
 
   // Fetch user info
   useEffect(() => {
@@ -63,6 +64,13 @@ const Home = () => {
 
     fetchUser();
   }, [navigate]);
+
+ useEffect(() => {
+        document.title = "Jade | Home";
+        if (!userId) {
+          navigate('/login', { replace: true });
+        }
+      }, [userId, navigate]);
 
   return (
     <div>

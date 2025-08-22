@@ -29,6 +29,14 @@ const Runs = () => {
     workflow_id: [],
     user_name: []
   });
+  const userId = localStorage.getItem('userId');
+
+  useEffect(() => {
+    document.title = "Jade | Runs";
+    if (!userId) {
+      navigate('/login', { replace: true });
+    }
+  }, [userId, navigate]);
 
   const limit = 10;
 

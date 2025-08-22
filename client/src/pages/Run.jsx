@@ -469,7 +469,6 @@ const Run = () => {
           <div className="flex justify-center items-center">
             <GridLoader color="#0065bd" size={17.5} margin={7.5} />
           </div>
-          <p className="text-gray-600 text-sm mt-2">Loading run details...</p>
         </div>
       </div>
     );

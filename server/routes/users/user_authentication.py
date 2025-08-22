@@ -8,7 +8,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 import logging
 from ..get_health_check import get_db
-
+from fastapi import Body
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 # JWT Configuration
 SECRET_KEY = "your-secret-key-here"  # Replace with a secure key in production
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 180
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 # Password hashing
@@ -174,6 +174,12 @@ async def authenticate_user(user_login: UserLogin, db: Session = Depends(get_db)
             {"email": email}
         )
 
+        # Delete existing refresh tokens for the user to prevent multi-tab conflicts
+        db.execute(
+            text("DELETE FROM workflow.refresh_tokens WHERE user_id = :user_id"),
+            {"user_id": user.user_id}
+        )
+
         # Generate tokens
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
@@ -184,7 +190,7 @@ async def authenticate_user(user_login: UserLogin, db: Session = Depends(get_db)
             data={"sub": str(user.user_id)}, expires_delta=refresh_token_expires
         )
 
-        # Store refresh token in database
+        # Store new refresh token in database
         db.execute(
             text("""
                 INSERT INTO workflow.refresh_tokens (user_id, token, expires_at)
@@ -223,15 +229,13 @@ async def authenticate_user(user_login: UserLogin, db: Session = Depends(get_db)
         )
     
 @router.post("/user/refresh")
-async def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
+async def refresh_token(refresh_token: str = Body(..., embed=True), db: Session = Depends(get_db)):
     try:
-        # Verify refresh token
         payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-        # Check if refresh token exists in database
         token_data = db.execute(
             text("""
                 SELECT expires_at 
@@ -244,16 +248,14 @@ async def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
         if not token_data or token_data.expires_at < datetime.now(timezone.utc):
             raise HTTPException(status_code=401, detail="Refresh token expired or invalid")
 
-        # Generate new access token
         access_token = create_access_token(
             data={"sub": user_id}, expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         )
 
         return {"access_token": access_token, "token_type": "bearer"}
-
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
-
+    
 @router.get("/user/verify")
 async def verify_user(credentials: HTTPAuthorizationCredentials = Security(security)):
     token_data = verify_token(credentials.credentials)

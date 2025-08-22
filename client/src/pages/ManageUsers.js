@@ -254,17 +254,6 @@ const ManageUsers = () => {
           position: relative;
           overflow: hidden;
         }
-        .sg-workflow-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-          background: linear-gradient(90deg, #0065bd, #004a9f);
-          transform: scaleX(0);
-          transition: transform 0.3s ease;
-        }
         .sg-workflow-card:hover {
           transform: translateY(-2px);
           box-shadow: 0 8px 25px rgba(0, 101, 189, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08);
@@ -272,14 +261,6 @@ const ManageUsers = () => {
         }
         .sg-workflow-card:hover::before {
           transform: scaleX(1);
-        }
-        .sg-workflow-title {
-          font-size: 20px;
-          line-height: 28px;
-          font-weight: 600;
-          color: #1f2937;
-          margin-bottom: 12px;
-          transition: color 0.3s ease;
         }
         .sg-workflow-card:hover .sg-workflow-title {
           color: #0065bd;

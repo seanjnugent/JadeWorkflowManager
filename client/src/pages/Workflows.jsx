@@ -5,6 +5,7 @@ import { GridLoader } from 'react-spinners';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
+
 const Workflows = () => {
   const navigate = useNavigate();
   const [allWorkflows, setAllWorkflows] = useState([]);
@@ -30,6 +31,14 @@ const Workflows = () => {
   });
 
   const limit = 10;
+  const userId = localStorage.getItem('userId');
+
+  useEffect(() => {
+    document.title = "Jade | Workflows";
+    if (!userId) {
+      navigate('/login', { replace: true });
+    }
+  }, [userId, navigate]);
 
   useEffect(() => {
     setLoading(true);
@@ -873,7 +882,7 @@ const Workflows = () => {
                 </div>
               </div>
             </div>
-
+ 
             {loading ? (
               <div className="flex justify-center items-center py-12">
                 <GridLoader color="#0065bd" size={17.5} margin={7.5} />
