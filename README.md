@@ -44,10 +44,21 @@ The dashboard provides quick access to key features:
 ### Installation
 
 - Clone the repository:
+```bash
+git clone https://github.com/seanjnugent/JadeWorkflowManager.git
+cd JadeWorkflowManager
+```
 
-git clone https://github.com/seanjnugent/jade.git
-cd jade
-
+- Backend setup (Python + FastAPI + Dagster):
+Create and activate a virtual environment:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+Install Python dependencies:
+```bash
+pip install -r requirements.txt
+```
 - Build the client:
 ```bash
 cd client
@@ -85,6 +96,15 @@ Ensure environment variables for JWT secrets and Fernet key are set for authenti
 - Database: PostgreSQL (stores user credentials, workflow configs, and definitions)
 - DevOps: Supports CI/CD pipelines (e.g., GitHub Actions) for automated deployment and testing.
 - Cloud: Deployable on AWS for scalable test environments (e.g., EC2, S3 for file storage).
+
+## Environment variables
+- Create a .env file in the backend project root with values for:
+- Database credentials (Postgres URL, username, password)
+- AWS S3 (bucket, access keys)
+- Dagster details (host, port)
+- GitHub details (repo, personal access token if required)
+- Encryption key (generate Fernet key: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+- JWT secret (for authentication)
 
 ## Usage
 - Access the dashboard at http://localhost:3000 (or your deployed URL).
